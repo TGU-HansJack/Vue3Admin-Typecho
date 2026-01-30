@@ -1,0 +1,503 @@
+<?php
+
+namespace TypechoPlugin\Vue3Admin;
+
+use Typecho\Db;
+use Typecho\Plugin\Exception as PluginException;
+use Typecho\Plugin\PluginInterface;
+use Typecho\Widget\Helper\Form;
+use Typecho\Widget\Helper\Form\Element\Text;
+
+if (!defined('__TYPECHO_ROOT_DIR__')) {
+    exit;
+}
+
+/**
+ * Vue3Admin
+ *
+ * @package Vue3Admin
+ * @author HansJack
+ * @version 1.0.0
+ * @link https://www.hansjack.com
+ */
+class Plugin implements PluginInterface
+{
+    private const ADMIN_DIR = 'Vue3Admin';
+    private const VERSION = '1.0.0';
+    private const DEPLOY_MARKER = '.v3a_deploy_version';
+
+    private static function getDeployVersion(): string
+    {
+        $paths = [
+            __DIR__ . '/admin/index.php',
+            __DIR__ . '/admin/login.php',
+            __DIR__ . '/admin/api.php',
+            __DIR__ . '/admin/assets/app.js',
+            __DIR__ . '/admin/assets/app.css',
+        ];
+
+        $build = 0;
+        foreach ($paths as $path) {
+            $mtime = @filemtime($path);
+            if ($mtime !== false) {
+                $build = max($build, (int) $mtime);
+            }
+        }
+
+        return self::VERSION . '+' . $build;
+    }
+
+    public static function activate()
+    {
+        self::deployAdminDirectory();
+        self::installOrUpgradeSchema();
+        self::switchAdminDir('/' . self::ADMIN_DIR . '/');
+
+        // 运行时自愈：当后台目录被误删/覆盖/升级后缺文件时自动重新部署
+        \Typecho\Plugin::factory('admin/common.php')->begin = __CLASS__ . '::ensureAdminDirectory';
+        \Typecho\Plugin::factory('index.php')->begin = __CLASS__ . '::ensureAdminDirectory';
+
+        // 访问统计（前台）：用于仪表盘“访问量/今日 IP”等数据
+        \Typecho\Plugin::factory('Widget_Archive')->afterRender = __CLASS__ . '::trackVisit';
+
+        return _t('Vue3Admin 已启用：后台路径已切换到 /%s/', self::ADMIN_DIR);
+    }
+
+    public static function deactivate()
+    {
+        self::switchAdminDir('/admin/');
+        return _t('Vue3Admin 已停用：后台路径已恢复为 /admin/');
+    }
+
+    public static function config(Form $form)
+    {
+        $primaryColor = new Text(
+            'primaryColor',
+            null,
+            '#171717',
+            _t('主色（Primary Color）'),
+            _t('用于面板主题色（CSS 变量）。默认：#171717')
+        );
+        $form->addInput($primaryColor);
+
+        $vueCdn = new Text(
+            'vueCdn',
+            null,
+            'https://unpkg.com/vue@3/dist/vue.global.prod.js',
+            _t('Vue3 CDN'),
+            _t('Vue 3 全局构建地址（可替换为自建静态资源）。')
+        );
+        $form->addInput($vueCdn);
+
+        $echartsCdn = new Text(
+            'echartsCdn',
+            null,
+            'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js',
+            _t('ECharts CDN'),
+            _t('ECharts 地址（可替换为自建静态资源）。')
+        );
+        $form->addInput($echartsCdn);
+    }
+
+    public static function personalConfig(Form $form)
+    {
+    }
+
+    /**
+     * 访问统计：记录前台访问日志（用于仪表盘数据）。
+     *
+     * @param \Widget\Archive $archive
+     */
+    public static function trackVisit($archive): void
+    {
+        // 运行时自愈：即使用户没有重新启用插件，也能把缺失的后台目录补齐
+        self::ensureAdminDirectory();
+
+        // 不统计后台
+        if (defined('__TYPECHO_ADMIN__') && __TYPECHO_ADMIN__) {
+            return;
+        }
+
+        // Feed/预览等场景跳过
+        if (isset($archive->parameter) && !empty($archive->parameter->isFeed)) {
+            return;
+        }
+
+        try {
+            $db = Db::get();
+        } catch (\Throwable $e) {
+            return;
+        }
+
+        $request = \Typecho\Request::getInstance();
+        $ip = (string) $request->getIp();
+
+        // 避免把 “unknown” 当作有效统计
+        if ($ip === '' || $ip === 'unknown') {
+            return;
+        }
+
+        $uri = (string) $request->getRequestUri();
+        $referer = (string) ($request->getReferer() ?? '');
+        $ua = (string) ($request->getAgent() ?? '');
+
+        $cid = null;
+        if (isset($archive->cid) && is_numeric($archive->cid)) {
+            $cid = (int) $archive->cid;
+        }
+
+        try {
+            $db->query(
+                $db->insert('table.v3a_visit_log')->rows([
+                    'ip' => $ip,
+                    'uri' => self::truncate($uri, 255),
+                    'cid' => $cid,
+                    'referer' => $referer === '' ? null : self::truncate($referer, 255),
+                    'ua' => $ua === '' ? null : self::truncate($ua, 255),
+                    'created' => time(),
+                ]),
+                Db::WRITE
+            );
+        } catch (\Throwable $e) {
+            // 表不存在或写入失败时不影响前台渲染
+        }
+    }
+
+    private static function truncate(string $value, int $maxLength): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        if (function_exists('mb_substr')) {
+            return (string) mb_substr($value, 0, $maxLength);
+        }
+
+        return substr($value, 0, $maxLength);
+    }
+
+    private static function deployAdminDirectory(): void
+    {
+        $source = __DIR__ . '/admin';
+        $target = rtrim(__TYPECHO_ROOT_DIR__, '/\\') . DIRECTORY_SEPARATOR . self::ADMIN_DIR;
+
+        if (!is_dir($source)) {
+            throw new PluginException('Vue3Admin admin package not found: ' . $source);
+        }
+
+        self::copyDirectory($source, $target);
+
+        // 写入部署标记：用于运行时判断是否需要重新部署
+        $markerPath = $target . DIRECTORY_SEPARATOR . self::DEPLOY_MARKER;
+        @file_put_contents($markerPath, self::getDeployVersion());
+    }
+
+    /**
+     * 运行时自愈：确保 /Vue3Admin/ 目录存在且包含必要文件。
+     * 该方法会挂载到前台与后台的 begin 钩子上，必须保证不影响正常访问。
+     */
+    public static function ensureAdminDirectory(): void
+    {
+        try {
+            $target = rtrim(__TYPECHO_ROOT_DIR__, '/\\') . DIRECTORY_SEPARATOR . self::ADMIN_DIR;
+            $expectedMarker = self::getDeployVersion();
+
+            // 必需文件缺失（或版本标记不一致）时，自动重新部署
+            $markerPath = $target . DIRECTORY_SEPARATOR . self::DEPLOY_MARKER;
+            $marker = is_file($markerPath) ? trim((string) @file_get_contents($markerPath)) : '';
+
+            $required = [
+                'index.php',
+                'login.php',
+                'api.php',
+                'bootstrap.php',
+                'common.php',
+                'welcome.php',
+                'index.html',
+                'assets' . DIRECTORY_SEPARATOR . 'app.js',
+                'assets' . DIRECTORY_SEPARATOR . 'app.css',
+            ];
+
+            $missing = false;
+            foreach ($required as $rel) {
+                $path = $target . DIRECTORY_SEPARATOR . $rel;
+                if (!file_exists($path)) {
+                    $missing = true;
+                    break;
+                }
+            }
+
+            if ($missing || $marker !== $expectedMarker) {
+                self::deployAdminDirectory();
+            }
+        } catch (\Throwable $e) {
+            // 自愈失败不影响前台/后台正常使用
+        }
+    }
+
+    private static function copyDirectory(string $source, string $target): void
+    {
+        if (!is_dir($target) && !@mkdir($target, 0755, true) && !is_dir($target)) {
+            throw new PluginException('Cannot create directory: ' . $target);
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($source, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $subPath = $iterator->getSubPathName();
+            $destPath = $target . DIRECTORY_SEPARATOR . $subPath;
+
+            if ($item->isDir()) {
+                if (!is_dir($destPath) && !@mkdir($destPath, 0755, true) && !is_dir($destPath)) {
+                    throw new PluginException('Cannot create directory: ' . $destPath);
+                }
+                continue;
+            }
+
+            if (!@copy($item->getPathname(), $destPath)) {
+                throw new PluginException('Cannot copy file: ' . $destPath);
+            }
+        }
+    }
+
+    private static function switchAdminDir(string $adminDir): void
+    {
+        $adminDir = '/' . trim($adminDir, '/') . '/';
+        $configFilePath = rtrim(__TYPECHO_ROOT_DIR__, '/\\') . DIRECTORY_SEPARATOR . 'config.inc.php';
+
+        if (!file_exists($configFilePath)) {
+            throw new PluginException('Missing config.inc.php: ' . $configFilePath);
+        }
+
+        $config = file_get_contents($configFilePath);
+        if ($config === false) {
+            throw new PluginException('Cannot read config.inc.php: ' . $configFilePath);
+        }
+
+        // 自动备份（首次）
+        $backupPath = $configFilePath . '.vue3admin.bak';
+        if (!file_exists($backupPath)) {
+            @file_put_contents($backupPath, $config);
+        }
+
+        $replacement = "define('__TYPECHO_ADMIN_DIR__', '{$adminDir}');";
+        $patterns = [
+            "/define\\(\\s*'__TYPECHO_ADMIN_DIR__'\\s*,\\s*'[^']*'\\s*\\)\\s*;/",
+            '/define\\(\\s*"__TYPECHO_ADMIN_DIR__"\\s*,\\s*"[^"]*"\\s*\\)\\s*;/',
+            "/define\\(\\s*'__TYPECHO_ADMIN_DIR__'\\s*,\\s*\"[^\"]*\"\\s*\\)\\s*;/",
+            '/define\\(\\s*"__TYPECHO_ADMIN_DIR__"\\s*,\\s*\'[^\']*\'\\s*\\)\\s*;/',
+        ];
+
+        $updated = false;
+        foreach ($patterns as $pattern) {
+            $newConfig = preg_replace($pattern, $replacement, $config, 1, $count);
+            if (!empty($count)) {
+                $config = $newConfig;
+                $updated = true;
+                break;
+            }
+        }
+
+        if (!$updated) {
+            // config 中没有定义时，插入到文件开头（<?php 之后）
+            if (preg_match('/^<\\?php\\s*/', $config)) {
+                $config = preg_replace('/^<\\?php\\s*/', "<?php\n{$replacement}\n", $config, 1);
+            } else {
+                $config = "<?php\n{$replacement}\n" . $config;
+            }
+        }
+
+        if (file_put_contents($configFilePath, $config) === false) {
+            throw new PluginException('Cannot write config.inc.php: ' . $configFilePath);
+        }
+    }
+
+    private static function installOrUpgradeSchema(): void
+    {
+        $db = Db::get();
+        $prefix = $db->getPrefix();
+        $driver = $db->getAdapter()->getDriver();
+
+        foreach (self::getSchemaSql($driver, $prefix) as $sql) {
+            $db->query($sql, Db::WRITE);
+        }
+    }
+
+    /**
+     * @return string[]
+     */
+    private static function getSchemaSql(string $driver, string $prefix): array
+    {
+        $driver = strtolower($driver);
+
+        if ($driver === 'sqlite') {
+            return [
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_visit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ip TEXT NOT NULL DEFAULT '',
+                    uri TEXT NOT NULL DEFAULT '',
+                    cid INTEGER NULL,
+                    referer TEXT NULL,
+                    ua TEXT NULL,
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_api_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ip TEXT NOT NULL DEFAULT '',
+                    method TEXT NOT NULL DEFAULT 'GET',
+                    path TEXT NOT NULL DEFAULT '',
+                    query TEXT NULL,
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_friend_link (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL DEFAULT '',
+                    url TEXT NOT NULL DEFAULT '',
+                    status INTEGER NOT NULL DEFAULT 0,
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_friend_link_apply (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL DEFAULT '',
+                    url TEXT NOT NULL DEFAULT '',
+                    message TEXT NULL,
+                    status INTEGER NOT NULL DEFAULT 0,
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_subscribe (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL DEFAULT '',
+                    status INTEGER NOT NULL DEFAULT 1,
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_like (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    type TEXT NOT NULL DEFAULT 'site',
+                    cid INTEGER NULL,
+                    ip TEXT NOT NULL DEFAULT '',
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+            ];
+        }
+
+        if ($driver === 'pgsql') {
+            return [
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_visit_log (
+                    id BIGSERIAL PRIMARY KEY,
+                    ip VARCHAR(45) NOT NULL DEFAULT '',
+                    uri VARCHAR(255) NOT NULL DEFAULT '',
+                    cid INTEGER NULL,
+                    referer VARCHAR(255) NULL,
+                    ua VARCHAR(255) NULL,
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_api_log (
+                    id BIGSERIAL PRIMARY KEY,
+                    ip VARCHAR(45) NOT NULL DEFAULT '',
+                    method VARCHAR(10) NOT NULL DEFAULT 'GET',
+                    path VARCHAR(255) NOT NULL DEFAULT '',
+                    query TEXT NULL,
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_friend_link (
+                    id BIGSERIAL PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL DEFAULT '',
+                    url VARCHAR(255) NOT NULL DEFAULT '',
+                    status SMALLINT NOT NULL DEFAULT 0,
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_friend_link_apply (
+                    id BIGSERIAL PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL DEFAULT '',
+                    url VARCHAR(255) NOT NULL DEFAULT '',
+                    message TEXT NULL,
+                    status SMALLINT NOT NULL DEFAULT 0,
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_subscribe (
+                    id BIGSERIAL PRIMARY KEY,
+                    email VARCHAR(190) NOT NULL DEFAULT '',
+                    status SMALLINT NOT NULL DEFAULT 1,
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_like (
+                    id BIGSERIAL PRIMARY KEY,
+                    type VARCHAR(20) NOT NULL DEFAULT 'site',
+                    cid INTEGER NULL,
+                    ip VARCHAR(45) NOT NULL DEFAULT '',
+                    created INTEGER NOT NULL DEFAULT 0
+                );",
+            ];
+        }
+
+        // 默认按 MySQL 语法生成
+        return [
+            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_visit_log` (
+                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `ip` VARCHAR(45) NOT NULL DEFAULT '',
+                `uri` VARCHAR(255) NOT NULL DEFAULT '',
+                `cid` INT UNSIGNED NULL,
+                `referer` VARCHAR(255) NULL,
+                `ua` VARCHAR(255) NULL,
+                `created` INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (`id`),
+                KEY `idx_created` (`created`),
+                KEY `idx_ip` (`ip`),
+                KEY `idx_cid` (`cid`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_api_log` (
+                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `ip` VARCHAR(45) NOT NULL DEFAULT '',
+                `method` VARCHAR(10) NOT NULL DEFAULT 'GET',
+                `path` VARCHAR(255) NOT NULL DEFAULT '',
+                `query` TEXT NULL,
+                `created` INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (`id`),
+                KEY `idx_created` (`created`),
+                KEY `idx_ip` (`ip`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_friend_link` (
+                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `name` VARCHAR(100) NOT NULL DEFAULT '',
+                `url` VARCHAR(255) NOT NULL DEFAULT '',
+                `status` TINYINT NOT NULL DEFAULT 0,
+                `created` INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (`id`),
+                KEY `idx_status` (`status`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_friend_link_apply` (
+                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `name` VARCHAR(100) NOT NULL DEFAULT '',
+                `url` VARCHAR(255) NOT NULL DEFAULT '',
+                `message` TEXT NULL,
+                `status` TINYINT NOT NULL DEFAULT 0,
+                `created` INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (`id`),
+                KEY `idx_status` (`status`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_subscribe` (
+                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `email` VARCHAR(190) NOT NULL DEFAULT '',
+                `status` TINYINT NOT NULL DEFAULT 1,
+                `created` INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (`id`),
+                KEY `idx_status` (`status`),
+                UNIQUE KEY `uniq_email` (`email`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_like` (
+                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `type` VARCHAR(20) NOT NULL DEFAULT 'site',
+                `cid` INT UNSIGNED NULL,
+                `ip` VARCHAR(45) NOT NULL DEFAULT '',
+                `created` INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (`id`),
+                KEY `idx_type` (`type`),
+                KEY `idx_cid` (`cid`),
+                KEY `idx_created` (`created`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+        ];
+    }
+}
