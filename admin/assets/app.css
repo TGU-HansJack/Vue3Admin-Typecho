@@ -917,6 +917,122 @@ a {
   z-index: 90;
 }
 
+.v3a-modal-mask {
+  position: fixed;
+  inset: 0;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.v3a-modal-card {
+  width: 480px;
+  max-width: 90vw;
+  border-radius: var(--radius-xl);
+  border: 1px solid #e5e5e5;
+  background: #fff;
+  box-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.08),
+    0 3px 6px 0 rgba(0, 0, 0, 0.06), 0 5px 12px 4px rgba(0, 0, 0, 0.04);
+  position: relative;
+}
+
+.v3a-modal-head {
+  padding: 19px 24px 0;
+  text-align: center;
+}
+
+.v3a-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #171717;
+}
+
+.v3a-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(102, 102, 102, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.v3a-modal-close:hover {
+  background: rgba(23, 23, 23, 0.09);
+}
+
+.v3a-modal-close:active {
+  background: rgba(23, 23, 23, 0.13);
+}
+
+.v3a-modal-body {
+  padding: 20px 24px 24px;
+}
+
+.v3a-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.v3a-modal-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.v3a-modal-label {
+  font-size: 14px;
+  font-weight: 400;
+  color: #171717;
+}
+
+.v3a-modal-input {
+  font-size: 14px;
+}
+
+.v3a-modal-textarea {
+  min-height: 90px;
+}
+
+.v3a-modal-feedback {
+  font-size: 12px;
+  color: var(--v3a-danger);
+  line-height: 1.6;
+}
+
+.v3a-modal-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.v3a-modal-actions .v3a-modal-btn {
+  border-radius: 34px;
+  padding: 0 18px;
+  font-size: 14px;
+}
+
+.v3a-modal-card .v3a-input.v3a-input-error {
+  border-color: var(--v3a-danger);
+}
+
+.v3a-modal-card .v3a-input.v3a-input-error:focus {
+  border-color: var(--v3a-danger);
+  box-shadow: 0 0 0 2px rgba(208, 48, 80, 0.2);
+}
+
 .v3a-write-drawer-header {
   position: relative;
   padding: 16px 20px;

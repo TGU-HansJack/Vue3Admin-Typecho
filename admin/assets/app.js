@@ -841,6 +841,10 @@
 
       const categoryEditorOpen = ref(false);
       const tagEditorOpen = ref(false);
+      const categoryNameEl = ref(null);
+      const tagNameEl = ref(null);
+      const categoryNameError = ref("");
+      const tagNameError = ref("");
       const categoryForm = reactive({
         mid: 0,
         name: "",
@@ -1784,30 +1788,48 @@
       }
 
       function openCategoryEditor(category) {
-        categoryEditorOpen.value = true;
         const c = category && typeof category === "object" ? category : null;
         categoryForm.mid = c ? Number(c.mid || 0) : 0;
         categoryForm.name = c ? String(c.name || "") : "";
         categoryForm.slug = c ? String(c.slug || "") : "";
         categoryForm.parent = c ? Number(c.parent || 0) : 0;
         categoryForm.description = c ? String(c.description || "") : "";
+        categoryNameError.value = "";
+        categoryEditorOpen.value = true;
+        nextTick(() => {
+          if (categoryNameEl.value && typeof categoryNameEl.value.focus === "function") {
+            categoryNameEl.value.focus();
+          }
+        });
       }
 
       function closeCategoryEditor() {
         categoryEditorOpen.value = false;
+        categoryNameError.value = "";
       }
 
       async function saveCategory() {
         if (taxonomySaving.value) return;
+        const name = String(categoryForm.name || "").trim();
+        if (!name) {
+          categoryNameError.value = "请输入分类名称";
+          nextTick(() => {
+            if (categoryNameEl.value && typeof categoryNameEl.value.focus === "function") {
+              categoryNameEl.value.focus();
+            }
+          });
+          return;
+        }
+        categoryNameError.value = "";
         taxonomySaving.value = true;
         taxonomyError.value = "";
         try {
           await apiPost("metas.category.save", {
             mid: categoryForm.mid || 0,
-            name: categoryForm.name,
-            slug: categoryForm.slug,
+            name,
+            slug: String(categoryForm.slug || "").trim(),
             parent: categoryForm.parent || 0,
-            description: categoryForm.description,
+            description: String(categoryForm.description || "").trim(),
           });
           await fetchTaxonomy();
           categoryEditorOpen.value = false;
@@ -1832,26 +1854,44 @@
       }
 
       function openTagEditor(tag) {
-        tagEditorOpen.value = true;
         const t = tag && typeof tag === "object" ? tag : null;
         tagForm.mid = t ? Number(t.mid || 0) : 0;
         tagForm.name = t ? String(t.name || "") : "";
         tagForm.slug = t ? String(t.slug || "") : "";
+        tagNameError.value = "";
+        tagEditorOpen.value = true;
+        nextTick(() => {
+          if (tagNameEl.value && typeof tagNameEl.value.focus === "function") {
+            tagNameEl.value.focus();
+          }
+        });
       }
 
       function closeTagEditor() {
         tagEditorOpen.value = false;
+        tagNameError.value = "";
       }
 
       async function saveTag() {
         if (taxonomySaving.value) return;
+        const name = String(tagForm.name || "").trim();
+        if (!name) {
+          tagNameError.value = "请输入标签名称";
+          nextTick(() => {
+            if (tagNameEl.value && typeof tagNameEl.value.focus === "function") {
+              tagNameEl.value.focus();
+            }
+          });
+          return;
+        }
+        tagNameError.value = "";
         taxonomySaving.value = true;
         taxonomyError.value = "";
         try {
           await apiPost("metas.tag.save", {
             mid: tagForm.mid || 0,
-            name: tagForm.name,
-            slug: tagForm.slug,
+            name,
+            slug: String(tagForm.slug || "").trim(),
           });
           await fetchTaxonomy();
           tagEditorOpen.value = false;
@@ -3085,6 +3125,10 @@
         tagsAll,
         categoryEditorOpen,
         tagEditorOpen,
+        categoryNameEl,
+        tagNameEl,
+        categoryNameError,
+        tagNameError,
         categoryForm,
         tagForm,
         fetchTaxonomy,
@@ -3837,40 +3881,6 @@
                 <div class="v3a-grid">
                   <div class="v3a-card">
                     <div class="bd" style="padding: 0;">
-                      <template v-if="categoryEditorOpen">
-                        <div style="padding: 16px;">
-                          <div class="v3a-kv">
-                            <div class="v3a-muted">名称</div>
-                            <input class="v3a-input" v-model="categoryForm.name" placeholder="分类名称" />
-
-                            <div class="v3a-muted">缩略名</div>
-                            <input class="v3a-input" v-model="categoryForm.slug" placeholder="可留空（自动生成）" />
-
-                            <div class="v3a-muted">父级</div>
-                            <select class="v3a-select" v-model.number="categoryForm.parent">
-                              <option :value="0">无</option>
-                              <option
-                                v-for="c in categoriesAll"
-                                :key="c.mid"
-                                :value="c.mid"
-                                v-if="c.mid !== categoryForm.mid"
-                              >
-                                {{ (c.levels ? '—'.repeat(Number(c.levels)) + ' ' : '') + c.name }}
-                              </option>
-                            </select>
-
-                            <div class="v3a-muted">描述</div>
-                            <textarea class="v3a-textarea" v-model="categoryForm.description" placeholder="可选"></textarea>
-                          </div>
-
-                          <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                            <button class="v3a-btn" type="button" @click="closeCategoryEditor()">取消</button>
-                            <button class="v3a-btn primary" type="button" @click="saveCategory()" :disabled="taxonomySaving">保存</button>
-                          </div>
-                        </div>
-                        <div class="v3a-divider" style="margin: 0;"></div>
-                      </template>
-
                       <table class="v3a-table v3a-taxonomy-table">
                         <thead><tr><th>名称</th><th>缩略名</th><th>数量</th><th>操作</th></tr></thead>
                         <tbody>
@@ -3898,24 +3908,6 @@
 
                   <div class="v3a-card">
                     <div class="bd" style="padding: 0;">
-                      <template v-if="tagEditorOpen">
-                        <div style="padding: 16px;">
-                          <div class="v3a-kv">
-                            <div class="v3a-muted">名称</div>
-                            <input class="v3a-input" v-model="tagForm.name" placeholder="标签名称" />
-
-                            <div class="v3a-muted">缩略名</div>
-                            <input class="v3a-input" v-model="tagForm.slug" placeholder="可留空（自动生成）" />
-                          </div>
-
-                          <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                            <button class="v3a-btn" type="button" @click="closeTagEditor()">取消</button>
-                            <button class="v3a-btn primary" type="button" @click="saveTag()" :disabled="taxonomySaving">保存</button>
-                          </div>
-                        </div>
-                        <div class="v3a-divider" style="margin: 0;"></div>
-                      </template>
-
                       <table class="v3a-table v3a-taxonomy-table">
                         <thead><tr><th>名称</th><th>缩略名</th><th>引用</th><th>操作</th></tr></thead>
                         <tbody>
@@ -3933,6 +3925,101 @@
                           </tr>
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="categoryEditorOpen" class="v3a-modal-mask" @click.self="closeCategoryEditor()">
+                  <div class="v3a-modal-card" role="dialog" aria-modal="true">
+                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeCategoryEditor()">
+                      <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                    </button>
+
+                    <div class="v3a-modal-head">
+                      <div class="v3a-modal-title">{{ categoryForm.mid ? '编辑分类' : '新建分类' }}</div>
+                    </div>
+
+                    <div class="v3a-modal-body">
+                      <div class="v3a-modal-form">
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">名称<span class="v3a-required">*</span></label>
+                          <input
+                            ref="categoryNameEl"
+                            class="v3a-input v3a-modal-input"
+                            :class="{ 'v3a-input-error': categoryNameError }"
+                            v-model="categoryForm.name"
+                            placeholder="输入分类名称..."
+                            @input="categoryNameError = ''"
+                          />
+                          <div v-if="categoryNameError" class="v3a-modal-feedback">{{ categoryNameError }}</div>
+                        </div>
+
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">缩略名</label>
+                          <input class="v3a-input v3a-modal-input" v-model="categoryForm.slug" placeholder="可留空（自动生成）" />
+                        </div>
+
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">父级</label>
+                          <select class="v3a-select v3a-modal-input" v-model.number="categoryForm.parent">
+                            <option :value="0">无</option>
+                            <template v-for="c in categoriesAll" :key="c.mid">
+                              <option v-if="c.mid !== categoryForm.mid" :value="c.mid">
+                                {{ (c.levels ? '—'.repeat(Number(c.levels)) + ' ' : '') + c.name }}
+                              </option>
+                            </template>
+                          </select>
+                        </div>
+
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">描述</label>
+                          <textarea class="v3a-textarea v3a-modal-textarea" v-model="categoryForm.description" placeholder="可选"></textarea>
+                        </div>
+                      </div>
+
+                      <div class="v3a-modal-actions">
+                        <button class="v3a-btn v3a-modal-btn" type="button" @click="closeCategoryEditor()">取消</button>
+                        <button class="v3a-btn primary v3a-modal-btn" type="button" @click="saveCategory()" :disabled="taxonomySaving">确定</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="tagEditorOpen" class="v3a-modal-mask" @click.self="closeTagEditor()">
+                  <div class="v3a-modal-card" role="dialog" aria-modal="true">
+                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeTagEditor()">
+                      <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                    </button>
+
+                    <div class="v3a-modal-head">
+                      <div class="v3a-modal-title">{{ tagForm.mid ? '编辑标签' : '新建标签' }}</div>
+                    </div>
+
+                    <div class="v3a-modal-body">
+                      <div class="v3a-modal-form">
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">名称<span class="v3a-required">*</span></label>
+                          <input
+                            ref="tagNameEl"
+                            class="v3a-input v3a-modal-input"
+                            :class="{ 'v3a-input-error': tagNameError }"
+                            v-model="tagForm.name"
+                            placeholder="输入标签名称..."
+                            @input="tagNameError = ''"
+                          />
+                          <div v-if="tagNameError" class="v3a-modal-feedback">{{ tagNameError }}</div>
+                        </div>
+
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">缩略名</label>
+                          <input class="v3a-input v3a-modal-input" v-model="tagForm.slug" placeholder="可留空（自动生成）" />
+                        </div>
+                      </div>
+
+                      <div class="v3a-modal-actions">
+                        <button class="v3a-btn v3a-modal-btn" type="button" @click="closeTagEditor()">取消</button>
+                        <button class="v3a-btn primary v3a-modal-btn" type="button" @click="saveTag()" :disabled="taxonomySaving">确定</button>
+                      </div>
                     </div>
                   </div>
                 </div>
