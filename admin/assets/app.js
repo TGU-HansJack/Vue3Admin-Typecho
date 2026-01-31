@@ -496,6 +496,21 @@
         fields: [],
       });
 
+      const postTextEl = ref(null);
+
+      function v3aAutoGrowTextarea(el) {
+        if (!el) return;
+        el.style.height = "";
+        const baseHeight = el.clientHeight || 0;
+        el.style.height = "auto";
+        const nextHeight = el.scrollHeight || 0;
+        el.style.height = nextHeight > baseHeight ? `${nextHeight}px` : "";
+      }
+
+      function autoSizePostText() {
+        nextTick(() => v3aAutoGrowTextarea(postTextEl.value));
+      }
+
       function v3aDecodeRule(rule) {
         return String(rule || "").replace(/\[([_a-z0-9-]+)[^\]]*\]/gi, "{$1}");
       }
@@ -1431,6 +1446,15 @@
           if (el) {
             el.indeterminate = !!indeterminate;
           }
+        },
+        { immediate: true }
+      );
+
+      watch(
+        [routePath, () => postForm.text],
+        ([path]) => {
+          if (path !== "/posts/write") return;
+          autoSizePostText();
         },
         { immediate: true }
       );
@@ -3086,6 +3110,8 @@
         postTagInput,
         postTagFocused,
         postTagActiveIndex,
+        postTextEl,
+        autoSizePostText,
         addPostTag,
         removePostTag,
         postTagInputEl,
@@ -3705,7 +3731,7 @@
                         </div>
                       </div>
                       <div class="v3a-write-editor-content">
-                        <textarea id="v3a-post-text" class="v3a-write-textarea" v-model="postForm.text"></textarea>
+                        <textarea id="v3a-post-text" ref="postTextEl" class="v3a-write-textarea" v-model="postForm.text" @input="autoSizePostText"></textarea>
                       </div>
                     </div>
                   </div>

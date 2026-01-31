@@ -783,7 +783,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: 0;
-  min-height: calc(100dvh - 260px);
+  min-height: calc(100dvh - 72px);
 }
 
 .v3a-write-editor-header {
@@ -865,7 +865,7 @@ a {
 
 .v3a-write-editor-content {
   min-width: 0;
-  padding: 0 calc(var(--spacing) * 6) calc(var(--spacing) * 8);
+  padding: 0 calc(var(--spacing) * 6) 0;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -875,6 +875,7 @@ a {
   width: 100%;
   min-height: 60vh;
   padding: 0 calc(var(--spacing) * 2);
+  overflow: hidden;
   border: 0;
   border-radius: 0;
   outline: none;
