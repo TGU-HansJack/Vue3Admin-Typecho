@@ -3687,7 +3687,7 @@
 
             <template v-else-if="routePath === '/posts/write'">
               <div class="v3a-container v3a-container-write">
-                <div class="v3a-pagehead">
+                <div class="v3a-pagehead v3a-pagehead-sticky">
                   <div class="v3a-head-left">
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
                       <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
@@ -4237,7 +4237,7 @@
 
             <template v-else-if="routePath === '/pages/edit'">
               <div class="v3a-container">
-                <div class="v3a-pagehead">
+                <div class="v3a-pagehead v3a-pagehead-sticky">
                   <div class="v3a-head-left">
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
                       <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
