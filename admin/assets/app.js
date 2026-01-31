@@ -58,7 +58,7 @@
     { key: "content", label: "内容" },
     { key: "notify", label: "通知" },
     { key: "storage", label: "存储" },
-    { key: "system", label: "系统" },
+    { key: "system", label: "永久链接" },
     { key: "security", label: "账号安全" },
   ];
 
@@ -681,6 +681,7 @@
         const cid = Number(postForm.cid || 0);
         const cat = v3aGetPrimaryCategory();
         const categorySlug = String(cat?.slug || "").trim();
+        const directory = v3aGetCategoryDirectory(cat);
 
         return raw.replace(/\{([_a-z0-9-]+)\}/gi, (match, keyRaw) => {
           const key = String(keyRaw || "").toLowerCase();
@@ -689,6 +690,9 @@
           if (key === "category") {
             return categorySlug ? categorySlug : match;
           }
+          if (key === "directory") {
+            return directory ? directory : match;
+          }
           if (key === "year") return year;
           if (key === "month") return month;
           if (key === "day") return day;
@@ -696,9 +700,11 @@
         });
       }
 
+      const permalinkPostUrl = ref(String(V3A?.permalink?.postUrl || ""));
+
       const postSlugPreview = computed(() => {
         const basePrefix = String(V3A.indexUrl || V3A.siteUrl || "").trim();
-        const rule = v3aDecodeRule(String(V3A?.permalink?.postUrl || ""));
+        const rule = v3aDecodeRule(String(permalinkPostUrl.value || ""));
 
         if (!basePrefix || !rule) {
           const base = String(V3A.siteUrl || "").trim();
@@ -1153,6 +1159,29 @@
         pagePattern: "",
         categoryPattern: "",
       });
+      const settingsPermalinkRewriteError = ref("");
+      const settingsPermalinkEnableRewriteAnyway = ref(0);
+
+      watch(
+        () => Number(settingsPermalinkForm.rewrite || 0),
+        (v) => {
+          if (!v) {
+            settingsPermalinkRewriteError.value = "";
+            settingsPermalinkEnableRewriteAnyway.value = 0;
+          }
+        }
+      );
+      const permalinkPostPatternOptions = [
+        { value: "/archives/[cid:digital]/", label: "默认风格", example: "/archives/{cid}/" },
+        { value: "/archives/[slug].html", label: "wordpress风格", example: "/archives/{slug}.html" },
+        {
+          value: "/[year:digital:4]/[month:digital:2]/[day:digital:2]/[slug].html",
+          label: "按日期归档",
+          example: "/{year}/{month}/{day}/{slug}.html",
+        },
+        { value: "/[category]/[slug].html", label: "按分类归档", example: "/{category}/{slug}.html" },
+        { value: "custom", label: "个性化定义", example: "" },
+      ];
 
       let chartVisitWeek = null;
       let chartPublish = null;
@@ -1264,6 +1293,9 @@
                   V3A.csrfToken
                 )}`
               : "")
+            + (withCsrf && V3A.csrfRef
+              ? `&csrfRef=${encodeURIComponent(V3A.csrfRef)}`
+              : "")
           );
         }
 
@@ -1287,16 +1319,41 @@
         if (withCsrf && V3A.csrfToken) {
           u.searchParams.set(V3A.csrfParam || "_", V3A.csrfToken);
         }
+        if (withCsrf && V3A.csrfRef) {
+          u.searchParams.set("csrfRef", V3A.csrfRef);
+        }
 
         return u.toString();
       }
 
+      async function readApiJson(res) {
+        const text = await res.text();
+        const raw = String(text || "");
+        const trimmed = raw.trim();
+        if (!trimmed) return null;
+        try {
+          return JSON.parse(trimmed);
+        } catch (e) {
+          const snippet = trimmed.slice(0, 300);
+          throw new Error(
+            `API返回了非JSON响应 (HTTP ${res.status || 0}): ${snippet || "[empty]"}`
+          );
+        }
+      }
+
       async function apiGet(action, params) {
         const url = buildApiUrl(action, params, false);
-        const res = await fetch(url, { credentials: "same-origin" });
-        const json = await res.json();
+        const res = await fetch(url, {
+          credentials: "same-origin",
+          headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+        });
+        const json = await readApiJson(res);
         if (!json || json.code !== 0) {
-          throw new Error(json?.message || "API error");
+          const err = new Error(json?.message || "API error");
+          err.apiCode = json?.code;
+          err.apiData = json?.data;
+          err.httpStatus = res.status;
+          throw err;
         }
         return json.data;
       }
@@ -1309,12 +1366,17 @@
           headers: {
             "Content-Type": "application/json",
             "X-Requested-With": "XMLHttpRequest",
+            Accept: "application/json",
           },
           body: JSON.stringify(payload || {}),
         });
-        const json = await res.json();
+        const json = await readApiJson(res);
         if (!json || json.code !== 0) {
-          throw new Error(json?.message || "API error");
+          const err = new Error(json?.message || "API error");
+          err.apiCode = json?.code;
+          err.apiData = json?.data;
+          err.httpStatus = res.status;
+          throw err;
         }
         return json.data;
       }
@@ -1326,8 +1388,11 @@
         dashboardError.value = "";
         try {
           const url = V3A.apiUrl + "?do=dashboard";
-          const res = await fetch(url, { credentials: "same-origin" });
-          const json = await res.json();
+          const res = await fetch(url, {
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+          });
+          const json = await readApiJson(res);
           if (!json || json.code !== 0) throw new Error(json?.message || "API error");
 
           summary.value = Object.assign(summary.value, json.data.summary || {});
@@ -1795,11 +1860,11 @@
             const res = await fetch(V3A.uploadUrl, {
               method: "POST",
               credentials: "same-origin",
-              headers: { "X-Requested-With": "XMLHttpRequest" },
+              headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
               body: form,
             });
 
-            const json = await res.json();
+            const json = await readApiJson(res);
             if (json === false) {
               throw new Error("上传失败（文件类型或权限）");
             }
@@ -2408,6 +2473,8 @@
         settingsLoading.value = true;
         settingsError.value = "";
         settingsMessage.value = "";
+        settingsPermalinkRewriteError.value = "";
+        settingsPermalinkEnableRewriteAnyway.value = 0;
         try {
           const data = await apiGet("settings.get");
           settingsData.isAdmin = !!data.isAdmin;
@@ -2495,9 +2562,16 @@
           Object.assign(settingsDiscussionForm, settingsData.discussion || {});
 
           settingsPermalinkForm.rewrite = Number(settingsData.permalink.rewrite || 0);
-          settingsPermalinkForm.postPattern = String(
-            settingsData.permalink.postUrl || ""
+          const postUrlRaw = String(settingsData.permalink.postUrl || "");
+          const postUrl = postUrlRaw
+            ? postUrlRaw.startsWith("/")
+              ? postUrlRaw
+              : "/" + postUrlRaw
+            : "";
+          const knownPostPattern = permalinkPostPatternOptions.some(
+            (o) => o.value !== "custom" && o.value === postUrl
           );
+          settingsPermalinkForm.postPattern = knownPostPattern ? postUrl : "custom";
           settingsPermalinkForm.customPattern = String(
             settingsData.permalink.customPattern || ""
           );
@@ -2507,6 +2581,10 @@
           settingsPermalinkForm.categoryPattern = String(
             settingsData.permalink.categoryPattern || ""
           );
+
+          if (postUrl) {
+            permalinkPostUrl.value = postUrl;
+          }
         } catch (e) {
           settingsError.value = e && e.message ? e.message : "加载失败";
         } finally {
@@ -2526,8 +2604,17 @@
           if (data && data.profile) {
             Object.assign(settingsData.profile, data.profile);
           }
+          settingsPermalinkRewriteError.value = "";
+          settingsPermalinkEnableRewriteAnyway.value = 0;
           settingsMessage.value = "已保存";
         } catch (e) {
+          const apiData = e && e.apiData ? e.apiData : null;
+          if (apiData && apiData.rewriteCheck && apiData.rewriteCheck.ok === false) {
+            settingsPermalinkRewriteError.value = String(
+              apiData.rewriteCheck.message || e.message || ""
+            );
+            return;
+          }
           settingsError.value = e && e.message ? e.message : "保存失败";
         } finally {
           settingsSaving.value = false;
@@ -2655,18 +2742,48 @@
         settingsSaving.value = true;
         settingsError.value = "";
         settingsMessage.value = "";
+        settingsPermalinkRewriteError.value = "";
         try {
-          const postPattern = String(settingsPermalinkForm.postPattern || "").trim();
+          let postPattern = String(settingsPermalinkForm.postPattern || "").trim();
+          if (!postPattern) postPattern = "custom";
+          if (postPattern !== "custom" && !postPattern.startsWith("/")) {
+            postPattern = "/" + postPattern;
+          }
           const payload = {
             rewrite: settingsPermalinkForm.rewrite ? 1 : 0,
-            postPattern: postPattern || "custom",
+            enableRewriteAnyway: settingsPermalinkEnableRewriteAnyway.value ? 1 : 0,
+            postPattern,
             customPattern: settingsPermalinkForm.customPattern || "",
             pagePattern: settingsPermalinkForm.pagePattern || "",
             categoryPattern: settingsPermalinkForm.categoryPattern || "",
           };
           const data = await apiPost("settings.system.save", payload);
           if (data && data.permalink) {
-            settingsData.permalink = Object.assign({}, data.permalink);
+            settingsData.permalink = Object.assign(
+              {},
+              settingsData.permalink || {},
+              data.permalink
+            );
+
+            const postUrlRaw = String(data.permalink.postUrl || "");
+            const postUrl = postUrlRaw
+              ? postUrlRaw.startsWith("/")
+                ? postUrlRaw
+                : "/" + postUrlRaw
+              : "";
+            if (postUrl) {
+              permalinkPostUrl.value = postUrl;
+              const knownPostPattern = permalinkPostPatternOptions.some(
+                (o) => o.value !== "custom" && o.value === postUrl
+              );
+              settingsPermalinkForm.postPattern = knownPostPattern ? postUrl : "custom";
+            }
+
+            if (data.permalink.customPattern !== undefined) {
+              settingsPermalinkForm.customPattern = String(
+                data.permalink.customPattern || ""
+              );
+            }
           }
           settingsMessage.value = "已保存";
         } catch (e) {
@@ -3358,6 +3475,9 @@
         settingsReadingForm,
         settingsDiscussionForm,
         settingsPermalinkForm,
+        settingsPermalinkRewriteError,
+        settingsPermalinkEnableRewriteAnyway,
+        permalinkPostPatternOptions,
         fetchSettings,
         saveSettingsProfile,
         saveSettingsUserOptions,
@@ -5142,7 +5262,25 @@
                             <option :value="1">启用</option>
                           </select>
                           <div class="v3a-muted">文章链接规则</div>
-                          <input class="v3a-input" v-model="settingsPermalinkForm.postPattern" placeholder="/archives/{cid}/" />
+                          <div v-if="settingsPermalinkRewriteError && settingsPermalinkForm.rewrite" class="v3a-permalink-rewrite-hint">
+                            <div class="v3a-feedback">{{ settingsPermalinkRewriteError }}</div>
+                            <label class="v3a-remember v3a-permalink-rewrite-anyway" style="margin: 0;">
+                              <input class="v3a-check" type="checkbox" v-model="settingsPermalinkEnableRewriteAnyway" :true-value="1" :false-value="0" />
+                              <span>仍然启用</span>
+                            </label>
+                          </div>
+                          <div class="v3a-permalink-options">
+                            <label v-for="opt in permalinkPostPatternOptions" :key="opt.value" class="v3a-permalink-option">
+                              <input class="v3a-radio" type="radio" name="v3a-postpattern" :value="opt.value" v-model="settingsPermalinkForm.postPattern" />
+                              <span class="v3a-permalink-option-text">
+                                {{ opt.label }}
+                                <code v-if="opt.example">{{ opt.example }}</code>
+                                <template v-if="opt.value === 'custom'">
+                                  <input class="v3a-input v3a-permalink-custom" v-model="settingsPermalinkForm.customPattern" :disabled="settingsPermalinkForm.postPattern !== 'custom'" placeholder="输入个性化定义..." />
+                                </template>
+                              </span>
+                            </label>
+                          </div>
                           <div class="v3a-muted">页面链接规则</div>
                           <input class="v3a-input" v-model="settingsPermalinkForm.pagePattern" placeholder="/{slug}.html" />
                           <div class="v3a-muted">分类链接规则</div>

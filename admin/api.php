@@ -1,5 +1,9 @@
 <?php
 
+ob_start();
+@ini_set('display_errors', '0');
+@ini_set('display_startup_errors', '0');
+
 require_once __DIR__ . '/common.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -22,6 +26,9 @@ function v3a_json(int $code, $data = null, string $message = ''): void
 
 function v3a_exit_json(int $code, $data = null, string $message = ''): void
 {
+    if (ob_get_level()) {
+        ob_clean();
+    }
     v3a_json($code, $data, $message);
     exit;
 }
@@ -63,6 +70,103 @@ function v3a_encode_rule(string $rule): string
     );
 }
 
+function v3a_permalink_try_rewrite_request($options): bool
+{
+    $siteUrl = (string) ($options->siteUrl ?? '');
+    if ($siteUrl === '') {
+        return false;
+    }
+
+    $client = \Typecho\Http\Client::get();
+    if (!$client) {
+        return false;
+    }
+
+    $client->setData(['do' => 'remoteCallback'])
+        ->setHeader('User-Agent', (string) ($options->generator ?? 'Typecho'))
+        ->setHeader('X-Requested-With', 'XMLHttpRequest')
+        ->send(\Typecho\Common::url('/action/ajax', $siteUrl));
+
+    return 200 == $client->getResponseStatus() && 'OK' == $client->getResponseBody();
+}
+
+/**
+ * Check rewrite availability like old admin.
+ *
+ * @return array{ok:bool,message:string}
+ */
+function v3a_permalink_check_rewrite($options): array
+{
+    $rootDir = defined('__TYPECHO_ROOT_DIR__') ? __TYPECHO_ROOT_DIR__ : dirname(__DIR__);
+    $htaccessPath = rtrim((string) $rootDir, "/\\") . '/.htaccess';
+    $isApache = strpos(php_sapi_name(), 'apache') !== false;
+
+    $siteUrl = (string) ($options->siteUrl ?? '');
+    $parsed = @parse_url($siteUrl);
+    $basePath = '/';
+    if (is_array($parsed) && !empty($parsed['path'])) {
+        $basePath = (string) $parsed['path'];
+    }
+    $basePath = rtrim($basePath, '/') . '/';
+
+    $hasWrote = false;
+    if ($isApache && !file_exists($htaccessPath) && is_writable($rootDir)) {
+        $hasWrote = file_put_contents(
+            $htaccessPath,
+            "<IfModule mod_rewrite.c>\n"
+            . "RewriteEngine On\n"
+            . "RewriteBase {$basePath}\n"
+            . "RewriteCond %{REQUEST_FILENAME} !-f\n"
+            . "RewriteCond %{REQUEST_FILENAME} !-d\n"
+            . "RewriteRule ^(.*)$ {$basePath}index.php/$1 [L]\n"
+            . "</IfModule>"
+        );
+    }
+
+    try {
+        if (v3a_permalink_try_rewrite_request($options)) {
+            return ['ok' => true, 'message' => ''];
+        }
+
+        if (false !== $hasWrote) {
+            @unlink($htaccessPath);
+
+            $hasWrote = file_put_contents(
+                $htaccessPath,
+                "<IfModule mod_rewrite.c>\n"
+                . "RewriteEngine On\n"
+                . "RewriteBase {$basePath}\n"
+                . "RewriteCond %{REQUEST_FILENAME} !-f\n"
+                . "RewriteCond %{REQUEST_FILENAME} !-d\n"
+                . "RewriteRule . {$basePath}index.php [L]\n"
+                . "</IfModule>"
+            );
+
+            if (v3a_permalink_try_rewrite_request($options)) {
+                return ['ok' => true, 'message' => ''];
+            }
+
+            @unlink($htaccessPath);
+        }
+    } catch (\Throwable $e) {
+        if ($hasWrote) {
+            @unlink($htaccessPath);
+        }
+    }
+
+    $message = '重写功能检测失败，请检查你的服务器设置。';
+    if (
+        $isApache
+        && !file_exists($htaccessPath)
+        && !is_writable($rootDir)
+    ) {
+        $message .= ' 检测到你使用了 Apache，但程序无法在根目录创建 .htaccess 文件。请调整目录权限，或手动创建 .htaccess。';
+    }
+    $message .= ' 如果你仍然想启用此功能，请勾选“仍然启用”后再次保存。';
+
+    return ['ok' => false, 'message' => $message];
+}
+
 function v3a_is_json_request(): bool
 {
     $contentType = (string) ($_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '');
@@ -88,6 +192,36 @@ function v3a_payload(): array
 {
     $json = v3a_read_json_body();
     return !empty($json) ? $json : (is_array($_POST) ? $_POST : []);
+}
+
+/**
+ * JSON friendly CSRF protect.
+ *
+ * Typecho's built-in $security->protect() relies on HTTP Referer and responds with
+ * a redirect (HTML), which breaks fetch(). This helper validates the token against
+ * multiple possible suffixes and always returns JSON on failure.
+ */
+function v3a_security_protect($security, $request): void
+{
+    $token = (string) ($request->get('_') ?? '');
+
+    $referer = (string) ($request->getReferer() ?? '');
+    if ($token !== '' && $referer !== '' && hash_equals($security->getToken($referer), $token)) {
+        return;
+    }
+
+    $csrfRef = v3a_string($request->get('csrfRef', ''), '');
+    if ($token !== '' && $csrfRef !== '' && hash_equals($security->getToken($csrfRef), $token)) {
+        return;
+    }
+
+    // Fallback: allow clients that generate token from request URL.
+    $requestUrl = (string) ($request->getRequestUrl() ?? '');
+    if ($token !== '' && $requestUrl !== '' && hash_equals($security->getToken($requestUrl), $token)) {
+        return;
+    }
+
+    v3a_exit_json(403, null, 'Forbidden');
 }
 
 function v3a_int($value, int $default = 0): int
@@ -1393,7 +1527,7 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
 
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         $payload = v3a_payload();
 
@@ -1505,7 +1639,7 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
 
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         $payload = v3a_payload();
         $cids = $payload['cids'] ?? $payload['cid'] ?? $payload['ids'] ?? [];
@@ -1533,7 +1667,7 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
 
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         $payload = v3a_payload();
         $status = v3a_string($payload['status'] ?? '', '');
@@ -1833,7 +1967,7 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
 
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         if (!$user->pass('editor', true)) {
             v3a_exit_json(403, null, 'Forbidden');
@@ -1941,7 +2075,7 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
 
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         if (!$user->pass('editor', true)) {
             v3a_exit_json(403, null, 'Forbidden');
@@ -2184,7 +2318,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         $payload = v3a_payload();
         $status = v3a_string($payload['status'] ?? '', '');
@@ -2216,7 +2350,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         $payload = v3a_payload();
         $coid = v3a_int($payload['coid'] ?? 0, 0);
@@ -2247,7 +2381,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         $payload = v3a_payload();
         $coid = v3a_int($payload['coid'] ?? 0, 0);
@@ -2274,7 +2408,7 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
 
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         $payload = v3a_payload();
         $coids = $payload['coids'] ?? $payload['coid'] ?? $payload['ids'] ?? [];
@@ -2453,7 +2587,7 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
 
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         $payload = v3a_payload();
         $cids = $payload['cids'] ?? $payload['cid'] ?? $payload['ids'] ?? [];
@@ -2529,7 +2663,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         if (!$user->pass('editor', true)) {
             v3a_exit_json(403, null, 'Forbidden');
@@ -2666,7 +2800,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         if (!$user->pass('editor', true)) {
             v3a_exit_json(403, null, 'Forbidden');
@@ -2727,7 +2861,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         if (!$user->pass('editor', true)) {
             v3a_exit_json(403, null, 'Forbidden');
@@ -2813,7 +2947,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         if (!$user->pass('editor', true)) {
             v3a_exit_json(403, null, 'Forbidden');
@@ -3006,7 +3140,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         $uid = (int) ($user->uid ?? 0);
         if ($uid <= 0) {
@@ -3071,7 +3205,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         $uid = (int) ($user->uid ?? 0);
         if ($uid <= 0) {
@@ -3118,7 +3252,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         $uid = (int) ($user->uid ?? 0);
         if ($uid <= 0) {
@@ -3153,7 +3287,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         if (!$user->pass('administrator', true)) {
             v3a_exit_json(403, null, 'Forbidden');
@@ -3197,7 +3331,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         if (!$user->pass('administrator', true)) {
             v3a_exit_json(403, null, 'Forbidden');
@@ -3242,7 +3376,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         if (!$user->pass('administrator', true)) {
             v3a_exit_json(403, null, 'Forbidden');
@@ -3325,7 +3459,7 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         if (!$user->pass('administrator', true)) {
             v3a_exit_json(403, null, 'Forbidden');
@@ -3381,13 +3515,14 @@ try {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
-        $security->protect();
+        v3a_security_protect($security, $request);
 
         if (!$user->pass('administrator', true)) {
             v3a_exit_json(403, null, 'Forbidden');
         }
 
         $payload = v3a_payload();
+        $enableRewriteAnyway = v3a_bool_int($payload['enableRewriteAnyway'] ?? 0);
 
         $routingTable = (array) ($options->routingTable ?? []);
 
@@ -3416,6 +3551,28 @@ try {
         $settings = [];
         if (!defined('__TYPECHO_REWRITE__') && isset($payload['rewrite'])) {
             $settings['rewrite'] = v3a_bool_int($payload['rewrite'] ?? 0);
+
+            if (
+                $settings['rewrite']
+                && !((int) ($options->rewrite ?? 0))
+                && !$enableRewriteAnyway
+            ) {
+                $check = v3a_permalink_check_rewrite($options);
+                if (empty($check['ok'])) {
+                    $message = (string) ($check['message'] ?? 'Rewrite check failed');
+                    v3a_exit_json(
+                        400,
+                        [
+                            'rewriteCheck' => [
+                                'ok' => false,
+                                'message' => $message,
+                                'needEnableRewriteAnyway' => 1,
+                            ],
+                        ],
+                        $message
+                    );
+                }
+            }
             $db->query(
                 $db->update('table.options')->rows(['value' => $settings['rewrite']])->where('name = ?', 'rewrite'),
                 \Typecho\Db::WRITE
@@ -3434,6 +3591,9 @@ try {
                 'pagePattern' => isset($routingTable['page']['url']) ? v3a_decode_rule((string) $routingTable['page']['url']) : '',
                 'categoryPattern' => isset($routingTable['category']['url'])
                     ? v3a_decode_rule((string) $routingTable['category']['url'])
+                    : '',
+                'customPattern' => isset($routingTable['post']['url'])
+                    ? v3a_decode_rule((string) $routingTable['post']['url'])
                     : '',
             ],
         ]);

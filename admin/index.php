@@ -87,6 +87,7 @@ try {
             apiUrl: <?php echo json_encode($options->adminUrl('api.php', true), JSON_UNESCAPED_SLASHES); ?>,
             csrfParam: "_",
             csrfToken: <?php echo json_encode($security->getToken($request->getRequestUrl()), JSON_UNESCAPED_SLASHES); ?>,
+            csrfRef: <?php echo json_encode($request->getRequestUrl(), JSON_UNESCAPED_SLASHES); ?>,
             uploadUrl: <?php echo json_encode($security->getIndex('/action/upload'), JSON_UNESCAPED_SLASHES); ?>,
             siteUrl: <?php echo json_encode($options->siteUrl, JSON_UNESCAPED_SLASHES); ?>,
             indexUrl: <?php echo json_encode($indexUrl, JSON_UNESCAPED_SLASHES); ?>,
