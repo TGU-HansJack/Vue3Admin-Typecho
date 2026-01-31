@@ -1398,8 +1398,9 @@ try {
         $payload = v3a_payload();
 
         // Normalize expected request keys for widget.
+        $cid = v3a_int($payload['cid'] ?? 0, 0);
+
         $widgetRequest = [
-            'cid' => v3a_int($payload['cid'] ?? 0, 0),
             'title' => $payload['title'] ?? '',
             'slug' => $payload['slug'] ?? '',
             'text' => $payload['text'] ?? '',
@@ -1412,6 +1413,10 @@ try {
             'markdown' => v3a_bool_int($payload['markdown'] ?? 0),
             'trackback' => $payload['trackback'] ?? '',
         ];
+
+        if ($cid > 0) {
+            $widgetRequest['cid'] = $cid;
+        }
 
         $categories = $payload['category'] ?? $payload['categories'] ?? [];
         if (!is_array($categories)) {
@@ -1836,8 +1841,9 @@ try {
 
         $payload = v3a_payload();
 
+        $cid = v3a_int($payload['cid'] ?? 0, 0);
+
         $widgetRequest = [
-            'cid' => v3a_int($payload['cid'] ?? 0, 0),
             'title' => $payload['title'] ?? '',
             'slug' => $payload['slug'] ?? '',
             'text' => $payload['text'] ?? '',
@@ -1850,6 +1856,10 @@ try {
             'allowFeed' => v3a_bool_int($payload['allowFeed'] ?? 0),
             'markdown' => v3a_bool_int($payload['markdown'] ?? 0),
         ];
+
+        if ($cid > 0) {
+            $widgetRequest['cid'] = $cid;
+        }
 
         $fields = $payload['fields'] ?? [];
         if (is_array($fields)) {

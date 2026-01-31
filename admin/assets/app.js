@@ -45,6 +45,10 @@
     send: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send-icon lucide-send"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg>`,
     close: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
     closeSmall: `<svg viewBox="0 0 12 12" version="1.1" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><g fill="currentColor" fill-rule="nonzero"><path d="M2.08859116,2.2156945 L2.14644661,2.14644661 C2.32001296,1.97288026 2.58943736,1.95359511 2.7843055,2.08859116 L2.85355339,2.14644661 L6,5.293 L9.14644661,2.14644661 C9.34170876,1.95118446 9.65829124,1.95118446 9.85355339,2.14644661 C10.0488155,2.34170876 10.0488155,2.65829124 9.85355339,2.85355339 L6.707,6 L9.85355339,9.14644661 C10.0271197,9.32001296 10.0464049,9.58943736 9.91140884,9.7843055 L9.85355339,9.85355339 C9.67998704,10.0271197 9.41056264,10.0464049 9.2156945,9.91140884 L9.14644661,9.85355339 L6,6.707 L2.85355339,9.85355339 C2.65829124,10.0488155 2.34170876,10.0488155 2.14644661,9.85355339 C1.95118446,9.65829124 1.95118446,9.34170876 2.14644661,9.14644661 L5.293,6 L2.14644661,2.85355339 C1.97288026,2.67998704 1.95359511,2.41056264 2.08859116,2.2156945 L2.14644661,2.14644661 L2.08859116,2.2156945 Z"></path></g></g></svg>`,
+    toastInfo: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z\" clip-rule=\"evenodd\"/></svg>`,
+    toastSuccess: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 00-1.06 1.06l2.5 2.5a.75.75 0 001.137-.089l4-5.5z\" clip-rule=\"evenodd\"/></svg>`,
+    toastWarn: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l6.518 11.586c.75 1.334-.214 2.99-1.742 2.99H3.48c-1.528 0-2.492-1.656-1.742-2.99L8.257 3.1zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-.25-2.75a.75.75 0 01-1.5 0V7a.75.75 0 011.5 0v4.25z\" clip-rule=\"evenodd\"/></svg>`,
+    toastError: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm2.53-10.47a.75.75 0 10-1.06-1.06L10 8.94 8.53 7.47a.75.75 0 10-1.06 1.06L8.94 10l-1.47 1.47a.75.75 0 101.06 1.06L10 11.06l1.47 1.47a.75.75 0 101.06-1.06L11.06 10l1.47-1.47z\" clip-rule=\"evenodd\"/></svg>`,
     thumbsUp: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/><path d="M7 10v12"/></svg>`,
   };
 
@@ -356,6 +360,87 @@
       });
 
       const jsonExample = '{"a":1}';
+
+      // Toasts (mx-admin like / sonner style)
+      const toasts = ref([]);
+      let toastSeq = 1;
+      const toastTimers = new Map();
+
+      function toastIcon(type) {
+        if (type === "success") return ICONS.toastSuccess;
+        if (type === "warn") return ICONS.toastWarn;
+        if (type === "error") return ICONS.toastError;
+        return ICONS.toastInfo;
+      }
+
+      function clearToastTimer(id) {
+        const t = toastTimers.get(id);
+        if (!t) return;
+        clearTimeout(t);
+        toastTimers.delete(id);
+      }
+
+      function dismissToast(id) {
+        clearToastTimer(id);
+        const idx = toasts.value.findIndex((t) => t.id === id);
+        if (idx >= 0) toasts.value.splice(idx, 1);
+      }
+
+      function pushToast(opts) {
+        const o = opts && typeof opts === "object" ? opts : {};
+        const id = toastSeq++;
+        const item = {
+          id,
+          type: String(o.type || "info"),
+          title: String(o.title || ""),
+          description: o.description ? String(o.description) : "",
+          actionLabel: o.actionLabel ? String(o.actionLabel) : "",
+          action: typeof o.action === "function" ? o.action : null,
+          duration: Number.isFinite(Number(o.duration))
+            ? Number(o.duration)
+            : 3000,
+          dismissible: o.dismissible !== false,
+        };
+
+        if (toasts.value.length >= 5) {
+          const removed = toasts.value.shift();
+          if (removed) clearToastTimer(removed.id);
+        }
+
+        toasts.value.push(item);
+
+        if (item.duration > 0) {
+          const timer = setTimeout(() => dismissToast(id), item.duration);
+          toastTimers.set(id, timer);
+        }
+
+        return id;
+      }
+
+      function runToastAction(t) {
+        if (!t) return;
+        try {
+          if (typeof t.action === "function") t.action();
+        } finally {
+          dismissToast(t.id);
+        }
+      }
+
+      function toastInfo(title, opts) {
+        return pushToast(Object.assign({}, opts || {}, { type: "info", title }));
+      }
+
+      function toastSuccess(title, opts) {
+        return pushToast(Object.assign({}, opts || {}, { type: "success", title }));
+      }
+
+      function toastWarn(title, opts) {
+        return pushToast(Object.assign({}, opts || {}, { type: "warn", title }));
+      }
+
+      function toastError(title, opts) {
+        return pushToast(Object.assign({}, opts || {}, { type: "error", title }));
+      }
 
       // Persisted UI state (mx-admin like)
       try {
@@ -3051,12 +3136,65 @@
         return n > 0 ? String(n) : "";
       }
 
+      // Toast bindings: replace legacy alert/card notices
+      const toastErrorRefs = [
+        dashboardError,
+        postsError,
+        postError,
+        taxonomyError,
+        commentsError,
+        commentEditorError,
+        pagesError,
+        pageError,
+        filesError,
+        settingsError,
+      ];
+      for (const r of toastErrorRefs) {
+        watch(r, (v) => {
+          if (v) toastError(v);
+        });
+      }
+
+      const toastSuccessRefs = [postMessage, pageMessage, settingsMessage];
+      for (const r of toastSuccessRefs) {
+        watch(r, (v) => {
+          if (v) toastSuccess(v);
+        });
+      }
+
+      watch(
+        () => Number(summary.value.commentsWaiting || 0),
+        (n, prev) => {
+          const count = Number(n || 0) || 0;
+          const before = Number(prev || 0) || 0;
+          if (count <= 0 || count <= before) return;
+
+          toastInfo(`有${count}条评论需要审核`, {
+            duration: 0,
+            actionLabel: "查看",
+            action: () => {
+              commentsFilters.status = "waiting";
+              commentsPagination.page = 1;
+              if (routePath.value !== "/comments") {
+                navTo("/comments");
+              } else {
+                applyCommentsFilters();
+              }
+            },
+          });
+        }
+      );
+
       return {
         V3A,
         ICONS,
         MENU,
         SETTINGS,
         jsonExample,
+        toasts,
+        toastIcon,
+        dismissToast,
+        runToastAction,
         route,
         routePath,
         routeQuery,
@@ -3306,10 +3444,6 @@
                     <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
                   </button>
                   <div class="v3a-dash-title">欢迎回来</div>
-                </div>
-
-                <div v-if="dashboardError" class="v3a-alert" style="margin-top: 12px;">
-                  {{ dashboardError }}
                 </div>
 
                 <div class="v3a-section">
@@ -3616,8 +3750,6 @@
                   </div>
                 </div>
 
-                <div v-if="postsError" class="v3a-alert">{{ postsError }}</div>
-
                 <div class="v3a-card">
                   <div class="bd" style="padding: 0;">
                     <div v-if="postsLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
@@ -3706,11 +3838,6 @@
                     </button>
                     <button v-if="postForm.cid" class="v3a-btn" type="button" style="color: var(--v3a-danger);" @click="deletePost(postForm.cid)" :disabled="postSaving || postLoading">删除</button>
                   </div>
-                </div>
-
-                <div v-if="postError" class="v3a-alert">{{ postError }}</div>
-                <div v-if="postMessage" class="v3a-card" style="margin-bottom: 16px;">
-                  <div class="bd v3a-muted">{{ postMessage }}</div>
                 </div>
 
                 <div v-if="postLoading" class="v3a-muted">正在加载…</div>
@@ -3902,8 +4029,6 @@
                   </div>
                 </div>
 
-                <div v-if="taxonomyError" class="v3a-alert">{{ taxonomyError }}</div>
-
                 <div class="v3a-grid">
                   <div class="v3a-card">
                     <div class="bd" style="padding: 0;">
@@ -4070,8 +4195,6 @@
                   </div>
                 </div>
 
-                <div v-if="commentsError" class="v3a-alert">{{ commentsError }}</div>
-
                 <div class="v3a-posts-search">
                   <div class="v3a-searchbox">
                     <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
@@ -4088,7 +4211,6 @@
                     <div class="bd">
                       <div v-if="commentEditorLoading" class="v3a-muted">正在加载…</div>
                       <div v-else>
-                        <div v-if="commentEditorError" class="v3a-alert">{{ commentEditorError }}</div>
                         <div v-if="commentEditorPost" class="v3a-muted" style="margin-bottom: 10px;">
                           关联：{{ commentEditorPost.title || ('#' + commentForm.cid) }}
                         </div>
@@ -4193,8 +4315,6 @@
                   </div>
                 </div>
 
-                <div v-if="pagesError" class="v3a-alert">{{ pagesError }}</div>
-
                 <div class="v3a-posts-search">
                   <div class="v3a-searchbox">
                     <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
@@ -4257,11 +4377,6 @@
                     </button>
                     <button v-if="pageForm.cid" class="v3a-btn" type="button" style="color: var(--v3a-danger);" @click="deletePage(pageForm.cid)" :disabled="pageSaving || pageLoading">删除</button>
                   </div>
-                </div>
-
-                <div v-if="pageError" class="v3a-alert">{{ pageError }}</div>
-                <div v-if="pageMessage" class="v3a-card" style="margin-bottom: 16px;">
-                  <div class="bd v3a-muted">{{ pageMessage }}</div>
                 </div>
 
                 <div v-if="pageLoading" class="v3a-muted">正在加载…</div>
@@ -4415,8 +4530,6 @@
                     </label>
                   </div>
                 </div>
-
-                <div v-if="filesError" class="v3a-alert">{{ filesError }}</div>
 
                 <div class="v3a-grid">
                   <div class="v3a-card">
@@ -4725,11 +4838,6 @@
                   <div class="v3a-pagehead-actions">
                     <button class="v3a-btn" type="button" @click="fetchSettings()" :disabled="settingsLoading || settingsSaving">刷新</button>
                   </div>
-                </div>
-
-                <div v-if="settingsError" class="v3a-alert">{{ settingsError }}</div>
-                <div v-if="settingsMessage" class="v3a-card" style="margin-bottom: 16px;">
-                  <div class="bd v3a-muted">{{ settingsMessage }}</div>
                 </div>
 
                 <div v-if="settingsLoading" class="v3a-muted">正在加载…</div>
@@ -5070,6 +5178,20 @@
             </template>
           </section>
         </main>
+
+        <ol class="v3a-toaster" aria-live="polite" aria-relevant="additions removals">
+          <li v-for="t in toasts" :key="t.id" class="v3a-toast" :data-type="t.type">
+            <button v-if="t.dismissible" class="v3a-toast-close" type="button" aria-label="Close toast" @click="dismissToast(t.id)">
+              <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+            </button>
+            <div class="v3a-toast-icon" v-html="toastIcon(t.type)"></div>
+            <div class="v3a-toast-content">
+              <div class="v3a-toast-title">{{ t.title }}</div>
+              <div v-if="t.description" class="v3a-toast-desc">{{ t.description }}</div>
+            </div>
+            <button v-if="t.actionLabel" class="v3a-toast-action" type="button" @click="runToastAction(t)">{{ t.actionLabel }}</button>
+          </li>
+        </ol>
       </div>
     `,
   }).mount("#app");
