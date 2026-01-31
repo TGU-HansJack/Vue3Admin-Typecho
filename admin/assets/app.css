@@ -704,7 +704,8 @@ a {
   transform: translateX(100%);
   transition: transform 0.2s ease;
   z-index: 100;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .v3a-write-side.open {
@@ -716,6 +717,42 @@ a {
   inset: 0;
   background: rgba(0, 0, 0, 0.25);
   z-index: 90;
+}
+
+.v3a-write-side > .v3a-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.v3a-write-side > .v3a-card:hover {
+  box-shadow: none;
+}
+
+.v3a-write-side > .v3a-card > .hd {
+  padding: 0 0 calc(var(--spacing) * 4);
+  border-bottom: 1px solid var(--sidebar-border);
+}
+
+.v3a-write-side > .v3a-card > .bd {
+  padding: calc(var(--spacing) * 4) 0 0;
+}
+
+.v3a-write-side .v3a-kv > * {
+  min-width: 0;
+}
+
+.v3a-write-side .v3a-input,
+.v3a-write-side .v3a-select,
+.v3a-write-side .v3a-textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+.v3a-write-side .v3a-table {
+  table-layout: fixed;
 }
 
 @media (max-width: 48rem) {
