@@ -986,9 +986,61 @@ try {
         } catch (\Throwable $e) {
         }
 
+        // 本周访问趋势（PV / IP）
+        $visitWeekTrend = [];
+        try {
+            $weekStart = (int) $todayStart;
+            $w = (int) date('w', $todayStart); // 0=周日
+            if ($w > 0) {
+                $weekStart = strtotime("-{$w} days", $todayStart);
+            }
+            $weekEnd = strtotime('+7 days', $weekStart);
+
+            $labels = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+            $bucket = [];
+            for ($i = 0; $i < 7; $i++) {
+                $d = date('Y-m-d', strtotime("+{$i} days", $weekStart));
+                $bucket[$d] = ['pv' => 0, 'ips' => []];
+            }
+
+            $rows = $db->fetchAll(
+                $db->select('ip', 'created')
+                    ->from('table.v3a_visit_log')
+                    ->where('created >= ?', $weekStart)
+                    ->where('created < ?', $weekEnd)
+            );
+            foreach ($rows as $r) {
+                $created = (int) ($r['created'] ?? 0);
+                $d = date('Y-m-d', $created);
+                if (!isset($bucket[$d])) {
+                    continue;
+                }
+
+                $bucket[$d]['pv']++;
+
+                $ip = (string) ($r['ip'] ?? '');
+                if ($ip !== '') {
+                    $bucket[$d]['ips'][$ip] = true;
+                }
+            }
+
+            for ($i = 0; $i < 7; $i++) {
+                $d = date('Y-m-d', strtotime("+{$i} days", $weekStart));
+                $ips = $bucket[$d]['ips'] ?? [];
+                $visitWeekTrend[] = [
+                    'date' => $d,
+                    'day' => $labels[$i] ?? $d,
+                    'pv' => (int) ($bucket[$d]['pv'] ?? 0),
+                    'ip' => (int) count($ips),
+                ];
+            }
+        } catch (\Throwable $e) {
+        }
+
         v3a_exit_json(0, [
             'summary' => $summary,
             'realtime' => $realtime,
+            'visitWeekTrend' => $visitWeekTrend,
             'publishTrend' => $publishTrend,
             'pageTrend' => $pageTrend,
             'categoryDistribution' => $categoryDistribution,

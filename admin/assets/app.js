@@ -155,6 +155,7 @@
       const sidebarCollapsed = ref(false);
       const settingsOpen = ref(false);
       const settingsActiveKey = ref("user");
+      const writeSidebarOpen = ref(false);
 
       const expanded = ref({
         posts: true,
@@ -249,6 +250,7 @@
         todayMaxOnline: 0,
       });
 
+      const visitWeekTrend = ref([]);
       const publishTrend = ref([]);
       const pageTrend = ref([]);
       const commentActivity = ref([]);
@@ -552,6 +554,7 @@
         categoryPattern: "",
       });
 
+      let chartVisitWeek = null;
       let chartPublish = null;
       let chartCategory = null;
       let chartComment = null;
@@ -598,6 +601,14 @@
             sidebarCollapsed.value ? "1" : "0"
           );
         } catch (e) {}
+      }
+
+      function toggleWriteSidebar(force) {
+        if (typeof force === "boolean") {
+          writeSidebarOpen.value = force;
+          return;
+        }
+        writeSidebarOpen.value = !writeSidebarOpen.value;
       }
 
       function toggleGroup(key) {
@@ -720,6 +731,7 @@
           if (!json || json.code !== 0) throw new Error(json?.message || "API error");
 
           summary.value = Object.assign(summary.value, json.data.summary || {});
+          visitWeekTrend.value = json.data.visitWeekTrend || [];
           publishTrend.value = json.data.publishTrend || [];
           pageTrend.value = json.data.pageTrend || [];
           commentActivity.value = json.data.commentActivity || [];
@@ -2014,6 +2026,7 @@
       function renderCharts() {
         if (!window.echarts) return;
 
+        const visitEl = document.getElementById("v3a-chart-visit-week");
         const publishEl = document.getElementById("v3a-chart-publish");
         const categoryEl = document.getElementById("v3a-chart-category");
         const commentEl = document.getElementById("v3a-chart-comment");
@@ -2035,6 +2048,82 @@
           "#1E9493",
           "#FF99C3",
         ];
+
+        if (visitEl) {
+          chartVisitWeek =
+            window.echarts.getInstanceByDom(visitEl) ||
+            window.echarts.init(visitEl);
+
+          const fallbackDays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+          const rows = visitWeekTrend.value && visitWeekTrend.value.length
+            ? visitWeekTrend.value
+            : fallbackDays.map((d) => ({ day: d, ip: 0, pv: 0 }));
+
+          const xData = rows.map((i) => String(i.day || i.date || ""));
+          const ipData = rows.map((i) => Number(i.ip || 0));
+          const pvData = rows.map((i) => Number(i.pv || 0));
+
+          chartVisitWeek.setOption(
+            {
+              color: [palette[0], palette[1]],
+              legend: {
+                left: 0,
+                top: 0,
+                itemWidth: 10,
+                itemHeight: 10,
+                textStyle: { color: axisLabelColor, fontSize: 12 },
+                data: ["IP", "PV"],
+              },
+              grid: { left: 36, right: 24, top: 36, bottom: 36 },
+              tooltip: {
+                trigger: "axis",
+                axisPointer: { type: "cross" },
+              },
+              xAxis: {
+                type: "category",
+                boundaryGap: false,
+                data: xData,
+                axisLabel: { color: axisLabelColor },
+                axisLine: { lineStyle: { color: axisStrokeColor } },
+                axisTick: {
+                  show: true,
+                  alignWithLabel: true,
+                  lineStyle: { color: axisStrokeColor },
+                },
+              },
+              yAxis: {
+                type: "value",
+                axisLabel: { color: axisLabelColor },
+                axisLine: { show: true, lineStyle: { color: axisStrokeColor } },
+                axisTick: { show: true, lineStyle: { color: axisStrokeColor } },
+                splitLine: { lineStyle: { color: gridColor } },
+              },
+              series: [
+                {
+                  name: "IP",
+                  type: "line",
+                  smooth: true,
+                  showSymbol: true,
+                  symbol: "circle",
+                  symbolSize: 4,
+                  lineStyle: { width: 2 },
+                  data: ipData,
+                },
+                {
+                  name: "PV",
+                  type: "line",
+                  smooth: true,
+                  showSymbol: true,
+                  symbol: "circle",
+                  symbolSize: 4,
+                  lineStyle: { width: 2 },
+                  data: pvData,
+                },
+              ],
+            },
+            { notMerge: true }
+          );
+        }
 
         if (publishEl) {
           chartPublish =
@@ -2250,6 +2339,7 @@
           resizeBound = true;
           window.addEventListener("resize", () => {
             try {
+              chartVisitWeek && chartVisitWeek.resize();
               chartPublish && chartPublish.resize();
               chartCategory && chartCategory.resize();
               chartComment && chartComment.resize();
@@ -2274,6 +2364,7 @@
         () => route.value,
         async (r) => {
           const p = String(r || "/").split("?")[0] || "/";
+
           document.title = `${crumb.value} - Vue3Admin`;
           if (p === "/dashboard") {
             await nextTick();
@@ -2384,6 +2475,7 @@
         sidebarCollapsed,
         settingsOpen,
         settingsActiveKey,
+        writeSidebarOpen,
         expanded,
         summary,
         realtime,
@@ -2527,6 +2619,7 @@
         isActive,
         isMenuItemActive,
         toggleSidebar,
+        toggleWriteSidebar,
         handleMenuClick,
         navTo,
         openSettings,
@@ -2860,6 +2953,14 @@
                       <div id="v3a-chart-tag" class="v3a-chart"></div>
                       <div v-if="!tagTop.length" class="v3a-empty">暂无数据</div>
                     </div>
+
+                    <div class="v3a-chartcard">
+                      <div class="v3a-charthead">
+                        <div class="v3a-charttitle">本周访问趋势</div>
+                        <span class="v3a-muted">PV / IP 对比</span>
+                      </div>
+                      <div id="v3a-chart-visit-week" class="v3a-chart"></div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2976,6 +3077,9 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
+                    <button class="v3a-iconbtn v3a-write-side-toggle" type="button" @click="toggleWriteSidebar()" :title="writeSidebarOpen ? '收起发布设置' : '展开发布设置'">
+                      <span class="v3a-icon" v-html="ICONS.settings"></span>
+                    </button>
                     <button class="v3a-btn" type="button" @click="submitPost('save')" :disabled="postSaving || postLoading">保存草稿</button>
                     <button class="v3a-btn primary" type="button" @click="submitPost('publish')" :disabled="postSaving || postLoading">发布</button>
                     <button v-if="postForm.cid" class="v3a-btn" type="button" style="color: var(--v3a-danger);" @click="deletePost(postForm.cid)" :disabled="postSaving || postLoading">删除</button>
@@ -2989,8 +3093,9 @@
 
                 <div v-if="postLoading" class="v3a-muted">正在加载…</div>
 
-                <div v-else class="v3a-grid two">
-                  <div class="v3a-card">
+                <div v-else class="v3a-write-shell" :class="{ 'side-open': writeSidebarOpen }">
+                  <div class="v3a-write-main">
+                    <div class="v3a-card">
                     <div class="hd"><div class="title">内容</div></div>
                     <div class="bd">
                       <label class="v3a-fieldrow" style="min-width: 100%;">
@@ -3000,12 +3105,16 @@
                       <div class="v3a-divider"></div>
                       <label class="v3a-fieldrow" style="min-width: 100%;">
                         <span>正文</span>
-                        <textarea class="v3a-textarea" v-model="postForm.text" placeholder="Markdown / 纯文本"></textarea>
+                        <textarea id="v3a-post-text" class="v3a-textarea" v-model="postForm.text" placeholder="Markdown / 纯文本"></textarea>
                       </label>
                     </div>
                   </div>
 
-                  <div class="v3a-card">
+                  </div>
+
+                  <div class="v3a-write-side-mask" v-if="writeSidebarOpen" @click="toggleWriteSidebar(false)"></div>
+                  <div class="v3a-write-side" :class="{ open: writeSidebarOpen }">
+                    <div class="v3a-card">
                     <div class="hd"><div class="title">发布设置</div></div>
                     <div class="bd">
                       <div class="v3a-kv">
@@ -3024,7 +3133,7 @@
                         <div class="v3a-muted">分类</div>
                         <div v-if="categoriesAll && categoriesAll.length" style="max-height: 160px; overflow:auto; border: 1px solid rgba(0,0,0,0.06); border-radius: var(--radius-md); padding: 8px 10px; background: #fff;">
                           <label v-for="c in categoriesAll" :key="c.mid" style="display:flex; align-items:center; gap: 8px; padding: 4px 0;">
-                            <input type="checkbox" :value="c.mid" v-model="postForm.categories" />
+                            <input class="v3a-check" type="checkbox" :value="c.mid" v-model="postForm.categories" />
                             <span :style="{ paddingLeft: (Number(c.levels || 0) * 12) + 'px' }">{{ c.name }}</span>
                           </label>
                           <div v-if="!categoriesAll.length" class="v3a-muted">暂无分类</div>
@@ -3039,22 +3148,22 @@
 
                         <div class="v3a-muted">Markdown</div>
                         <label class="v3a-remember" style="justify-content:flex-start;">
-                          <input type="checkbox" v-model="postForm.markdown" :disabled="!postCapabilities.markdownEnabled" />
+                          <input class="v3a-check" type="checkbox" v-model="postForm.markdown" :disabled="!postCapabilities.markdownEnabled" />
                           <span>{{ postCapabilities.markdownEnabled ? '启用' : '未开启' }}</span>
                         </label>
 
                         <div class="v3a-muted">权限</div>
                         <div style="display:flex; flex-wrap:wrap; gap: 12px;">
                           <label class="v3a-remember" style="margin: 0;">
-                            <input type="checkbox" v-model="postForm.allowComment" />
+                            <input class="v3a-check" type="checkbox" v-model="postForm.allowComment" />
                             <span>允许评论</span>
                           </label>
                           <label class="v3a-remember" style="margin: 0;">
-                            <input type="checkbox" v-model="postForm.allowPing" />
+                            <input class="v3a-check" type="checkbox" v-model="postForm.allowPing" />
                             <span>允许引用</span>
                           </label>
                           <label class="v3a-remember" style="margin: 0;">
-                            <input type="checkbox" v-model="postForm.allowFeed" />
+                            <input class="v3a-check" type="checkbox" v-model="postForm.allowFeed" />
                             <span>允许聚合</span>
                           </label>
                         </div>
@@ -3472,6 +3581,9 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
+                    <button class="v3a-iconbtn v3a-write-side-toggle" type="button" @click="toggleWriteSidebar()" :title="writeSidebarOpen ? '收起发布设置' : '展开发布设置'">
+                      <span class="v3a-icon" v-html="ICONS.settings"></span>
+                    </button>
                     <button class="v3a-btn" type="button" @click="navTo('/pages/manage')">返回列表</button>
                     <button class="v3a-btn" type="button" @click="submitPage('save')" :disabled="pageSaving || pageLoading">保存草稿</button>
                     <button class="v3a-btn primary" type="button" @click="submitPage('publish')" :disabled="pageSaving || pageLoading">发布</button>
@@ -3486,8 +3598,10 @@
 
                 <div v-if="pageLoading" class="v3a-muted">正在加载…</div>
 
-                <div v-else class="v3a-grid two">
-                  <div class="v3a-card">
+                <div v-else>
+                  <div class="v3a-write-shell" :class="{ 'side-open': writeSidebarOpen }">
+                    <div class="v3a-write-main">
+                      <div class="v3a-card">
                     <div class="hd"><div class="title">内容</div></div>
                     <div class="bd">
                       <label class="v3a-fieldrow" style="min-width: 100%;">
@@ -3497,12 +3611,16 @@
                       <div class="v3a-divider"></div>
                       <label class="v3a-fieldrow" style="min-width: 100%;">
                         <span>正文</span>
-                        <textarea class="v3a-textarea" v-model="pageForm.text" placeholder="Markdown / 纯文本"></textarea>
+                        <textarea id="v3a-page-text" class="v3a-textarea" v-model="pageForm.text" placeholder="Markdown / 纯文本"></textarea>
                       </label>
                     </div>
                   </div>
 
-                  <div class="v3a-card">
+                    </div>
+
+                    <div class="v3a-write-side-mask" v-if="writeSidebarOpen" @click="toggleWriteSidebar(false)"></div>
+                    <div class="v3a-write-side" :class="{ open: writeSidebarOpen }">
+                      <div class="v3a-card">
                     <div class="hd"><div class="title">页面设置</div></div>
                     <div class="bd">
                       <div class="v3a-kv">
@@ -3537,7 +3655,7 @@
                       <div class="v3a-muted" style="margin-bottom: 8px;">撰写</div>
                       <div style="display:flex; flex-wrap: wrap; gap: 12px;">
                         <label class="v3a-remember" style="margin: 0;">
-                          <input type="checkbox" v-model="pageForm.markdown" :disabled="!pageCapabilities.markdownEnabled" />
+                          <input class="v3a-check" type="checkbox" v-model="pageForm.markdown" :disabled="!pageCapabilities.markdownEnabled" />
                           <span>使用 Markdown</span>
                         </label>
                       </div>
@@ -3547,30 +3665,33 @@
                       <div class="v3a-muted" style="margin-bottom: 8px;">允许</div>
                       <div style="display:flex; flex-wrap: wrap; gap: 12px;">
                         <label class="v3a-remember" style="margin: 0;">
-                          <input type="checkbox" v-model="pageForm.allowComment" />
+                          <input class="v3a-check" type="checkbox" v-model="pageForm.allowComment" />
                           <span>允许评论</span>
                         </label>
                         <label class="v3a-remember" style="margin: 0;">
-                          <input type="checkbox" v-model="pageForm.allowPing" />
+                          <input class="v3a-check" type="checkbox" v-model="pageForm.allowPing" />
                           <span>允许引用</span>
                         </label>
                         <label class="v3a-remember" style="margin: 0;">
-                          <input type="checkbox" v-model="pageForm.allowFeed" />
+                          <input class="v3a-check" type="checkbox" v-model="pageForm.allowFeed" />
                           <span>允许聚合</span>
                         </label>
                       </div>
 
-                      <div class="v3a-divider"></div>
-                      <div class="v3a-muted">发布权限：{{ pageCapabilities.canPublish ? '可直接发布' : '无权限' }}</div>
-                    </div>
-                  </div>
+                  <div class="v3a-divider"></div>
+                  <div class="v3a-muted">发布权限：{{ pageCapabilities.canPublish ? '可直接发布' : '无权限' }}</div>
+                </div>
+              </div>
 
-                  <div class="v3a-card" style="grid-column: span 2;">
-                    <div class="hd" style="display:flex; align-items:center; justify-content:space-between; gap: 8px;">
-                      <div class="title">自定义字段</div>
-                      <button class="v3a-mini-btn" type="button" @click="addPageField()">新增字段</button>
-                    </div>
-                    <div class="bd">
+              </div>
+            </div>
+
+            <div class="v3a-card" style="margin-top: 16px;">
+                <div class="hd" style="display:flex; align-items:center; justify-content:space-between; gap: 8px;">
+                  <div class="title">自定义字段</div>
+                  <button class="v3a-mini-btn" type="button" @click="addPageField()">新增字段</button>
+                </div>
+                <div class="bd">
                       <table class="v3a-table">
                         <thead>
                           <tr>
@@ -3989,15 +4110,15 @@
                           <div class="v3a-muted">默认允许</div>
                           <div style="display:flex; flex-wrap: wrap; gap: 12px;">
                             <label class="v3a-remember" style="margin: 0;">
-                              <input type="checkbox" value="comment" v-model="settingsUserOptionsForm.defaultAllow" />
+                              <input class="v3a-check" type="checkbox" value="comment" v-model="settingsUserOptionsForm.defaultAllow" />
                               <span>评论</span>
                             </label>
                             <label class="v3a-remember" style="margin: 0;">
-                              <input type="checkbox" value="ping" v-model="settingsUserOptionsForm.defaultAllow" />
+                              <input class="v3a-check" type="checkbox" value="ping" v-model="settingsUserOptionsForm.defaultAllow" />
                               <span>引用</span>
                             </label>
                             <label class="v3a-remember" style="margin: 0;">
-                              <input type="checkbox" value="feed" v-model="settingsUserOptionsForm.defaultAllow" />
+                              <input class="v3a-check" type="checkbox" value="feed" v-model="settingsUserOptionsForm.defaultAllow" />
                               <span>聚合</span>
                             </label>
                           </div>
@@ -4078,19 +4199,19 @@
                         <div class="v3a-muted" style="margin-bottom: 10px;">勾选允许上传的类型（与旧后台一致）。</div>
                         <div style="display:flex; flex-wrap: wrap; gap: 12px;">
                           <label class="v3a-remember" style="margin: 0;">
-                            <input type="checkbox" value="@image@" v-model="settingsStorageForm.attachmentTypes" />
+                            <input class="v3a-check" type="checkbox" value="@image@" v-model="settingsStorageForm.attachmentTypes" />
                             <span>图片</span>
                           </label>
                           <label class="v3a-remember" style="margin: 0;">
-                            <input type="checkbox" value="@media@" v-model="settingsStorageForm.attachmentTypes" />
+                            <input class="v3a-check" type="checkbox" value="@media@" v-model="settingsStorageForm.attachmentTypes" />
                             <span>媒体</span>
                           </label>
                           <label class="v3a-remember" style="margin: 0;">
-                            <input type="checkbox" value="@doc@" v-model="settingsStorageForm.attachmentTypes" />
+                            <input class="v3a-check" type="checkbox" value="@doc@" v-model="settingsStorageForm.attachmentTypes" />
                             <span>文档</span>
                           </label>
                           <label class="v3a-remember" style="margin: 0;">
-                            <input type="checkbox" value="@other@" v-model="settingsStorageForm.attachmentTypes" />
+                            <input class="v3a-check" type="checkbox" value="@other@" v-model="settingsStorageForm.attachmentTypes" />
                             <span>其他</span>
                           </label>
                         </div>
