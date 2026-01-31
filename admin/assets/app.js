@@ -861,7 +861,7 @@
       const commentsFilters = reactive({
         keywords: "",
         status: "approved", // approved|waiting|spam|hold|all
-        scope: "mine", // mine|all (editors only)
+        scope: V3A.canPublish ? "all" : "mine", // mine|all (editors only)
       });
       const commentsPagination = reactive({
         page: 1,
@@ -3834,47 +3834,44 @@
 
                 <div v-if="taxonomyError" class="v3a-alert">{{ taxonomyError }}</div>
 
-                <div class="v3a-grid two">
+                <div class="v3a-grid">
                   <div class="v3a-card">
-                    <div class="hd">
-                      <div class="title">分类</div>
-                      <button class="v3a-mini-btn" type="button" @click="openCategoryEditor(null)">新增</button>
-                    </div>
-                    <div class="bd">
-                      <div v-if="categoryEditorOpen">
-                        <div class="v3a-kv">
-                          <div class="v3a-muted">名称</div>
-                          <input class="v3a-input" v-model="categoryForm.name" placeholder="分类名称" />
+                    <div class="bd" style="padding: 0;">
+                      <template v-if="categoryEditorOpen">
+                        <div style="padding: 16px;">
+                          <div class="v3a-kv">
+                            <div class="v3a-muted">名称</div>
+                            <input class="v3a-input" v-model="categoryForm.name" placeholder="分类名称" />
 
-                          <div class="v3a-muted">缩略名</div>
-                          <input class="v3a-input" v-model="categoryForm.slug" placeholder="可留空（自动生成）" />
+                            <div class="v3a-muted">缩略名</div>
+                            <input class="v3a-input" v-model="categoryForm.slug" placeholder="可留空（自动生成）" />
 
-                          <div class="v3a-muted">父级</div>
-                          <select class="v3a-select" v-model.number="categoryForm.parent">
-                            <option :value="0">无</option>
-                            <option
-                              v-for="c in categoriesAll"
-                              :key="c.mid"
-                              :value="c.mid"
-                              v-if="c.mid !== categoryForm.mid"
-                            >
-                              {{ (c.levels ? '—'.repeat(Number(c.levels)) + ' ' : '') + c.name }}
-                            </option>
-                          </select>
+                            <div class="v3a-muted">父级</div>
+                            <select class="v3a-select" v-model.number="categoryForm.parent">
+                              <option :value="0">无</option>
+                              <option
+                                v-for="c in categoriesAll"
+                                :key="c.mid"
+                                :value="c.mid"
+                                v-if="c.mid !== categoryForm.mid"
+                              >
+                                {{ (c.levels ? '—'.repeat(Number(c.levels)) + ' ' : '') + c.name }}
+                              </option>
+                            </select>
 
-                          <div class="v3a-muted">描述</div>
-                          <textarea class="v3a-textarea" v-model="categoryForm.description" placeholder="可选"></textarea>
+                            <div class="v3a-muted">描述</div>
+                            <textarea class="v3a-textarea" v-model="categoryForm.description" placeholder="可选"></textarea>
+                          </div>
+
+                          <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
+                            <button class="v3a-btn" type="button" @click="closeCategoryEditor()">取消</button>
+                            <button class="v3a-btn primary" type="button" @click="saveCategory()" :disabled="taxonomySaving">保存</button>
+                          </div>
                         </div>
+                        <div class="v3a-divider" style="margin: 0;"></div>
+                      </template>
 
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                          <button class="v3a-btn" type="button" @click="closeCategoryEditor()">取消</button>
-                          <button class="v3a-btn primary" type="button" @click="saveCategory()" :disabled="taxonomySaving">保存</button>
-                        </div>
-
-                        <div class="v3a-divider"></div>
-                      </div>
-
-                      <table class="v3a-table">
+                      <table class="v3a-table v3a-taxonomy-table">
                         <thead><tr><th>名称</th><th>缩略名</th><th>数量</th><th>操作</th></tr></thead>
                         <tbody>
                           <tr v-for="c in categoriesAll" :key="c.mid">
@@ -3900,29 +3897,26 @@
                   </div>
 
                   <div class="v3a-card">
-                    <div class="hd">
-                      <div class="title">标签</div>
-                      <button class="v3a-mini-btn" type="button" @click="openTagEditor(null)">新增</button>
-                    </div>
-                    <div class="bd">
-                      <div v-if="tagEditorOpen">
-                        <div class="v3a-kv">
-                          <div class="v3a-muted">名称</div>
-                          <input class="v3a-input" v-model="tagForm.name" placeholder="标签名称" />
+                    <div class="bd" style="padding: 0;">
+                      <template v-if="tagEditorOpen">
+                        <div style="padding: 16px;">
+                          <div class="v3a-kv">
+                            <div class="v3a-muted">名称</div>
+                            <input class="v3a-input" v-model="tagForm.name" placeholder="标签名称" />
 
-                          <div class="v3a-muted">缩略名</div>
-                          <input class="v3a-input" v-model="tagForm.slug" placeholder="可留空（自动生成）" />
+                            <div class="v3a-muted">缩略名</div>
+                            <input class="v3a-input" v-model="tagForm.slug" placeholder="可留空（自动生成）" />
+                          </div>
+
+                          <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
+                            <button class="v3a-btn" type="button" @click="closeTagEditor()">取消</button>
+                            <button class="v3a-btn primary" type="button" @click="saveTag()" :disabled="taxonomySaving">保存</button>
+                          </div>
                         </div>
+                        <div class="v3a-divider" style="margin: 0;"></div>
+                      </template>
 
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                          <button class="v3a-btn" type="button" @click="closeTagEditor()">取消</button>
-                          <button class="v3a-btn primary" type="button" @click="saveTag()" :disabled="taxonomySaving">保存</button>
-                        </div>
-
-                        <div class="v3a-divider"></div>
-                      </div>
-
-                      <table class="v3a-table">
+                      <table class="v3a-table v3a-taxonomy-table">
                         <thead><tr><th>名称</th><th>缩略名</th><th>引用</th><th>操作</th></tr></thead>
                         <tbody>
                           <tr v-for="t in tagsAll" :key="t.mid">
@@ -3965,36 +3959,14 @@
 
                 <div v-if="commentsError" class="v3a-alert">{{ commentsError }}</div>
 
-                <div class="v3a-grid">
-                  <div class="v3a-card">
-                    <div class="hd"><div class="title">筛选</div></div>
-                    <div class="bd">
-                      <div class="v3a-toolbar">
-                        <label class="v3a-fieldrow">
-                          <span>关键词</span>
-                          <input class="v3a-input" v-model="commentsFilters.keywords" placeholder="作者 / 邮箱 / 内容" @keyup.enter="applyCommentsFilters()" />
-                        </label>
-                        <label class="v3a-fieldrow">
-                          <span>状态</span>
-                          <select class="v3a-select" v-model="commentsFilters.status" @change="applyCommentsFilters()">
-                            <option value="approved">已通过</option>
-                            <option value="waiting">待审核</option>
-                            <option value="spam">垃圾</option>
-                            <option value="hold">未通过（非已通过）</option>
-                            <option value="all">全部</option>
-                          </select>
-                        </label>
-                        <label class="v3a-fieldrow" v-if="V3A.canPublish">
-                          <span>范围</span>
-                          <select class="v3a-select" v-model="commentsFilters.scope" @change="applyCommentsFilters()">
-                            <option value="mine">我的</option>
-                            <option value="all">所有</option>
-                          </select>
-                        </label>
-                      </div>
-                    </div>
+                <div class="v3a-posts-search">
+                  <div class="v3a-searchbox">
+                    <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                    <input class="v3a-input" v-model="commentsFilters.keywords" @keyup.enter="applyCommentsFilters()" placeholder="搜索作者 / 邮箱 / 内容..." />
                   </div>
+                </div>
 
+                <div class="v3a-grid">
                   <div class="v3a-card" v-if="commentEditorOpen">
                     <div class="hd" style="display:flex; align-items:center; justify-content:space-between; gap: 8px;">
                       <div class="title">编辑 / 回复</div>
@@ -4038,9 +4010,8 @@
                   </div>
 
                   <div class="v3a-card">
-                    <div class="hd"><div class="title">列表</div></div>
-                    <div class="bd">
-                      <div v-if="commentsLoading" class="v3a-muted">正在加载…</div>
+                    <div class="bd" style="padding: 0;">
+                      <div v-if="commentsLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
                       <table v-else class="v3a-table">
                         <thead>
                           <tr>
@@ -4082,14 +4053,14 @@
                           </tr>
                         </tbody>
                       </table>
-
-                      <div style="display:flex; align-items:center; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                        <button class="v3a-btn" type="button" @click="commentsGoPage(commentsPagination.page - 1)" :disabled="commentsPagination.page <= 1">上一页</button>
-                        <div class="v3a-muted">第 {{ commentsPagination.page }} / {{ commentsPagination.pageCount }} 页 · 共 {{ formatNumber(commentsPagination.total) }} 条</div>
-                        <button class="v3a-btn" type="button" @click="commentsGoPage(commentsPagination.page + 1)" :disabled="commentsPagination.page >= commentsPagination.pageCount">下一页</button>
-                      </div>
                     </div>
                   </div>
+                </div>
+
+                <div class="v3a-pagination">
+                  <button class="v3a-btn" type="button" @click="commentsGoPage(commentsPagination.page - 1)" :disabled="commentsPagination.page <= 1">上一页</button>
+                  <div class="v3a-muted">第 {{ commentsPagination.page }} / {{ commentsPagination.pageCount }} 页 · 共 {{ formatNumber(commentsPagination.total) }} 条</div>
+                  <button class="v3a-btn" type="button" @click="commentsGoPage(commentsPagination.page + 1)" :disabled="commentsPagination.page >= commentsPagination.pageCount">下一页</button>
                 </div>
               </div>
             </template>
@@ -4111,58 +4082,41 @@
 
                 <div v-if="pagesError" class="v3a-alert">{{ pagesError }}</div>
 
-                <div class="v3a-grid">
-                  <div class="v3a-card">
-                    <div class="hd"><div class="title">筛选</div></div>
-                    <div class="bd">
-                      <div class="v3a-toolbar">
-                        <label class="v3a-fieldrow">
-                          <span>关键词</span>
-                          <input class="v3a-input" v-model="pagesFilters.keywords" placeholder="标题 / 内容" @keyup.enter="applyPagesFilters()" />
-                        </label>
-                        <label class="v3a-fieldrow">
-                          <span>状态</span>
-                          <select class="v3a-select" v-model="pagesFilters.status" @change="applyPagesFilters()">
-                            <option value="all">全部</option>
-                            <option value="publish">已发布</option>
-                            <option value="hidden">隐藏</option>
-                            <option value="draft">草稿</option>
-                          </select>
-                        </label>
-                      </div>
-                    </div>
+                <div class="v3a-posts-search">
+                  <div class="v3a-searchbox">
+                    <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                    <input class="v3a-input" v-model="pagesFilters.keywords" @keyup.enter="applyPagesFilters()" placeholder="搜索标题..." />
                   </div>
+                </div>
 
-                  <div class="v3a-card">
-                    <div class="hd"><div class="title">页面列表</div></div>
-                    <div class="bd">
-                      <div v-if="pagesLoading" class="v3a-muted">正在加载…</div>
-                      <table v-else class="v3a-table">
-                        <thead><tr><th>标题</th><th>状态</th><th>模板</th><th>日期</th><th>操作</th></tr></thead>
-                        <tbody>
-                          <tr v-for="p in pagesItems" :key="p.cid">
-                            <td>
-                              <div style="display:flex; align-items:center; gap: 8px;">
-                                <span :style="{ paddingLeft: (Number(p.levels || 0) * 12) + 'px' }">{{ p.title || ('#' + p.cid) }}</span>
-                                <span class="v3a-muted" style="font-size: 12px;">#{{ p.cid }}</span>
-                              </div>
-                            </td>
-                            <td>
-                              <span class="v3a-pill" :class="getPageBadge(p).tone">{{ getPageBadge(p).text }}</span>
-                            </td>
-                            <td class="v3a-muted">{{ p.template || '—' }}</td>
-                            <td>{{ formatTime(p.created) }}</td>
-                            <td style="white-space: nowrap;">
-                              <button class="v3a-mini-btn" type="button" @click="openPageEditor(p.cid)">编辑</button>
-                              <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deletePage(p.cid)">删除</button>
-                            </td>
-                          </tr>
-                          <tr v-if="!pagesItems.length">
-                            <td colspan="5" class="v3a-muted">暂无页面</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
+                <div class="v3a-card">
+                  <div class="bd" style="padding: 0;">
+                    <div v-if="pagesLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+                    <table v-else class="v3a-table">
+                      <thead><tr><th>标题</th><th>状态</th><th>模板</th><th>日期</th><th>操作</th></tr></thead>
+                      <tbody>
+                        <tr v-for="p in pagesItems" :key="p.cid">
+                          <td>
+                            <div style="display:flex; align-items:center; gap: 8px;">
+                              <span :style="{ paddingLeft: (Number(p.levels || 0) * 12) + 'px' }">{{ p.title || ('#' + p.cid) }}</span>
+                              <span class="v3a-muted" style="font-size: 12px;">#{{ p.cid }}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span class="v3a-pill" :class="getPageBadge(p).tone">{{ getPageBadge(p).text }}</span>
+                          </td>
+                          <td class="v3a-muted">{{ p.template || '—' }}</td>
+                          <td>{{ formatTime(p.created) }}</td>
+                          <td style="white-space: nowrap;">
+                            <button class="v3a-mini-btn" type="button" @click="openPageEditor(p.cid)">编辑</button>
+                            <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deletePage(p.cid)">删除</button>
+                          </td>
+                        </tr>
+                        <tr v-if="!pagesItems.length">
+                          <td colspan="5" class="v3a-muted" style="padding: 16px;">暂无页面</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>

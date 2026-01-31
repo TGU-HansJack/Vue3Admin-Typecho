@@ -1723,6 +1723,29 @@ a {
   border-color: var(--color-primary-deep);
 }
 
+.v3a-table td .v3a-mini-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  height: auto;
+  line-height: 1.6;
+  border-radius: 0;
+  vertical-align: middle;
+}
+
+.v3a-table td .v3a-mini-btn + .v3a-mini-btn {
+  margin-left: 12px;
+}
+
+.v3a-table td .v3a-mini-btn:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.v3a-table td .v3a-mini-btn:active {
+  background: transparent;
+}
+
 .v3a-metric-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2025,6 +2048,18 @@ a {
 .v3a-posts-table .v3a-pill .v3a-icon svg {
   width: 14px;
   height: 14px;
+}
+
+.v3a-taxonomy-table th:nth-child(3),
+.v3a-taxonomy-table td:nth-child(3) {
+  width: 86px;
+  text-align: center;
+}
+
+.v3a-taxonomy-table th:nth-child(4),
+.v3a-taxonomy-table td:nth-child(4) {
+  width: 140px;
+  text-align: right;
 }
 
 .v3a-link-danger {
