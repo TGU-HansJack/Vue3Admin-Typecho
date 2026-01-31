@@ -54,6 +54,24 @@ $assetJsVer = @filemtime(__DIR__ . '/assets/app.js');
 if ($assetJsVer === false) {
     $assetJsVer = '1.0.0';
 }
+
+$routingTable = [];
+try {
+    $routingTable = (array) ($options->routingTable ?? []);
+} catch (\Throwable $e) {
+}
+
+$postPermalinkRule = '';
+try {
+    $postPermalinkRule = (string) ($routingTable['post']['url'] ?? '');
+} catch (\Throwable $e) {
+}
+
+$indexUrl = '';
+try {
+    $indexUrl = (string) ($options->index ?? '');
+} catch (\Throwable $e) {
+}
 ?>
 <!doctype html>
 <html lang="zh-CN" style="--color-primary: <?php echo htmlspecialchars($primaryColor, ENT_QUOTES); ?>; --color-primary-shallow: <?php echo htmlspecialchars($primaryShallow, ENT_QUOTES); ?>; --color-primary-deep: <?php echo htmlspecialchars($primaryDeep, ENT_QUOTES); ?>;">
@@ -71,6 +89,10 @@ if ($assetJsVer === false) {
             csrfToken: <?php echo json_encode($security->getToken($request->getRequestUrl()), JSON_UNESCAPED_SLASHES); ?>,
             uploadUrl: <?php echo json_encode($security->getIndex('/action/upload'), JSON_UNESCAPED_SLASHES); ?>,
             siteUrl: <?php echo json_encode($options->siteUrl, JSON_UNESCAPED_SLASHES); ?>,
+            indexUrl: <?php echo json_encode($indexUrl, JSON_UNESCAPED_SLASHES); ?>,
+            permalink: {
+                postUrl: <?php echo json_encode($postPermalinkRule, JSON_UNESCAPED_SLASHES); ?>
+            },
             logoutUrl: <?php echo json_encode($options->logoutUrl, JSON_UNESCAPED_SLASHES); ?>,
             canPublish: <?php echo $user->pass('editor', true) ? 'true' : 'false'; ?>,
             markdownEnabled: <?php echo !empty($options->markdown) ? 'true' : 'false'; ?>,

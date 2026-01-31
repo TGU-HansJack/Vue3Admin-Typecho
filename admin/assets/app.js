@@ -44,6 +44,7 @@
     save: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-save-icon lucide-save"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>`,
     send: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send-icon lucide-send"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg>`,
     close: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
+    closeSmall: `<svg viewBox="0 0 12 12" version="1.1" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><g fill="currentColor" fill-rule="nonzero"><path d="M2.08859116,2.2156945 L2.14644661,2.14644661 C2.32001296,1.97288026 2.58943736,1.95359511 2.7843055,2.08859116 L2.85355339,2.14644661 L6,5.293 L9.14644661,2.14644661 C9.34170876,1.95118446 9.65829124,1.95118446 9.85355339,2.14644661 C10.0488155,2.34170876 10.0488155,2.65829124 9.85355339,2.85355339 L6.707,6 L9.85355339,9.14644661 C10.0271197,9.32001296 10.0464049,9.58943736 9.91140884,9.7843055 L9.85355339,9.85355339 C9.67998704,10.0271197 9.41056264,10.0464049 9.2156945,9.91140884 L9.14644661,9.85355339 L6,6.707 L2.85355339,9.85355339 C2.65829124,10.0488155 2.34170876,10.0488155 2.14644661,9.85355339 C1.95118446,9.65829124 1.95118446,9.34170876 2.14644661,9.14644661 L5.293,6 L2.14644661,2.85355339 C1.97288026,2.67998704 1.95359511,2.41056264 2.08859116,2.2156945 L2.14644661,2.14644661 L2.08859116,2.2156945 Z"></path></g></g></svg>`,
     thumbsUp: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/><path d="M7 10v12"/></svg>`,
   };
 
@@ -483,6 +484,8 @@
         slug: "",
         text: "",
         tags: "",
+        created: 0,
+        modified: 0,
         visibility: "publish", // publish|hidden|private|waiting|password
         password: "",
         allowComment: true,
@@ -493,11 +496,136 @@
         fields: [],
       });
 
-      const postSlugPrefix = computed(() => {
-        const base = String(V3A.siteUrl || "").trim();
-        if (!base) return "";
-        return base.endsWith("/") ? base : `${base}/`;
+      function v3aDecodeRule(rule) {
+        return String(rule || "").replace(/\[([_a-z0-9-]+)[^\]]*\]/gi, "{$1}");
+      }
+
+      function v3aCommonUrl(path, prefix) {
+        const p = String(prefix || "");
+        const cleanPrefix = p.replace(/\/+$/, "");
+        const rawPath = String(path || "");
+        const cleanPath = rawPath.startsWith("./") ? rawPath.slice(2) : rawPath;
+        const normalizedPath = cleanPath.replace(/^\/+/, "").replace(/\/{2,}/g, "/");
+        if (!cleanPrefix) return normalizedPath;
+        return `${cleanPrefix}/${normalizedPath}`;
+      }
+
+      function v3aPad2(n) {
+        return String(n).padStart(2, "0");
+      }
+
+      function v3aGetPostTimestamp() {
+        const created = Number(postForm.created || 0);
+        if (created > 0) return created;
+        const serverTime = Number(systemInfo.value?.serverTime || 0);
+        if (serverTime > 0) return serverTime;
+        return Math.floor(Date.now() / 1000);
+      }
+
+      function v3aFindCategory(mid) {
+        const id = Number(mid || 0);
+        if (id <= 0) return null;
+        const list = Array.isArray(categoriesAll.value) ? categoriesAll.value : [];
+        return list.find((c) => Number(c?.mid || 0) === id) || null;
+      }
+
+      function v3aGetPrimaryCategory() {
+        const ids = Array.isArray(postForm.categories) ? postForm.categories : [];
+        const id = Number(ids[0] || 0) || Number(defaultCategoryId.value || 0) || 0;
+        return v3aFindCategory(id);
+      }
+
+      function v3aGetCategoryDirectory(category) {
+        const cat = category && typeof category === "object" ? category : null;
+        if (!cat) return "";
+
+        const list = Array.isArray(categoriesAll.value) ? categoriesAll.value : [];
+        const map = new Map(list.map((c) => [Number(c?.mid || 0), c]));
+
+        const parts = [];
+        const seen = new Set();
+        let current = cat;
+
+        while (current) {
+          const mid = Number(current?.mid || 0);
+          if (mid <= 0 || seen.has(mid)) break;
+          seen.add(mid);
+
+          const slug = String(current?.slug || "").trim();
+          if (slug) parts.push(slug);
+
+          const parent = Number(current?.parent || 0);
+          current = parent > 0 ? map.get(parent) : null;
+        }
+
+        parts.reverse();
+        return parts.join("/");
+      }
+
+      function v3aFillPostPermalinkParams(template) {
+        const raw = String(template || "");
+        if (!raw) return "";
+
+        const hasPost = Number(postForm.cid || 0) > 0;
+        if (!hasPost) {
+          // Align with old Typecho admin: only fill router params when the post already exists.
+          return raw;
+        }
+
+        const ts = v3aGetPostTimestamp();
+        const date = new Date(ts * 1000);
+        const year = String(date.getFullYear());
+        const month = v3aPad2(date.getMonth() + 1);
+        const day = v3aPad2(date.getDate());
+
+        const cid = Number(postForm.cid || 0);
+        const cat = v3aGetPrimaryCategory();
+        const categorySlug = String(cat?.slug || "").trim();
+
+        return raw.replace(/\{([_a-z0-9-]+)\}/gi, (match, keyRaw) => {
+          const key = String(keyRaw || "").toLowerCase();
+          if (key === "slug") return match;
+          if (key === "cid") return cid > 0 ? String(cid) : match;
+          if (key === "category") {
+            return categorySlug ? categorySlug : match;
+          }
+          if (key === "year") return year;
+          if (key === "month") return month;
+          if (key === "day") return day;
+          return match;
+        });
+      }
+
+      const postSlugPreview = computed(() => {
+        const basePrefix = String(V3A.indexUrl || V3A.siteUrl || "").trim();
+        const rule = v3aDecodeRule(String(V3A?.permalink?.postUrl || ""));
+
+        if (!basePrefix || !rule) {
+          const base = String(V3A.siteUrl || "").trim();
+          if (!base) return { prefix: "", suffix: "", hasSlug: true };
+          return { prefix: base.endsWith("/") ? base : `${base}/`, suffix: "", hasSlug: true };
+        }
+
+        const template = v3aCommonUrl(rule, basePrefix);
+        const filled = v3aFillPostPermalinkParams(template);
+
+        const match = filled.match(/\{slug\}/i);
+        if (!match || match.index == null) {
+          return { prefix: filled, suffix: "", hasSlug: false };
+        }
+
+        const idx = match.index;
+        const placeholder = match[0];
+        return {
+          prefix: filled.slice(0, idx),
+          suffix: filled.slice(idx + placeholder.length),
+          hasSlug: true,
+        };
       });
+
+      const postSlugPrefix = computed(() => postSlugPreview.value.prefix);
+      const postSlugSuffix = computed(() => postSlugPreview.value.suffix);
+      const postSlugHasSlug = computed(() => !!postSlugPreview.value.hasSlug);
 
       const postSlugInputWidth = computed(() => {
         const len = String(postForm.slug || "").length;
@@ -506,6 +634,9 @@
       });
 
       const postTagInput = ref("");
+      const postTagFocused = ref(false);
+      const postTagActiveIndex = ref(-1);
+      const postTagInputEl = ref(null);
 
       function splitTagsText(text) {
         const raw = String(text || "");
@@ -531,15 +662,160 @@
 
       function addPostTag() {
         const toAdd = splitTagsText(postTagInput.value);
+        postTagInput.value = "";
         if (!toAdd.length) return;
         setPostTags([...(postTags.value || []), ...toAdd]);
-        postTagInput.value = "";
       }
 
       function removePostTag(tag) {
         const t = String(tag || "").trim();
         if (!t) return;
         setPostTags((postTags.value || []).filter((x) => x !== t));
+      }
+
+      const postTagSuggestions = computed(() => {
+        if (!postTagFocused.value) return [];
+        const q = String(postTagInput.value || "").trim();
+        if (!q) return [];
+
+        const existing = new Set((postTags.value || []).map((t) => String(t || "")));
+        const all = Array.isArray(tagsAll.value) ? tagsAll.value : [];
+        const out = [];
+        const lowered = q.toLowerCase();
+
+        for (const row of all) {
+          const name = row && typeof row === "object" ? String(row.name || "") : "";
+          if (!name) continue;
+          if (existing.has(name)) continue;
+          if (!name.toLowerCase().includes(lowered)) continue;
+          out.push(name);
+          if (out.length >= 8) break;
+        }
+
+        return out;
+      });
+
+      watch(postTagInput, () => {
+        if (!postTagFocused.value) return;
+        postTagActiveIndex.value = 0;
+      });
+
+      function selectTagSuggestion(name) {
+        const t = String(name || "").trim();
+        if (!t) return;
+        setPostTags([...(postTags.value || []), t]);
+        postTagInput.value = "";
+        postTagActiveIndex.value = -1;
+        nextTick(() => {
+          const el = postTagInputEl.value;
+          if (el && typeof el.focus === "function") el.focus();
+        });
+      }
+
+      function onPostTagFocus() {
+        postTagFocused.value = true;
+        if (postTagSuggestions.value.length) {
+          postTagActiveIndex.value = 0;
+        }
+      }
+
+      function onPostTagBlur() {
+        addPostTag();
+        postTagFocused.value = false;
+        postTagActiveIndex.value = -1;
+      }
+
+      function onPostTagKeydown(e) {
+        const key = e && e.key ? String(e.key) : "";
+        const list = postTagSuggestions.value || [];
+
+        if (key === "ArrowDown" && list.length) {
+          e.preventDefault();
+          const next = postTagActiveIndex.value < 0 ? 0 : postTagActiveIndex.value + 1;
+          postTagActiveIndex.value = next >= list.length ? 0 : next;
+          return;
+        }
+
+        if (key === "ArrowUp" && list.length) {
+          e.preventDefault();
+          const next = postTagActiveIndex.value <= 0 ? list.length - 1 : postTagActiveIndex.value - 1;
+          postTagActiveIndex.value = next;
+          return;
+        }
+
+        if (key === "Enter") {
+          e.preventDefault();
+          const raw = String(postTagInput.value || "");
+          const single = !/[,，\s]/.test(raw);
+          if (single && list.length && postTagActiveIndex.value >= 0 && postTagActiveIndex.value < list.length) {
+            selectTagSuggestion(list[postTagActiveIndex.value]);
+            return;
+          }
+          addPostTag();
+          return;
+        }
+
+        if (key === "Escape") {
+          postTagInput.value = "";
+          postTagActiveIndex.value = -1;
+        }
+      }
+
+      const categorySelectOpen = ref(false);
+      const categorySelectEl = ref(null);
+
+      const postSelectedCategories = computed(() => {
+        const ids = Array.isArray(postForm.categories) ? postForm.categories : [];
+        const seen = new Set();
+        const out = [];
+        for (const raw of ids) {
+          const id = Number(raw || 0);
+          if (id <= 0 || seen.has(id)) continue;
+          seen.add(id);
+          const cat = v3aFindCategory(id);
+          if (cat) out.push(cat);
+        }
+        return out;
+      });
+
+      function toggleCategorySelect(force) {
+        if (typeof force === "boolean") {
+          categorySelectOpen.value = force;
+          return;
+        }
+        categorySelectOpen.value = !categorySelectOpen.value;
+      }
+
+      function isPostCategorySelected(mid) {
+        const id = Number(mid || 0);
+        if (id <= 0) return false;
+        return Array.isArray(postForm.categories) && postForm.categories.some((x) => Number(x || 0) === id);
+      }
+
+      function togglePostCategory(mid) {
+        const id = Number(mid || 0);
+        if (id <= 0) return;
+
+        const idx = Array.isArray(postForm.categories)
+          ? postForm.categories.findIndex((x) => Number(x || 0) === id)
+          : -1;
+
+        if (idx >= 0) {
+          postForm.categories.splice(idx, 1);
+          return;
+        }
+
+        postForm.categories.push(id);
+      }
+
+      function removePostCategory(mid) {
+        const id = Number(mid || 0);
+        if (id <= 0) return;
+        postForm.categories.splice(
+          0,
+          postForm.categories.length,
+          ...(postForm.categories || []).filter((x) => Number(x || 0) !== id)
+        );
       }
 
       // Files
@@ -1161,7 +1437,12 @@
         postForm.slug = "";
         postForm.text = "";
         postForm.tags = "";
+        postForm.created = 0;
+        postForm.modified = 0;
         postTagInput.value = "";
+        postTagFocused.value = false;
+        postTagActiveIndex.value = -1;
+        categorySelectOpen.value = false;
         postForm.visibility = "publish";
         postForm.password = "";
         postForm.allowComment = true;
@@ -1180,7 +1461,7 @@
 
       function setPostCategoriesFromText(text) {
         const raw = String(text || "");
-        const parts = raw.split(/[,，\\s]+/u);
+        const parts = raw.split(/[,，\s]+/u);
         const ids = [];
         for (const part of parts) {
           const n = Number(String(part).trim());
@@ -1206,6 +1487,7 @@
         postMessage.value = "";
         try {
           await ensureCategoriesLoaded();
+          await ensureTagsLoaded();
           const cidRaw = routeQuery.value && routeQuery.value.cid;
           const cid = Number(cidRaw || 0);
           if (!cid) {
@@ -1230,7 +1512,12 @@
           postForm.slug = String(p.slug || "");
           postForm.text = String(p.text || "");
           postForm.tags = String(p.tags || "");
+          postForm.created = Number(p.created || 0) || 0;
+          postForm.modified = Number(p.modified || 0) || 0;
           postTagInput.value = "";
+          postTagFocused.value = false;
+          postTagActiveIndex.value = -1;
+          categorySelectOpen.value = false;
           postForm.password = String(p.password || "");
           postForm.visibility = String(p.visibility || p.status || "publish");
           postForm.allowComment = !!Number(p.allowComment || 0);
@@ -1467,6 +1754,14 @@
           const data = await apiGet("metas.categories");
           categoriesAll.value = data.items || [];
           defaultCategoryId.value = Number(data.defaultCategory || 0) || 0;
+        } catch (e) {}
+      }
+
+      async function ensureTagsLoaded() {
+        if (tagsAll.value && tagsAll.value.length) return;
+        try {
+          const data = await apiGet("metas.tags");
+          tagsAll.value = data.items || [];
         } catch (e) {}
       }
 
@@ -2628,6 +2923,14 @@
       );
 
       onMounted(async () => {
+        document.addEventListener("pointerdown", (event) => {
+          const target = event?.target;
+          const el = categorySelectEl.value;
+          if (categorySelectOpen.value && el && target && !el.contains(target)) {
+            categorySelectOpen.value = false;
+          }
+        });
+
         listenHash();
         route.value = getRoute();
         settingsOpen.value = routePath.value === "/settings";
@@ -2736,11 +3039,28 @@
         postCapabilities,
         postForm,
         postSlugPrefix,
+        postSlugSuffix,
+        postSlugHasSlug,
         postSlugInputWidth,
         postTags,
         postTagInput,
+        postTagFocused,
+        postTagActiveIndex,
         addPostTag,
         removePostTag,
+        postTagInputEl,
+        postTagSuggestions,
+        onPostTagFocus,
+        onPostTagBlur,
+        onPostTagKeydown,
+        selectTagSuggestion,
+        categorySelectOpen,
+        categorySelectEl,
+        postSelectedCategories,
+        toggleCategorySelect,
+        isPostCategorySelected,
+        togglePostCategory,
+        removePostCategory,
         setPostCategoriesFromText,
         addPostField,
         removePostField,
@@ -3296,7 +3616,7 @@
             </template>
 
             <template v-else-if="routePath === '/posts/write'">
-              <div class="v3a-container">
+              <div class="v3a-container v3a-container-write">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
@@ -3333,26 +3653,28 @@
                         <div class="v3a-write-subtitle">
                           <div class="v3a-write-subline">
                             <span class="v3a-write-baseurl">{{ postSlugPrefix }}</span>
-                            <input class="v3a-write-slug" v-model="postForm.slug" placeholder="slug" :style="{ width: postSlugInputWidth + 'ch' }" />
+                            <template v-if="postSlugHasSlug">
+                              <input class="v3a-write-slug" v-model="postForm.slug" placeholder="slug" :style="{ width: postSlugInputWidth + 'ch' }" />
+                              <span v-if="postSlugSuffix" class="v3a-write-baseurl v3a-write-baseurl-suffix">{{ postSlugSuffix }}</span>
+                            </template>
                           </div>
                         </div>
                       </div>
                       <div class="v3a-write-editor-content">
-                        <textarea id="v3a-post-text" class="v3a-write-textarea" v-model="postForm.text" placeholder="Markdown / 纯文本"></textarea>
+                        <textarea id="v3a-post-text" class="v3a-write-textarea" v-model="postForm.text"></textarea>
                       </div>
                     </div>
                   </div>
 
                   <div class="v3a-write-side-mask" v-if="writeSidebarOpen" @click="toggleWriteSidebar(false)"></div>
                   <div class="v3a-write-side" :class="{ open: writeSidebarOpen }">
-                    <div class="v3a-card">
-                    <div class="hd">
-                      <div class="title">文章设定</div>
-                      <button class="v3a-iconbtn v3a-write-side-close" type="button" @click="toggleWriteSidebar(false)" aria-label="关闭" data-tooltip="关闭">
-                        <span class="v3a-icon" v-html="ICONS.close"></span>
-                      </button>
-                    </div>
-                    <div class="bd">
+                      <div class="v3a-write-drawer-header">
+                        <div class="v3a-write-drawer-title" role="heading" aria-level="1">文章设定</div>
+                        <button class="v3a-write-drawer-close" type="button" @click="toggleWriteSidebar(false)" aria-label="close" data-tooltip="关闭">
+                          <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                        </button>
+                      </div>
+                    <div class="v3a-write-drawer-body">
                       <div class="v3a-write-section">
                         <div class="v3a-write-section-head">
                           <span class="v3a-icon" v-html="ICONS.files"></span>
@@ -3361,12 +3683,25 @@
 
                         <div class="v3a-write-formitem">
                           <label class="v3a-write-label">分类<span class="v3a-required">*</span></label>
-                          <div v-if="categoriesAll && categoriesAll.length" class="v3a-write-categorybox">
-                            <label v-for="c in categoriesAll" :key="c.mid" class="v3a-write-categoryitem">
-                              <input class="v3a-check" type="checkbox" :value="c.mid" v-model="postForm.categories" />
-                              <span class="v3a-write-categoryname" :style="{ paddingLeft: (Number(c.levels || 0) * 12) + 'px' }">{{ c.name }}</span>
-                            </label>
-                            <div v-if="!categoriesAll.length" class="v3a-muted">暂无分类</div>
+                          <div v-if="categoriesAll && categoriesAll.length" ref="categorySelectEl" class="v3a-write-tags v3a-write-category-tags">
+                            <span v-for="c in postSelectedCategories" :key="c.mid" class="v3a-write-tag">
+                              {{ c.name }}
+                              <button class="v3a-write-tag-remove" type="button" @click="removePostCategory(c.mid)" :aria-label="'删除分类 ' + c.name" data-tooltip="删除">
+                                <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                              </button>
+                            </span>
+
+                            <span v-if="!postSelectedCategories.length" class="v3a-write-placeholder">请选择分类</span>
+
+                            <button class="v3a-write-tags-add" type="button" @click="toggleCategorySelect()" :aria-expanded="categorySelectOpen" data-tooltip="添加分类">
+                              <span class="v3a-icon" v-html="ICONS.plus"></span>
+                            </button>
+
+                            <div v-if="categorySelectOpen" class="v3a-write-select-menu">
+                              <button v-for="c in categoriesAll" :key="c.mid" class="v3a-write-select-option" :class="{ selected: isPostCategorySelected(c.mid) }" type="button" @click="togglePostCategory(c.mid)">
+                                <span class="v3a-write-select-option-label" :style="{ paddingLeft: (Number(c.levels || 0) * 12) + 'px' }">{{ c.name }}</span>
+                              </button>
+                            </div>
                           </div>
                           <input v-else class="v3a-input" :value="postForm.categories.join(',')" @input="setPostCategoriesFromText($event.target.value)" placeholder="多个用逗号分隔（例如：1,2）" />
                         </div>
@@ -3377,13 +3712,17 @@
                             <span v-for="t in postTags" :key="t" class="v3a-write-tag">
                               {{ t }}
                               <button class="v3a-write-tag-remove" type="button" @click="removePostTag(t)" :aria-label="'删除标签 ' + t" data-tooltip="删除">
-                                <span class="v3a-icon" v-html="ICONS.close"></span>
+                                <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
                               </button>
                             </span>
-                            <input class="v3a-write-tags-input" v-model="postTagInput" placeholder="添加标签" @keyup.enter="addPostTag()" />
-                            <button class="v3a-write-tags-add" type="button" @click="addPostTag()" data-tooltip="添加标签">
-                              <span class="v3a-icon" v-html="ICONS.plus"></span>
-                            </button>
+                            <div class="v3a-write-tag-editor">
+                              <input ref="postTagInputEl" class="v3a-write-tags-input" v-model="postTagInput" placeholder="" @focus="onPostTagFocus()" @blur="onPostTagBlur()" @keydown="onPostTagKeydown" />
+                              <div v-if="postTagSuggestions.length" class="v3a-write-select-menu v3a-write-tag-suggest">
+                                <button v-for="(t, idx) in postTagSuggestions" :key="t" class="v3a-write-select-option" :class="{ active: idx === postTagActiveIndex }" type="button" @mousedown.prevent="selectTagSuggestion(t)">
+                                  <span class="v3a-write-select-option-label">{{ t }}</span>
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -3409,20 +3748,22 @@
                           <span>{{ postCapabilities.markdownEnabled ? '启用' : '未开启' }}</span>
                         </label>
 
-                        <div class="v3a-muted">权限</div>
-                        <div style="display:flex; flex-wrap:wrap; gap: 12px;">
-                          <label class="v3a-remember" style="margin: 0;">
-                            <input class="v3a-check" type="checkbox" v-model="postForm.allowComment" />
-                            <span>允许评论</span>
-                          </label>
-                          <label class="v3a-remember" style="margin: 0;">
-                            <input class="v3a-check" type="checkbox" v-model="postForm.allowPing" />
-                            <span>允许引用</span>
-                          </label>
-                          <label class="v3a-remember" style="margin: 0;">
-                            <input class="v3a-check" type="checkbox" v-model="postForm.allowFeed" />
-                            <span>允许聚合</span>
-                          </label>
+                        <div class="v3a-kv-span">
+                          <div class="v3a-muted">权限</div>
+                          <div class="v3a-kv-inline">
+                            <label class="v3a-remember" style="margin: 0;">
+                              <input class="v3a-check" type="checkbox" v-model="postForm.allowComment" />
+                              <span>允许评论</span>
+                            </label>
+                            <label class="v3a-remember" style="margin: 0;">
+                              <input class="v3a-check" type="checkbox" v-model="postForm.allowPing" />
+                              <span>允许引用</span>
+                            </label>
+                            <label class="v3a-remember" style="margin: 0;">
+                              <input class="v3a-check" type="checkbox" v-model="postForm.allowFeed" />
+                              <span>允许聚合</span>
+                            </label>
+                          </div>
                         </div>
                       </div>
 
@@ -3472,7 +3813,6 @@
                       <div class="v3a-muted">发布权限：{{ postCapabilities.canPublish ? '可直接发布' : '将以待审核方式提交' }}</div>
                     </div>
                   </div>
-                </div>
               </div>
             </template>
 
