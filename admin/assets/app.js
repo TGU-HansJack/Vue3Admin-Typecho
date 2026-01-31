@@ -41,6 +41,9 @@
     search: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>`,
     plus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
     trash: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+    save: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-save-icon lucide-save"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>`,
+    send: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send-icon lucide-send"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg>`,
+    close: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
     thumbsUp: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/><path d="M7 10v12"/></svg>`,
   };
 
@@ -91,6 +94,174 @@
       ],
     },
   ];
+
+  function initTooltips() {
+    if (window.__V3A_TOOLTIP_READY__) return;
+    window.__V3A_TOOLTIP_READY__ = true;
+
+    const tooltip = document.createElement("div");
+    tooltip.className = "v3a-tooltip";
+    tooltip.setAttribute("role", "tooltip");
+    tooltip.style.display = "none";
+    document.body.appendChild(tooltip);
+
+    const titleStore = new WeakMap();
+    let activeEl = null;
+    let observer = null;
+
+    function readTooltipText(el) {
+      if (!el) return "";
+      const explicit = el.getAttribute("data-tooltip");
+      if (explicit) return String(explicit);
+
+      const aria = el.getAttribute("aria-label");
+      if (aria) return String(aria);
+
+      const title = el.getAttribute("title");
+      if (title) return String(title);
+
+      const stored = titleStore.get(el);
+      return stored ? String(stored) : "";
+    }
+
+    function stealTitle(el) {
+      if (!el) return;
+      const title = el.getAttribute("title");
+      if (!title) return;
+      titleStore.set(el, title);
+      el.removeAttribute("title");
+    }
+
+    function positionTooltip(el) {
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const margin = 8;
+      const offset = 10;
+
+      const w = tooltip.offsetWidth;
+      const h = tooltip.offsetHeight;
+      const vw = document.documentElement.clientWidth || window.innerWidth || 0;
+      const vh = document.documentElement.clientHeight || window.innerHeight || 0;
+
+      let left = rect.left + rect.width / 2 - w / 2;
+      left = Math.max(margin, Math.min(left, vw - w - margin));
+
+      let top = rect.top - h - offset;
+      if (top < margin) {
+        top = rect.bottom + offset;
+      }
+      top = Math.max(margin, Math.min(top, vh - h - margin));
+
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${top}px`;
+    }
+
+    function updateTooltip() {
+      if (!activeEl) return;
+      stealTitle(activeEl);
+      const text = readTooltipText(activeEl);
+      if (!text) {
+        tooltip.classList.remove("show");
+        tooltip.style.display = "none";
+        return;
+      }
+
+      tooltip.textContent = text;
+      tooltip.style.display = "block";
+      positionTooltip(activeEl);
+      tooltip.classList.add("show");
+    }
+
+    function show(el) {
+      if (!el || !(el instanceof Element)) return;
+      if (el === tooltip || tooltip.contains(el)) return;
+      if (activeEl === el) {
+        updateTooltip();
+        return;
+      }
+
+      hide();
+      activeEl = el;
+      updateTooltip();
+
+      observer = new MutationObserver(() => updateTooltip());
+      observer.observe(el, {
+        attributes: true,
+        attributeFilter: ["title", "data-tooltip", "aria-label", "disabled", "aria-disabled"],
+      });
+    }
+
+    function hide() {
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+      tooltip.classList.remove("show");
+      tooltip.style.display = "none";
+      if (activeEl) {
+        const stored = titleStore.get(activeEl);
+        if (
+          stored &&
+          !activeEl.getAttribute("data-tooltip") &&
+          !activeEl.getAttribute("title")
+        ) {
+          activeEl.setAttribute("title", stored);
+        }
+      }
+      activeEl = null;
+    }
+
+    document.addEventListener(
+      "pointerover",
+      (e) => {
+        const target = e.target && e.target.closest ? e.target.closest("[data-tooltip],[title],[aria-label]") : null;
+        if (!target) return;
+        show(target);
+      },
+      true
+    );
+
+    document.addEventListener(
+      "pointerout",
+      (e) => {
+        if (!activeEl) return;
+        const related = e.relatedTarget;
+        if (related && activeEl.contains && activeEl.contains(related)) return;
+        hide();
+      },
+      true
+    );
+
+    document.addEventListener(
+      "focusin",
+      (e) => {
+        const target = e.target && e.target.closest ? e.target.closest("[data-tooltip],[title],[aria-label]") : null;
+        if (!target) return;
+        show(target);
+      },
+      true
+    );
+
+    document.addEventListener(
+      "focusout",
+      () => {
+        hide();
+      },
+      true
+    );
+
+    document.addEventListener(
+      "scroll",
+      () => {
+        hide();
+      },
+      true
+    );
+
+    window.addEventListener("resize", hide);
+  }
+
+  initTooltips();
 
   function formatNumber(num) {
     const n = Number(num || 0);
@@ -321,6 +492,55 @@
         categories: [],
         fields: [],
       });
+
+      const postSlugPrefix = computed(() => {
+        const base = String(V3A.siteUrl || "").trim();
+        if (!base) return "";
+        return base.endsWith("/") ? base : `${base}/`;
+      });
+
+      const postSlugInputWidth = computed(() => {
+        const len = String(postForm.slug || "").length;
+        const width = Math.max(8, len + 2);
+        return Math.min(28, width);
+      });
+
+      const postTagInput = ref("");
+
+      function splitTagsText(text) {
+        const raw = String(text || "");
+        const parts = raw.split(/[,，\s]+/u);
+        const out = [];
+        for (const part of parts) {
+          const t = String(part || "").trim();
+          if (!t) continue;
+          out.push(t);
+        }
+        return out;
+      }
+
+      const postTags = computed(() => {
+        const tags = splitTagsText(postForm.tags);
+        return Array.from(new Set(tags));
+      });
+
+      function setPostTags(tags) {
+        const uniq = Array.from(new Set((tags || []).map((t) => String(t || "").trim()).filter(Boolean)));
+        postForm.tags = uniq.join(",");
+      }
+
+      function addPostTag() {
+        const toAdd = splitTagsText(postTagInput.value);
+        if (!toAdd.length) return;
+        setPostTags([...(postTags.value || []), ...toAdd]);
+        postTagInput.value = "";
+      }
+
+      function removePostTag(tag) {
+        const t = String(tag || "").trim();
+        if (!t) return;
+        setPostTags((postTags.value || []).filter((x) => x !== t));
+      }
 
       // Files
       const filesLoading = ref(false);
@@ -941,6 +1161,7 @@
         postForm.slug = "";
         postForm.text = "";
         postForm.tags = "";
+        postTagInput.value = "";
         postForm.visibility = "publish";
         postForm.password = "";
         postForm.allowComment = true;
@@ -1009,6 +1230,7 @@
           postForm.slug = String(p.slug || "");
           postForm.text = String(p.text || "");
           postForm.tags = String(p.tags || "");
+          postTagInput.value = "";
           postForm.password = String(p.password || "");
           postForm.visibility = String(p.visibility || p.status || "publish");
           postForm.allowComment = !!Number(p.allowComment || 0);
@@ -2513,6 +2735,12 @@
         postMessage,
         postCapabilities,
         postForm,
+        postSlugPrefix,
+        postSlugInputWidth,
+        postTags,
+        postTagInput,
+        addPostTag,
+        removePostTag,
         setPostCategoriesFromText,
         addPostField,
         removePostField,
@@ -3080,8 +3308,12 @@
                     <button class="v3a-iconbtn v3a-write-side-toggle" type="button" @click="toggleWriteSidebar()" :title="writeSidebarOpen ? '收起发布设置' : '展开发布设置'">
                       <span class="v3a-icon" v-html="ICONS.settings"></span>
                     </button>
-                    <button class="v3a-btn" type="button" @click="submitPost('save')" :disabled="postSaving || postLoading">保存草稿</button>
-                    <button class="v3a-btn primary" type="button" @click="submitPost('publish')" :disabled="postSaving || postLoading">发布</button>
+                    <button class="v3a-iconaction" type="button" @click="submitPost('save')" :disabled="postSaving || postLoading" aria-label="保存草稿" data-tooltip="保存草稿">
+                      <span class="v3a-icon" v-html="ICONS.save"></span>
+                    </button>
+                    <button class="v3a-iconaction primary" type="button" @click="submitPost('publish')" :disabled="postSaving || postLoading" aria-label="发布" data-tooltip="发布">
+                      <span class="v3a-icon" v-html="ICONS.send"></span>
+                    </button>
                     <button v-if="postForm.cid" class="v3a-btn" type="button" style="color: var(--v3a-danger);" @click="deletePost(postForm.cid)" :disabled="postSaving || postLoading">删除</button>
                   </div>
                 </div>
@@ -3095,28 +3327,69 @@
 
                 <div v-else class="v3a-write-shell" :class="{ 'side-open': writeSidebarOpen }">
                   <div class="v3a-write-main">
-                    <div class="v3a-card">
-                    <div class="hd"><div class="title">内容</div></div>
-                    <div class="bd">
-                      <label class="v3a-fieldrow" style="min-width: 100%;">
-                        <span>标题</span>
-                        <input class="v3a-input" v-model="postForm.title" placeholder="输入标题" />
-                      </label>
-                      <div class="v3a-divider"></div>
-                      <label class="v3a-fieldrow" style="min-width: 100%;">
-                        <span>正文</span>
-                        <textarea id="v3a-post-text" class="v3a-textarea" v-model="postForm.text" placeholder="Markdown / 纯文本"></textarea>
-                      </label>
+                    <div class="v3a-write-editor">
+                      <div class="v3a-write-editor-header">
+                        <input class="v3a-write-title" v-model="postForm.title" placeholder="输入标题..." />
+                        <div class="v3a-write-subtitle">
+                          <div class="v3a-write-subline">
+                            <span class="v3a-write-baseurl">{{ postSlugPrefix }}</span>
+                            <input class="v3a-write-slug" v-model="postForm.slug" placeholder="slug" :style="{ width: postSlugInputWidth + 'ch' }" />
+                          </div>
+                        </div>
+                      </div>
+                      <div class="v3a-write-editor-content">
+                        <textarea id="v3a-post-text" class="v3a-write-textarea" v-model="postForm.text" placeholder="Markdown / 纯文本"></textarea>
+                      </div>
                     </div>
-                  </div>
-
                   </div>
 
                   <div class="v3a-write-side-mask" v-if="writeSidebarOpen" @click="toggleWriteSidebar(false)"></div>
                   <div class="v3a-write-side" :class="{ open: writeSidebarOpen }">
                     <div class="v3a-card">
-                    <div class="hd"><div class="title">发布设置</div></div>
+                    <div class="hd">
+                      <div class="title">文章设定</div>
+                      <button class="v3a-iconbtn v3a-write-side-close" type="button" @click="toggleWriteSidebar(false)" aria-label="关闭" data-tooltip="关闭">
+                        <span class="v3a-icon" v-html="ICONS.close"></span>
+                      </button>
+                    </div>
                     <div class="bd">
+                      <div class="v3a-write-section">
+                        <div class="v3a-write-section-head">
+                          <span class="v3a-icon" v-html="ICONS.files"></span>
+                          <span class="v3a-write-section-title">分类与标签</span>
+                        </div>
+
+                        <div class="v3a-write-formitem">
+                          <label class="v3a-write-label">分类<span class="v3a-required">*</span></label>
+                          <div v-if="categoriesAll && categoriesAll.length" class="v3a-write-categorybox">
+                            <label v-for="c in categoriesAll" :key="c.mid" class="v3a-write-categoryitem">
+                              <input class="v3a-check" type="checkbox" :value="c.mid" v-model="postForm.categories" />
+                              <span class="v3a-write-categoryname" :style="{ paddingLeft: (Number(c.levels || 0) * 12) + 'px' }">{{ c.name }}</span>
+                            </label>
+                            <div v-if="!categoriesAll.length" class="v3a-muted">暂无分类</div>
+                          </div>
+                          <input v-else class="v3a-input" :value="postForm.categories.join(',')" @input="setPostCategoriesFromText($event.target.value)" placeholder="多个用逗号分隔（例如：1,2）" />
+                        </div>
+
+                        <div class="v3a-write-formitem">
+                          <label class="v3a-write-label">标签</label>
+                          <div class="v3a-write-tags">
+                            <span v-for="t in postTags" :key="t" class="v3a-write-tag">
+                              {{ t }}
+                              <button class="v3a-write-tag-remove" type="button" @click="removePostTag(t)" :aria-label="'删除标签 ' + t" data-tooltip="删除">
+                                <span class="v3a-icon" v-html="ICONS.close"></span>
+                              </button>
+                            </span>
+                            <input class="v3a-write-tags-input" v-model="postTagInput" placeholder="添加标签" @keyup.enter="addPostTag()" />
+                            <button class="v3a-write-tags-add" type="button" @click="addPostTag()" data-tooltip="添加标签">
+                              <span class="v3a-icon" v-html="ICONS.plus"></span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="v3a-divider"></div>
+
                       <div class="v3a-kv">
                         <div class="v3a-muted">可见性</div>
                         <select class="v3a-select" v-model="postForm.visibility">
@@ -3129,22 +3402,6 @@
 
                         <div class="v3a-muted">内容密码</div>
                         <input class="v3a-input" v-model="postForm.password" :disabled="postForm.visibility !== 'password'" placeholder="仅当选择密码保护时生效" />
-
-                        <div class="v3a-muted">分类</div>
-                        <div v-if="categoriesAll && categoriesAll.length" style="max-height: 160px; overflow:auto; border: 1px solid rgba(0,0,0,0.06); border-radius: var(--radius-md); padding: 8px 10px; background: #fff;">
-                          <label v-for="c in categoriesAll" :key="c.mid" style="display:flex; align-items:center; gap: 8px; padding: 4px 0;">
-                            <input class="v3a-check" type="checkbox" :value="c.mid" v-model="postForm.categories" />
-                            <span :style="{ paddingLeft: (Number(c.levels || 0) * 12) + 'px' }">{{ c.name }}</span>
-                          </label>
-                          <div v-if="!categoriesAll.length" class="v3a-muted">暂无分类</div>
-                        </div>
-                        <input v-else class="v3a-input" :value="postForm.categories.join(',')" @input="setPostCategoriesFromText($event.target.value)" placeholder="多个用逗号分隔（例如：1,2）" />
-
-                        <div class="v3a-muted">标签</div>
-                        <input class="v3a-input" v-model="postForm.tags" placeholder="用逗号分隔（例如：Typecho,Vue3）" />
-
-                        <div class="v3a-muted">Slug</div>
-                        <input class="v3a-input" v-model="postForm.slug" placeholder="可选" />
 
                         <div class="v3a-muted">Markdown</div>
                         <label class="v3a-remember" style="justify-content:flex-start;">
@@ -3585,8 +3842,12 @@
                       <span class="v3a-icon" v-html="ICONS.settings"></span>
                     </button>
                     <button class="v3a-btn" type="button" @click="navTo('/pages/manage')">返回列表</button>
-                    <button class="v3a-btn" type="button" @click="submitPage('save')" :disabled="pageSaving || pageLoading">保存草稿</button>
-                    <button class="v3a-btn primary" type="button" @click="submitPage('publish')" :disabled="pageSaving || pageLoading">发布</button>
+                    <button class="v3a-iconaction" type="button" @click="submitPage('save')" :disabled="pageSaving || pageLoading" aria-label="保存草稿" data-tooltip="保存草稿">
+                      <span class="v3a-icon" v-html="ICONS.save"></span>
+                    </button>
+                    <button class="v3a-iconaction primary" type="button" @click="submitPage('publish')" :disabled="pageSaving || pageLoading" aria-label="发布" data-tooltip="发布">
+                      <span class="v3a-icon" v-html="ICONS.send"></span>
+                    </button>
                     <button v-if="pageForm.cid" class="v3a-btn" type="button" style="color: var(--v3a-danger);" @click="deletePage(pageForm.cid)" :disabled="pageSaving || pageLoading">删除</button>
                   </div>
                 </div>
