@@ -2852,6 +2852,13 @@ a {
   min-width: 0;
 }
 
+.v3a-settings-row-control .v3a-input,
+.v3a-settings-row-control .v3a-select,
+.v3a-settings-row-control .v3a-textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 @media (min-width: 48rem) {
   .v3a-settings-row {
     flex-direction: row;
