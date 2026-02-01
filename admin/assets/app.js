@@ -40,6 +40,8 @@
     eyeOff: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>`,
     search: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>`,
     plus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
+    copy: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>`,
+    externalLink: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>`,
     trash: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
     save: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-save-icon lucide-save"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>`,
     send: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send-icon lucide-send"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg>`,
@@ -1263,10 +1265,82 @@
       const filesItems = ref([]);
       const filesPagination = reactive({
         page: 1,
-        pageSize: 24,
+        pageSize: 20,
         total: 0,
         pageCount: 1,
       });
+      const filePreviewOpen = ref(false);
+      const filePreviewItem = ref(null);
+
+      function fileUrlFor(item) {
+        const it = item && typeof item === "object" ? item : null;
+        return it && it.file && it.file.url ? String(it.file.url || "") : "";
+      }
+
+      function fileTitleFor(item) {
+        const it = item && typeof item === "object" ? item : null;
+        if (!it) return "";
+        return (
+          String(it.title || "") ||
+          (it.file && it.file.name ? String(it.file.name || "") : "") ||
+          `附件 #${Number(it.cid || 0) || 0}`
+        );
+      }
+
+      function fileMimeFor(item) {
+        const it = item && typeof item === "object" ? item : null;
+        if (!it || !it.file) return "";
+        return String(it.file.mime || it.file.type || "");
+      }
+
+      function fileBytesFor(item) {
+        const it = item && typeof item === "object" ? item : null;
+        if (!it || !it.file) return "";
+        return String(it.file.bytes || "");
+      }
+
+      function fileMetaFor(item) {
+        const mime = fileMimeFor(item) || "—";
+        const bytes = fileBytesFor(item) || "—";
+        return `${mime} · ${bytes}`;
+      }
+
+      function isFileImage(item) {
+        const it = item && typeof item === "object" ? item : null;
+        if (!it || !it.file) return false;
+        if (it.file.isImage) return true;
+        const mime = fileMimeFor(it).toLowerCase();
+        return mime.startsWith("image/");
+      }
+
+      function isFileVideo(item) {
+        const it = item && typeof item === "object" ? item : null;
+        if (!it || !it.file) return false;
+        const mime = fileMimeFor(it).toLowerCase();
+        return mime.startsWith("video/");
+      }
+
+      const filePreviewUrl = computed(() => fileUrlFor(filePreviewItem.value));
+      const filePreviewIsImage = computed(() => isFileImage(filePreviewItem.value));
+      const filePreviewIsVideo = computed(() => isFileVideo(filePreviewItem.value));
+
+      function openFilePreview(item) {
+        const it = item && typeof item === "object" ? item : null;
+        if (!it) return;
+        const url = fileUrlFor(it);
+        if (!url) return;
+        if (isFileImage(it) || isFileVideo(it)) {
+          filePreviewItem.value = it;
+          filePreviewOpen.value = true;
+          return;
+        }
+        openFile(url);
+      }
+
+      function closeFilePreview() {
+        filePreviewOpen.value = false;
+        filePreviewItem.value = null;
+      }
 
       // Taxonomy (categories/tags)
       const taxonomyLoading = ref(false);
@@ -2146,16 +2220,16 @@
         filesLoading.value = true;
         filesError.value = "";
         try {
+          const PAGE_SIZE = 20;
           const data = await apiGet("files.list", {
             page: filesPagination.page,
-            pageSize: filesPagination.pageSize,
+            pageSize: PAGE_SIZE,
             keywords: filesKeywords.value,
           });
           filesItems.value = data.items || [];
           const p = data.pagination || {};
           filesPagination.page = Number(p.page || filesPagination.page) || 1;
-          filesPagination.pageSize =
-            Number(p.pageSize || filesPagination.pageSize) || 24;
+          filesPagination.pageSize = PAGE_SIZE;
           filesPagination.total = Number(p.total || 0) || 0;
           filesPagination.pageCount = Number(p.pageCount || 1) || 1;
         } catch (e) {
@@ -3879,6 +3953,18 @@
         uploadFiles,
         deleteFile,
         openFile,
+        filePreviewOpen,
+        filePreviewItem,
+        filePreviewUrl,
+        filePreviewIsImage,
+        filePreviewIsVideo,
+        openFilePreview,
+        closeFilePreview,
+        fileTitleFor,
+        fileMetaFor,
+        fileUrlFor,
+        isFileImage,
+        isFileVideo,
         copyText,
         taxonomyLoading,
         taxonomySaving,
@@ -5142,7 +5228,7 @@
             </template>
 
             <template v-else-if="routePath === '/files'">
-              <div class="v3a-container">
+              <div class="v3a-container v3a-container-files">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
@@ -5159,78 +5245,78 @@
                   </div>
                 </div>
 
-                <div class="v3a-grid">
-                  <div class="v3a-card">
-                    <div class="hd"><div class="title">上传</div></div>
-                    <div class="bd">
+                <div class="v3a-posts-search">
+                  <div class="v3a-searchbox">
+                    <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                    <input class="v3a-input" v-model="filesKeywords" @keyup.enter="applyFilesFilters()" placeholder="搜索文件名..." />
+                  </div>
+                </div>
+
+                <div class="v3a-card v3a-files-card">
+                  <div class="v3a-files-scroll">
+                    <div v-if="filesLoading" class="v3a-muted">正在加载…</div>
+
+                    <div v-else class="v3a-filegrid">
                       <div
                         class="v3a-fileitem"
-                        style="display:flex; align-items:center; justify-content:space-between; gap: 12px;"
-                        @dragover.prevent
-                        @drop.prevent="uploadFiles($event.dataTransfer.files)"
+                        v-for="f in filesItems"
+                        :key="f.cid"
+                        @click="openFilePreview(f)"
+                        @keydown.enter.self.prevent="openFilePreview(f)"
+                        @keydown.space.self.prevent="openFilePreview(f)"
+                        role="button"
+                        tabindex="0"
+                        :aria-label="fileTitleFor(f)"
                       >
-                        <div>
-                          <div class="name">拖拽文件到此处</div>
-                          <div class="meta">支持图片/媒体/文档（由 Typecho 允许的附件类型决定）</div>
-                          <div class="meta" v-if="filesUploading">正在上传…</div>
+                        <img v-if="isFileImage(f) && fileUrlFor(f)" :src="fileUrlFor(f)" alt="" loading="lazy" />
+                        <video v-else-if="isFileVideo(f) && fileUrlFor(f)" :src="fileUrlFor(f)" muted playsinline preload="metadata"></video>
+                        <div v-else class="v3a-filethumb-fallback">
+                          <span class="v3a-icon" v-html="ICONS.files"></span>
                         </div>
 
-                        <label class="v3a-mini-btn primary" style="display:inline-flex; align-items:center; cursor:pointer;">
-                          <input type="file" multiple style="display:none;" @change="uploadFiles($event.target.files); $event.target.value='';" />
-                          选择文件
-                        </label>
+                        <div class="v3a-filethumb-overlay">
+                          <div class="v3a-filethumb-name">{{ fileTitleFor(f) }}</div>
+                          <div class="v3a-filethumb-actions">
+                            <button class="v3a-filethumb-action" type="button" aria-label="Copy link" @click.stop="copyText(fileUrlFor(f))">
+                              <span class="v3a-icon" v-html="ICONS.copy"></span>
+                            </button>
+                            <a class="v3a-filethumb-action" :href="fileUrlFor(f)" target="_blank" rel="noreferrer" aria-label="Open" @click.stop>
+                              <span class="v3a-icon" v-html="ICONS.externalLink"></span>
+                            </a>
+                            <button class="v3a-filethumb-action danger" type="button" aria-label="Delete" @click.stop="deleteFile(f.cid)">
+                              <span class="v3a-icon" v-html="ICONS.trash"></span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
+
+                    <div v-if="!filesLoading && !filesItems.length" class="v3a-muted" style="margin-top: 10px;">暂无文件</div>
+
                   </div>
 
-                  <div class="v3a-card">
-                    <div class="hd"><div class="title">文件列表</div></div>
-                    <div class="bd">
-                      <div class="v3a-toolbar" style="margin-bottom: 12px;">
-                        <label class="v3a-fieldrow">
-                          <span>关键词</span>
-                          <input class="v3a-input" v-model="filesKeywords" @keyup.enter="applyFilesFilters()" placeholder="文件名关键字" />
-                        </label>
-                        <div class="v3a-fieldrow" style="min-width: 120px;">
-                          <span></span>
-                          <button class="v3a-btn primary" type="button" @click="applyFilesFilters()">搜索</button>
-                        </div>
+                  <div class="v3a-files-pager">
+                      <button class="v3a-btn" type="button" @click="filesGoPage(filesPagination.page - 1)" :disabled="filesPagination.page <= 1">上一页</button>
+                      <div class="v3a-muted">第 {{ filesPagination.page }} / {{ filesPagination.pageCount }} 页 · 共 {{ formatNumber(filesPagination.total) }} 条</div>
+                      <button class="v3a-btn" type="button" @click="filesGoPage(filesPagination.page + 1)" :disabled="filesPagination.page >= filesPagination.pageCount">下一页</button>
+                    </div>
+                </div>
+
+                <div v-if="filePreviewOpen" class="v3a-modal-mask" @click.self="closeFilePreview()">
+                  <div class="v3a-modal-card v3a-file-preview-modal" role="dialog" aria-modal="true">
+                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeFilePreview()">
+                      <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                    </button>
+                    <div class="v3a-modal-head">
+                      <div class="v3a-modal-title">{{ fileTitleFor(filePreviewItem) }}</div>
+                    </div>
+                    <div class="v3a-modal-body">
+                      <div class="v3a-file-preview-body">
+                        <img v-if="filePreviewIsImage" :src="filePreviewUrl" alt="" />
+                        <video v-else-if="filePreviewIsVideo" :src="filePreviewUrl" controls playsinline></video>
                       </div>
-
-                      <div v-if="filesLoading" class="v3a-muted">正在加载…</div>
-
-                      <div v-else class="v3a-filegrid">
-                        <div class="v3a-fileitem" v-for="f in filesItems" :key="f.cid">
-                          <div style="display:flex; gap: 12px; align-items:center;">
-                            <div style="width: 48px; height: 48px; border-radius: 10px; overflow:hidden; border: 1px solid rgba(0,0,0,0.06); background:#fafafa; display:flex; align-items:center; justify-content:center; flex: 0 0 auto;">
-                              <img v-if="f.file && f.file.isImage && f.file.url" :src="f.file.url" alt="" style="width:100%; height:100%; object-fit:cover;" />
-                              <span v-else class="v3a-icon" v-html="ICONS.files"></span>
-                            </div>
-                            <div style="min-width: 0; flex: 1;">
-                              <div class="name" style="margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                                {{ f.title || (f.file && f.file.name) || ('附件 #' + f.cid) }}
-                              </div>
-                              <div class="meta">
-                                {{ (f.file && (f.file.mime || f.file.type)) || '—' }} · {{ (f.file && f.file.bytes) || '—' }}
-                                <span v-if="f.parent && f.parent.title"> · 归属：{{ f.parent.title }}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div style="display:flex; gap: 8px; flex-wrap:wrap; margin-top: 10px;">
-                            <button class="v3a-mini-btn" type="button" @click="copyText(f.file && f.file.url)">复制链接</button>
-                            <button class="v3a-mini-btn" type="button" @click="openFile(f.file && f.file.url)">打开</button>
-                            <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deleteFile(f.cid)">删除</button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div v-if="!filesLoading && !filesItems.length" class="v3a-muted" style="margin-top: 10px;">暂无文件</div>
-
-                      <div style="display:flex; align-items:center; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                        <button class="v3a-btn" type="button" @click="filesGoPage(filesPagination.page - 1)" :disabled="filesPagination.page <= 1">上一页</button>
-                        <div class="v3a-muted">第 {{ filesPagination.page }} / {{ filesPagination.pageCount }} 页 · 共 {{ formatNumber(filesPagination.total) }} 条</div>
-                        <button class="v3a-btn" type="button" @click="filesGoPage(filesPagination.page + 1)" :disabled="filesPagination.page >= filesPagination.pageCount">下一页</button>
+                      <div class="v3a-muted" style="text-align:center; margin-top: 12px;">
+                        {{ fileMetaFor(filePreviewItem) }}
                       </div>
                     </div>
                   </div>
