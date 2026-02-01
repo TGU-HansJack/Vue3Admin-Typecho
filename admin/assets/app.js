@@ -3254,6 +3254,9 @@
           );
           if (data && data.profile) {
             Object.assign(settingsData.profile, data.profile);
+            settingsProfileForm.screenName = String(settingsData.profile.screenName || "");
+            settingsProfileForm.mail = String(settingsData.profile.mail || "");
+            settingsProfileForm.url = String(settingsData.profile.url || "");
           }
           settingsPermalinkRewriteError.value = "";
           settingsPermalinkEnableRewriteAnyway.value = 0;
@@ -3286,6 +3289,14 @@
           const data = await apiPost("settings.user.options.save", payload);
           if (data && data.userOptions) {
             Object.assign(settingsData.userOptions, data.userOptions);
+            settingsUserOptionsForm.markdown = Number(settingsData.userOptions.markdown || 0);
+            settingsUserOptionsForm.xmlrpcMarkdown = Number(
+              settingsData.userOptions.xmlrpcMarkdown || 0
+            );
+            settingsUserOptionsForm.autoSave = Number(settingsData.userOptions.autoSave || 0);
+            settingsUserOptionsForm.defaultAllow = v3aUserOptionsAllowFromData(
+              settingsData.userOptions
+            );
           }
           if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
@@ -3323,6 +3334,14 @@
           const data = await apiPost("settings.site.save", payload);
           if (data && data.site) {
             Object.assign(settingsData.site, data.site);
+            settingsSiteForm.siteUrl = String(settingsData.site.siteUrl || "");
+            settingsSiteForm.title = String(settingsData.site.title || "");
+            settingsSiteForm.description = String(settingsData.site.description || "");
+            settingsSiteForm.keywords = String(settingsData.site.keywords || "");
+            settingsSiteForm.allowRegister = Number(settingsData.site.allowRegister || 0);
+            settingsSiteForm.allowXmlRpc = Number(settingsData.site.allowXmlRpc || 0);
+            settingsSiteForm.lang = String(settingsData.site.lang || "zh_CN");
+            settingsSiteForm.timezone = Number(settingsData.site.timezone || 28800);
           }
           if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
@@ -3344,6 +3363,11 @@
           const data = await apiPost("settings.storage.save", payload);
           if (data && data.storage) {
             Object.assign(settingsData.storage, data.storage);
+            const at = parseAttachmentTypesValue(
+              settingsData.storage.attachmentTypes || ""
+            );
+            settingsStorageForm.attachmentTypes = at.selected;
+            settingsStorageForm.attachmentTypesOther = at.other;
           }
           if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
@@ -3362,6 +3386,56 @@
           const data = await apiPost("settings.content.save", payload);
           if (data && data.reading) {
             Object.assign(settingsData.reading, data.reading);
+
+            const frontPage = String(settingsData.reading.frontPage || "recent");
+            let frontPageType = "recent";
+            let frontPageValue = "";
+            if (frontPage.includes(":")) {
+              const parts = frontPage.split(":", 2);
+              frontPageType = String(parts[0] || "recent");
+              frontPageValue = String(parts[1] || "");
+            } else if (frontPage) {
+              frontPageType = frontPage;
+            }
+            if (
+              frontPageType !== "recent" &&
+              frontPageType !== "page" &&
+              frontPageType !== "file"
+            ) {
+              frontPageType = "recent";
+              frontPageValue = "";
+            }
+            settingsData.reading.frontPageType = frontPageType;
+            settingsData.reading.frontPageValue = frontPageValue;
+
+            settingsReadingForm.postDateFormat = String(
+              settingsData.reading.postDateFormat || ""
+            );
+            settingsReadingForm.frontPageType = frontPageType;
+            settingsReadingForm.frontPagePage =
+              frontPageType === "page" ? Number(frontPageValue || 0) : 0;
+            settingsReadingForm.frontPageFile =
+              frontPageType === "file" ? String(frontPageValue || "") : "";
+            settingsReadingForm.frontArchive = Number(
+              settingsData.reading.frontArchive || 0
+            );
+            settingsReadingForm.pageSize = Number(settingsData.reading.pageSize || 10);
+            settingsReadingForm.postsListSize = Number(
+              settingsData.reading.postsListSize || 10
+            );
+            settingsReadingForm.feedFullText = Number(
+              settingsData.reading.feedFullText || 0
+            );
+            if (
+              settingsReadingForm.frontArchive &&
+              settingsReadingForm.frontPageType !== "recent"
+            ) {
+              const archivePattern = String(settingsReadingForm.archivePattern || "").trim();
+              settingsData.reading.archivePattern = archivePattern;
+              settingsReadingForm.archivePattern = archivePattern;
+            } else {
+              settingsReadingForm.frontArchive = 0;
+            }
           }
           if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
@@ -3379,7 +3453,63 @@
           const payload = Object.assign({}, settingsDiscussionForm);
           const data = await apiPost("settings.discussion.save", payload);
           if (data && data.discussion) {
-            settingsData.discussion = Object.assign({}, data.discussion);
+            const d = Object.assign({}, data.discussion);
+            const timeoutSeconds = Number(d.commentsPostTimeout || 0) || 0;
+            const intervalSeconds = Number(d.commentsPostInterval || 0) || 0;
+            const next = Object.assign({}, settingsData.discussion || {}, d, {
+              commentsPostTimeoutDays: Math.max(
+                0,
+                Math.floor(timeoutSeconds / (24 * 3600))
+              ),
+              commentsPostIntervalMins: Math.max(
+                0,
+                Math.round((intervalSeconds / 60) * 10) / 10
+              ),
+            });
+            settingsData.discussion = next;
+
+            settingsDiscussionForm.commentDateFormat = String(
+              settingsData.discussion.commentDateFormat || ""
+            );
+            settingsDiscussionForm.commentsListSize = Number(
+              settingsData.discussion.commentsListSize || 20
+            );
+            settingsDiscussionForm.commentsMarkdown = Number(
+              settingsData.discussion.commentsMarkdown || 0
+            );
+            settingsDiscussionForm.commentsPageBreak = Number(
+              settingsData.discussion.commentsPageBreak || 0
+            );
+            settingsDiscussionForm.commentsPageSize = Number(
+              settingsData.discussion.commentsPageSize || 10
+            );
+            settingsDiscussionForm.commentsOrder = String(
+              settingsData.discussion.commentsOrder || "DESC"
+            );
+            settingsDiscussionForm.commentsRequireModeration = Number(
+              settingsData.discussion.commentsRequireModeration || 0
+            );
+            settingsDiscussionForm.commentsRequireMail = Number(
+              settingsData.discussion.commentsRequireMail || 0
+            );
+            settingsDiscussionForm.commentsRequireUrl = Number(
+              settingsData.discussion.commentsRequireUrl || 0
+            );
+            settingsDiscussionForm.commentsAntiSpam = Number(
+              settingsData.discussion.commentsAntiSpam || 0
+            );
+            settingsDiscussionForm.commentsPostTimeoutDays = Number(
+              settingsData.discussion.commentsPostTimeoutDays || 0
+            );
+            settingsDiscussionForm.commentsPostIntervalEnable = Number(
+              settingsData.discussion.commentsPostIntervalEnable || 0
+            );
+            settingsDiscussionForm.commentsPostIntervalMins = Number(
+              settingsData.discussion.commentsPostIntervalMins || 0
+            );
+            settingsDiscussionForm.commentsHTMLTagAllowed = String(
+              settingsData.discussion.commentsHTMLTagAllowed || ""
+            );
           }
           if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
@@ -3467,6 +3597,15 @@
               settingsPermalinkForm.postPattern = knownPostPattern ? postUrl : "custom";
             }
 
+            settingsPermalinkForm.rewrite = Number(data.permalink.rewrite || 0);
+            if (data.permalink.pagePattern !== undefined) {
+              settingsPermalinkForm.pagePattern = String(data.permalink.pagePattern || "");
+            }
+            if (data.permalink.categoryPattern !== undefined) {
+              settingsPermalinkForm.categoryPattern = String(
+                data.permalink.categoryPattern || ""
+              );
+            }
             if (data.permalink.customPattern !== undefined) {
               settingsPermalinkForm.customPattern = String(
                 data.permalink.customPattern || ""
@@ -3580,9 +3719,15 @@
 
         const storage = settingsData.storage || {};
         const at = parseAttachmentTypesValue(storage.attachmentTypes || "");
+        const storageHasOther = (settingsStorageForm.attachmentTypes || []).includes(
+          "@other@"
+        );
         const storageDirty =
           !v3aArrayEqual(settingsStorageForm.attachmentTypes, at.selected) ||
-          v3aNormStr(settingsStorageForm.attachmentTypesOther) !== v3aNormStr(at.other || "");
+          (storageHasOther
+            ? v3aNormStr(settingsStorageForm.attachmentTypesOther) !==
+              v3aNormStr(at.other || "")
+            : false);
 
         const reading = settingsData.reading || {};
         const frontPageType = v3aNormStr(settingsReadingForm.frontPageType || "recent") || "recent";
@@ -3592,17 +3737,30 @@
         } else if (frontPageType === "file") {
           frontPageValue = v3aNormStr(settingsReadingForm.frontPageFile || "");
         }
+        const readingFrontArchiveEnabled =
+          frontPageType !== "recent" && v3aNormNum(settingsReadingForm.frontArchive);
         const readingDirty =
           v3aNormStr(settingsReadingForm.postDateFormat) !== v3aNormStr(reading.postDateFormat) ||
           frontPageType !== v3aNormStr(reading.frontPageType || "recent") ||
           v3aNormStr(frontPageValue) !== v3aNormStr(reading.frontPageValue || "") ||
-          v3aNormNum(settingsReadingForm.frontArchive) !== v3aNormNum(reading.frontArchive) ||
-          v3aNormStr(settingsReadingForm.archivePattern) !== v3aNormStr(reading.archivePattern) ||
+          (frontPageType !== "recent"
+            ? v3aNormNum(settingsReadingForm.frontArchive) !== v3aNormNum(reading.frontArchive)
+            : false) ||
+          (readingFrontArchiveEnabled
+            ? v3aNormStr(settingsReadingForm.archivePattern) !==
+              v3aNormStr(reading.archivePattern)
+            : false) ||
           v3aNormNum(settingsReadingForm.pageSize) !== v3aNormNum(reading.pageSize, 10) ||
           v3aNormNum(settingsReadingForm.postsListSize) !== v3aNormNum(reading.postsListSize, 10) ||
           v3aNormNum(settingsReadingForm.feedFullText) !== v3aNormNum(reading.feedFullText);
 
         const discussion = settingsData.discussion || {};
+        const discussionPageBreakEnabled = v3aNormNum(
+          settingsDiscussionForm.commentsPageBreak
+        );
+        const discussionIntervalEnabled = v3aNormNum(
+          settingsDiscussionForm.commentsPostIntervalEnable
+        );
         const discussionDirty =
           v3aNormStr(settingsDiscussionForm.commentDateFormat) !==
             v3aNormStr(discussion.commentDateFormat) ||
@@ -3612,8 +3770,10 @@
             v3aNormNum(discussion.commentsMarkdown) ||
           v3aNormNum(settingsDiscussionForm.commentsPageBreak) !==
             v3aNormNum(discussion.commentsPageBreak) ||
-          v3aNormNum(settingsDiscussionForm.commentsPageSize) !==
-            v3aNormNum(discussion.commentsPageSize) ||
+          (discussionPageBreakEnabled
+            ? v3aNormNum(settingsDiscussionForm.commentsPageSize) !==
+              v3aNormNum(discussion.commentsPageSize)
+            : false) ||
           v3aNormStr(settingsDiscussionForm.commentsOrder) !== v3aNormStr(discussion.commentsOrder) ||
           v3aNormNum(settingsDiscussionForm.commentsRequireModeration) !==
             v3aNormNum(discussion.commentsRequireModeration) ||
@@ -3627,8 +3787,10 @@
             v3aNormNum(discussion.commentsPostTimeoutDays) ||
           v3aNormNum(settingsDiscussionForm.commentsPostIntervalEnable) !==
             v3aNormNum(discussion.commentsPostIntervalEnable) ||
-          v3aNormNum(settingsDiscussionForm.commentsPostIntervalMins) !==
-            v3aNormNum(discussion.commentsPostIntervalMins) ||
+          (discussionIntervalEnabled
+            ? v3aNormNum(settingsDiscussionForm.commentsPostIntervalMins) !==
+              v3aNormNum(discussion.commentsPostIntervalMins)
+            : false) ||
           v3aNormStr(settingsDiscussionForm.commentsHTMLTagAllowed) !==
             v3aNormStr(discussion.commentsHTMLTagAllowed);
 
@@ -6686,13 +6848,13 @@
                               </div>
                               <div class="v3a-settings-row-control">
                                 <label class="v3a-switch">
-                                  <input type="checkbox" v-model="settingsReadingForm.frontArchive" :true-value="1" :false-value="0" />
+                                  <input type="checkbox" v-model="settingsReadingForm.frontArchive" :true-value="1" :false-value="0" :disabled="settingsReadingForm.frontPageType === 'recent'" />
                                   <span class="v3a-switch-ui"></span>
                                 </label>
                               </div>
                             </div>
 
-                            <template v-if="settingsReadingForm.frontArchive">
+                            <template v-if="settingsReadingForm.frontArchive && settingsReadingForm.frontPageType !== 'recent'">
                               <div class="v3a-settings-row">
                                 <div class="v3a-settings-row-label">
                                   <label>归档页路径</label>
