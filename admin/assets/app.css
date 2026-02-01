@@ -1041,8 +1041,11 @@ a {
 }
 
 .v3a-vditor .vditor-toolbar {
-  border-bottom: 0;
-  background: transparent;
+  position: sticky;
+  top: var(--v3a-vditor-toolbar-top, 0px);
+  z-index: 70;
+  border-bottom: 1px solid var(--sidebar-border);
+  background: var(--content-bg);
 }
 
 .v3a-vditor .vditor-content {

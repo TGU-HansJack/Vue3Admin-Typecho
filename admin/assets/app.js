@@ -825,6 +825,27 @@
         }
       }
 
+      function v3aSetVditorToolbarStickyTop(px) {
+        try {
+          const el = document && document.documentElement;
+          if (!el || typeof el.style?.setProperty !== "function") return;
+          const h = Math.max(0, Math.round(Number(px || 0) || 0));
+          el.style.setProperty("--v3a-vditor-toolbar-top", `${h}px`);
+        } catch (e) {}
+      }
+
+      function v3aUpdateVditorToolbarStickyTop() {
+        try {
+          const head = document.querySelector(
+            ".v3a-container-write > .v3a-pagehead.v3a-pagehead-sticky"
+          );
+          const h = head ? head.offsetHeight || 0 : 0;
+          v3aSetVditorToolbarStickyTop(h);
+        } catch (e) {
+          v3aSetVditorToolbarStickyTop(0);
+        }
+      }
+
       function v3aAutoGrowTextarea(el) {
         if (!el) return;
         el.style.height = "";
@@ -3581,6 +3602,7 @@
         () => route.value,
         async (r) => {
           const p = String(r || "/").split("?")[0] || "/";
+          v3aUpdateVditorToolbarStickyTop();
 
           if (p !== "/posts/write") {
             destroyPostVditor();
@@ -3605,6 +3627,7 @@
             }
             await nextTick();
             initPostVditor();
+            v3aUpdateVditorToolbarStickyTop();
           }
           if (p === "/files") {
             await fetchFiles();
@@ -3626,6 +3649,7 @@
             }
             await nextTick();
             initPageVditor();
+            v3aUpdateVditorToolbarStickyTop();
           }
           if (p === "/settings") {
             await fetchSettings();
@@ -3641,6 +3665,9 @@
             categorySelectOpen.value = false;
           }
         });
+        window.addEventListener("resize", v3aUpdateVditorToolbarStickyTop, {
+          passive: true,
+        });
 
         listenHash();
         route.value = getRoute();
@@ -3655,6 +3682,7 @@
           await loadPostEditorFromRoute();
           await nextTick();
           initPostVditor();
+          v3aUpdateVditorToolbarStickyTop();
         }
         if (routePath.value === "/files") {
           await fetchFiles();
@@ -3672,6 +3700,7 @@
           await loadPageEditorFromRoute();
           await nextTick();
           initPageVditor();
+          v3aUpdateVditorToolbarStickyTop();
         }
         if (routePath.value === "/settings") {
           await fetchSettings();
