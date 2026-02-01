@@ -1542,6 +1542,7 @@
       const settingsSaving = ref(false);
       const settingsError = ref("");
       const settingsMessage = ref("");
+      const settingsBatchSaving = ref(false);
       const settingsData = reactive({
         isAdmin: false,
         profile: {
@@ -1615,6 +1616,31 @@
         allowXmlRpc: 0,
         lang: "zh_CN",
         timezone: 28800,
+      });
+      const settingsSiteXmlRpcLast = ref(1);
+      watch(
+        () => Number(settingsSiteForm.allowXmlRpc || 0),
+        (v) => {
+          const n = Number(v || 0) || 0;
+          if (n === 1 || n === 2) settingsSiteXmlRpcLast.value = n;
+        }
+      );
+      const settingsSiteXmlRpcEnabled = computed({
+        get() {
+          return Number(settingsSiteForm.allowXmlRpc || 0) ? 1 : 0;
+        },
+        set(v) {
+          const enabled = Number(v || 0) ? 1 : 0;
+          const current = Number(settingsSiteForm.allowXmlRpc || 0) || 0;
+          if (enabled) {
+            if (current) return;
+            const next = Number(settingsSiteXmlRpcLast.value || 1) || 1;
+            settingsSiteForm.allowXmlRpc = next === 2 ? 2 : 1;
+            return;
+          }
+          if (current) settingsSiteXmlRpcLast.value = current;
+          settingsSiteForm.allowXmlRpc = 0;
+        },
       });
       const settingsStorageForm = reactive({
         attachmentTypes: [],
@@ -3231,7 +3257,7 @@
           }
           settingsPermalinkRewriteError.value = "";
           settingsPermalinkEnableRewriteAnyway.value = 0;
-          settingsMessage.value = "已保存";
+          if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
           const apiData = e && e.apiData ? e.apiData : null;
           if (apiData && apiData.rewriteCheck && apiData.rewriteCheck.ok === false) {
@@ -3261,7 +3287,7 @@
           if (data && data.userOptions) {
             Object.assign(settingsData.userOptions, data.userOptions);
           }
-          settingsMessage.value = "已保存";
+          if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
           settingsError.value = e && e.message ? e.message : "保存失败";
         } finally {
@@ -3298,7 +3324,7 @@
           if (data && data.site) {
             Object.assign(settingsData.site, data.site);
           }
-          settingsMessage.value = "已保存";
+          if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
           settingsError.value = e && e.message ? e.message : "保存失败";
         } finally {
@@ -3319,7 +3345,7 @@
           if (data && data.storage) {
             Object.assign(settingsData.storage, data.storage);
           }
-          settingsMessage.value = "已保存";
+          if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
           settingsError.value = e && e.message ? e.message : "保存失败";
         } finally {
@@ -3337,7 +3363,7 @@
           if (data && data.reading) {
             Object.assign(settingsData.reading, data.reading);
           }
-          settingsMessage.value = "已保存";
+          if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
           settingsError.value = e && e.message ? e.message : "保存失败";
         } finally {
@@ -3355,7 +3381,7 @@
           if (data && data.discussion) {
             settingsData.discussion = Object.assign({}, data.discussion);
           }
-          settingsMessage.value = "已保存";
+          if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
           settingsError.value = e && e.message ? e.message : "保存失败";
         } finally {
@@ -3392,7 +3418,7 @@
           } else {
             settingsNotifyForm.smtpPass = "";
           }
-          settingsMessage.value = "已保存";
+          if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
           settingsError.value = e && e.message ? e.message : "保存失败";
         } finally {
@@ -3447,11 +3473,248 @@
               );
             }
           }
-          settingsMessage.value = "已保存";
+          settingsPermalinkEnableRewriteAnyway.value = 0;
+          if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
           settingsError.value = e && e.message ? e.message : "保存失败";
         } finally {
           settingsSaving.value = false;
+        }
+      }
+
+      function v3aNormStr(v) {
+        return String(v ?? "").trim();
+      }
+
+      function v3aNormNum(v, fallback = 0) {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : fallback;
+      }
+
+      function v3aSortedArrayStrings(arr) {
+        return (Array.isArray(arr) ? arr : []).map(String).sort();
+      }
+
+      function v3aArrayEqual(a, b) {
+        const aa = v3aSortedArrayStrings(a);
+        const bb = v3aSortedArrayStrings(b);
+        if (aa.length !== bb.length) return false;
+        for (let i = 0; i < aa.length; i++) {
+          if (aa[i] !== bb[i]) return false;
+        }
+        return true;
+      }
+
+      function v3aUserOptionsAllowFromData(userOptions) {
+        const allow = [];
+        if (v3aNormNum(userOptions?.defaultAllowComment || 0)) allow.push("comment");
+        if (v3aNormNum(userOptions?.defaultAllowPing || 0)) allow.push("ping");
+        if (v3aNormNum(userOptions?.defaultAllowFeed || 0)) allow.push("feed");
+        return allow;
+      }
+
+      function v3aNormPermalinkPattern(v) {
+        let s = v3aNormStr(v);
+        if (!s) return "";
+        if (!s.startsWith("/")) s = "/" + s;
+        return s;
+      }
+
+      const settingsDirtyState = computed(() => {
+        if (settingsLoading.value) {
+          return {
+            profile: false,
+            userOptions: false,
+            site: false,
+            storage: false,
+            reading: false,
+            discussion: false,
+            notify: false,
+            permalink: false,
+          };
+        }
+
+        const profile = {
+          screenName: v3aNormStr(settingsData.profile?.screenName || ""),
+          mail: v3aNormStr(settingsData.profile?.mail || ""),
+          url: v3aNormStr(settingsData.profile?.url || ""),
+        };
+        const profileDirty =
+          v3aNormStr(settingsProfileForm.screenName) !== profile.screenName ||
+          v3aNormStr(settingsProfileForm.mail) !== profile.mail ||
+          v3aNormStr(settingsProfileForm.url) !== profile.url;
+
+        const userOptions = settingsData.userOptions || {};
+        const userOptionsDefaultAllow = v3aUserOptionsAllowFromData(userOptions);
+        const userOptionsDirty =
+          v3aNormNum(settingsUserOptionsForm.markdown) !== v3aNormNum(userOptions.markdown) ||
+          v3aNormNum(settingsUserOptionsForm.xmlrpcMarkdown) !==
+            v3aNormNum(userOptions.xmlrpcMarkdown) ||
+          v3aNormNum(settingsUserOptionsForm.autoSave) !== v3aNormNum(userOptions.autoSave) ||
+          !v3aArrayEqual(settingsUserOptionsForm.defaultAllow, userOptionsDefaultAllow);
+
+        const isAdmin = !!settingsData.isAdmin;
+        if (!isAdmin) {
+          return {
+            profile: profileDirty,
+            userOptions: userOptionsDirty,
+            site: false,
+            storage: false,
+            reading: false,
+            discussion: false,
+            notify: false,
+            permalink: false,
+          };
+        }
+
+        const site = settingsData.site || {};
+        const siteDirty =
+          v3aNormStr(settingsSiteForm.siteUrl) !== v3aNormStr(site.siteUrl || "") ||
+          v3aNormStr(settingsSiteForm.title) !== v3aNormStr(site.title || "") ||
+          v3aNormStr(settingsSiteForm.description) !== v3aNormStr(site.description || "") ||
+          v3aNormStr(settingsSiteForm.keywords) !== v3aNormStr(site.keywords || "") ||
+          v3aNormNum(settingsSiteForm.allowRegister) !== v3aNormNum(site.allowRegister) ||
+          v3aNormNum(settingsSiteForm.allowXmlRpc) !== v3aNormNum(site.allowXmlRpc) ||
+          v3aNormStr(settingsSiteForm.lang) !== v3aNormStr(site.lang || "zh_CN") ||
+          v3aNormNum(settingsSiteForm.timezone, 28800) !== v3aNormNum(site.timezone, 28800);
+
+        const storage = settingsData.storage || {};
+        const at = parseAttachmentTypesValue(storage.attachmentTypes || "");
+        const storageDirty =
+          !v3aArrayEqual(settingsStorageForm.attachmentTypes, at.selected) ||
+          v3aNormStr(settingsStorageForm.attachmentTypesOther) !== v3aNormStr(at.other || "");
+
+        const reading = settingsData.reading || {};
+        const frontPageType = v3aNormStr(settingsReadingForm.frontPageType || "recent") || "recent";
+        let frontPageValue = "";
+        if (frontPageType === "page") {
+          frontPageValue = String(v3aNormNum(settingsReadingForm.frontPagePage || 0, 0));
+        } else if (frontPageType === "file") {
+          frontPageValue = v3aNormStr(settingsReadingForm.frontPageFile || "");
+        }
+        const readingDirty =
+          v3aNormStr(settingsReadingForm.postDateFormat) !== v3aNormStr(reading.postDateFormat) ||
+          frontPageType !== v3aNormStr(reading.frontPageType || "recent") ||
+          v3aNormStr(frontPageValue) !== v3aNormStr(reading.frontPageValue || "") ||
+          v3aNormNum(settingsReadingForm.frontArchive) !== v3aNormNum(reading.frontArchive) ||
+          v3aNormStr(settingsReadingForm.archivePattern) !== v3aNormStr(reading.archivePattern) ||
+          v3aNormNum(settingsReadingForm.pageSize) !== v3aNormNum(reading.pageSize, 10) ||
+          v3aNormNum(settingsReadingForm.postsListSize) !== v3aNormNum(reading.postsListSize, 10) ||
+          v3aNormNum(settingsReadingForm.feedFullText) !== v3aNormNum(reading.feedFullText);
+
+        const discussion = settingsData.discussion || {};
+        const discussionDirty =
+          v3aNormStr(settingsDiscussionForm.commentDateFormat) !==
+            v3aNormStr(discussion.commentDateFormat) ||
+          v3aNormNum(settingsDiscussionForm.commentsListSize) !==
+            v3aNormNum(discussion.commentsListSize) ||
+          v3aNormNum(settingsDiscussionForm.commentsMarkdown) !==
+            v3aNormNum(discussion.commentsMarkdown) ||
+          v3aNormNum(settingsDiscussionForm.commentsPageBreak) !==
+            v3aNormNum(discussion.commentsPageBreak) ||
+          v3aNormNum(settingsDiscussionForm.commentsPageSize) !==
+            v3aNormNum(discussion.commentsPageSize) ||
+          v3aNormStr(settingsDiscussionForm.commentsOrder) !== v3aNormStr(discussion.commentsOrder) ||
+          v3aNormNum(settingsDiscussionForm.commentsRequireModeration) !==
+            v3aNormNum(discussion.commentsRequireModeration) ||
+          v3aNormNum(settingsDiscussionForm.commentsRequireMail) !==
+            v3aNormNum(discussion.commentsRequireMail) ||
+          v3aNormNum(settingsDiscussionForm.commentsRequireUrl) !==
+            v3aNormNum(discussion.commentsRequireUrl) ||
+          v3aNormNum(settingsDiscussionForm.commentsAntiSpam) !==
+            v3aNormNum(discussion.commentsAntiSpam) ||
+          v3aNormNum(settingsDiscussionForm.commentsPostTimeoutDays) !==
+            v3aNormNum(discussion.commentsPostTimeoutDays) ||
+          v3aNormNum(settingsDiscussionForm.commentsPostIntervalEnable) !==
+            v3aNormNum(discussion.commentsPostIntervalEnable) ||
+          v3aNormNum(settingsDiscussionForm.commentsPostIntervalMins) !==
+            v3aNormNum(discussion.commentsPostIntervalMins) ||
+          v3aNormStr(settingsDiscussionForm.commentsHTMLTagAllowed) !==
+            v3aNormStr(discussion.commentsHTMLTagAllowed);
+
+        const notify = settingsData.notify || {};
+        const notifyDirty =
+          v3aNormNum(settingsNotifyForm.mailEnabled) !== v3aNormNum(notify.mailEnabled) ||
+          v3aNormNum(settingsNotifyForm.commentNotifyEnabled) !==
+            v3aNormNum(notify.commentNotifyEnabled) ||
+          v3aNormNum(settingsNotifyForm.friendLinkNotifyEnabled) !==
+            v3aNormNum(notify.friendLinkNotifyEnabled) ||
+          v3aNormStr(settingsNotifyForm.smtpFrom) !== v3aNormStr(notify.smtpFrom) ||
+          v3aNormStr(settingsNotifyForm.smtpHost) !== v3aNormStr(notify.smtpHost) ||
+          v3aNormNum(settingsNotifyForm.smtpPort, 465) !== v3aNormNum(notify.smtpPort, 465) ||
+          v3aNormStr(settingsNotifyForm.smtpUser) !== v3aNormStr(notify.smtpUser) ||
+          v3aNormNum(settingsNotifyForm.smtpSecure) !==
+            (v3aNormNum(notify.smtpSecure ?? 1) ? 1 : 0) ||
+          v3aNormStr(settingsNotifyForm.commentTemplate) !==
+            v3aNormStr(notify.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE) ||
+          v3aNormStr(settingsNotifyForm.smtpPass) !== "";
+
+        const permalink = settingsData.permalink || {};
+        const permalinkRewrite = v3aNormNum(permalink.rewrite || 0) ? 1 : 0;
+        const permalinkPostUrl = v3aNormPermalinkPattern(permalink.postUrl || "");
+        const permalinkKnown = permalinkPostPatternOptions.some(
+          (o) => o.value !== "custom" && v3aNormPermalinkPattern(o.value) === permalinkPostUrl
+        );
+        const basePostSelection = permalinkKnown ? permalinkPostUrl : "custom";
+        const baseCustomPattern = v3aNormStr(permalink.customPattern || "");
+        const currentPostSelection = v3aNormStr(settingsPermalinkForm.postPattern || "custom");
+        const currentCustomPattern = v3aNormStr(settingsPermalinkForm.customPattern || "");
+        const permalinkDirty =
+          v3aNormNum(settingsPermalinkForm.rewrite) !== permalinkRewrite ||
+          v3aNormPermalinkPattern(settingsPermalinkForm.pagePattern) !==
+            v3aNormPermalinkPattern(permalink.pagePattern || "") ||
+          v3aNormPermalinkPattern(settingsPermalinkForm.categoryPattern) !==
+            v3aNormPermalinkPattern(permalink.categoryPattern || "") ||
+          (basePostSelection === "custom"
+            ? currentPostSelection !== "custom" ||
+              v3aNormPermalinkPattern(currentCustomPattern) !==
+                v3aNormPermalinkPattern(baseCustomPattern || permalinkPostUrl)
+            : currentPostSelection !== basePostSelection);
+
+        return {
+          profile: profileDirty,
+          userOptions: userOptionsDirty,
+          site: siteDirty,
+          storage: storageDirty,
+          reading: readingDirty,
+          discussion: discussionDirty,
+          notify: notifyDirty,
+          permalink: permalinkDirty,
+        };
+      });
+
+      const settingsDirtyCount = computed(() => {
+        const s = settingsDirtyState.value || {};
+        return Object.values(s).filter(Boolean).length;
+      });
+
+      async function saveSettingsAll() {
+        if (settingsLoading.value || settingsSaving.value) return;
+
+        const dirty = settingsDirtyState.value || {};
+        const tasks = [];
+        if (dirty.profile) tasks.push(saveSettingsProfile);
+        if (dirty.userOptions) tasks.push(saveSettingsUserOptions);
+        if (dirty.site) tasks.push(saveSettingsSite);
+        if (dirty.storage) tasks.push(saveSettingsStorage);
+        if (dirty.reading) tasks.push(saveSettingsReading);
+        if (dirty.discussion) tasks.push(saveSettingsDiscussion);
+        if (dirty.notify) tasks.push(saveSettingsNotify);
+        if (dirty.permalink) tasks.push(saveSettingsPermalink);
+        if (!tasks.length) return;
+
+        settingsBatchSaving.value = true;
+        try {
+          for (const fn of tasks) {
+            await fn();
+            if (settingsError.value) break;
+          }
+        } finally {
+          settingsBatchSaving.value = false;
+        }
+
+        if (!settingsError.value) {
+          settingsMessage.value = tasks.length > 1 ? "已保存全部" : "已保存";
         }
       }
 
@@ -4307,11 +4570,13 @@
         settingsSaving,
         settingsError,
         settingsMessage,
+        settingsDirtyCount,
         settingsData,
         settingsProfileForm,
         settingsUserOptionsForm,
         settingsPasswordForm,
         settingsSiteForm,
+        settingsSiteXmlRpcEnabled,
         settingsStorageForm,
         settingsReadingForm,
         settingsDiscussionForm,
@@ -4336,6 +4601,7 @@
         closeSettingsNotifyTemplateEditor,
         applySettingsNotifyTemplateDraft,
         saveSettingsPermalink,
+        saveSettingsAll,
         username,
         userInitial,
         formatNumber,
@@ -5293,7 +5559,9 @@
                   </div>
                   <div class="v3a-pagehead-actions">
                     <button class="v3a-btn" type="button" @click="applyPagesFilters()" :disabled="pagesLoading">刷新</button>
-                    <button class="v3a-btn primary" type="button" @click="openPageEditor(0)">新建页面</button>
+                    <button class="v3a-actionbtn" type="button" title="新增页面" @click="openPageEditor(0)">
+                      <span class="v3a-icon" v-html="ICONS.plus"></span>
+                    </button>
                   </div>
                 </div>
 
@@ -5886,7 +6154,15 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
-                    <button class="v3a-btn" type="button" @click="fetchSettings()" :disabled="settingsLoading || settingsSaving">刷新</button>
+                    <div class="v3a-settings-savebar">
+                      <span v-if="settingsDirtyCount" class="v3a-settings-savehint">
+                        你有 {{ settingsDirtyCount }} 项未保存的修改
+                      </span>
+                      <button class="v3a-btn primary" type="button" @click="saveSettingsAll()" :disabled="settingsLoading || settingsSaving || !settingsDirtyCount">
+                        <span class="v3a-icon" v-html="ICONS.save"></span>
+                        保存全部
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -5975,9 +6251,6 @@
                           </div>
                         </div>
 
-                        <div class="v3a-settings-actions">
-                          <button class="v3a-btn primary" type="button" @click="saveSettingsProfile()" :disabled="settingsSaving">保存</button>
-                        </div>
                       </div>
 
                       <div class="v3a-settings-section">
@@ -5999,10 +6272,10 @@
                               <label>使用 Markdown</label>
                             </div>
                             <div class="v3a-settings-row-control">
-                              <select class="v3a-select" v-model.number="settingsUserOptionsForm.markdown">
-                                <option :value="1">开启</option>
-                                <option :value="0">关闭</option>
-                              </select>
+                              <label class="v3a-switch">
+                                <input type="checkbox" v-model="settingsUserOptionsForm.markdown" :true-value="1" :false-value="0" />
+                                <span class="v3a-switch-ui"></span>
+                              </label>
                             </div>
                           </div>
 
@@ -6011,10 +6284,10 @@
                               <label>XMLRPC Markdown</label>
                             </div>
                             <div class="v3a-settings-row-control">
-                              <select class="v3a-select" v-model.number="settingsUserOptionsForm.xmlrpcMarkdown">
-                                <option :value="1">开启</option>
-                                <option :value="0">关闭</option>
-                              </select>
+                              <label class="v3a-switch">
+                                <input type="checkbox" v-model="settingsUserOptionsForm.xmlrpcMarkdown" :true-value="1" :false-value="0" />
+                                <span class="v3a-switch-ui"></span>
+                              </label>
                             </div>
                           </div>
 
@@ -6023,10 +6296,10 @@
                               <label>自动保存</label>
                             </div>
                             <div class="v3a-settings-row-control">
-                              <select class="v3a-select" v-model.number="settingsUserOptionsForm.autoSave">
-                                <option :value="1">开启</option>
-                                <option :value="0">关闭</option>
-                              </select>
+                              <label class="v3a-switch">
+                                <input type="checkbox" v-model="settingsUserOptionsForm.autoSave" :true-value="1" :false-value="0" />
+                                <span class="v3a-switch-ui"></span>
+                              </label>
                             </div>
                           </div>
 
@@ -6053,9 +6326,6 @@
                           </div>
                         </div>
 
-                        <div class="v3a-settings-actions">
-                          <button class="v3a-btn primary" type="button" @click="saveSettingsUserOptions()" :disabled="settingsSaving">保存</button>
-                        </div>
                       </div>
                     </div>
                   </template>
@@ -6172,10 +6442,10 @@
                                 <label>允许注册</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsSiteForm.allowRegister">
-                                  <option :value="0">不允许</option>
-                                  <option :value="1">允许</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsSiteForm.allowRegister" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -6184,13 +6454,26 @@
                                 <label>XMLRPC</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsSiteForm.allowXmlRpc">
-                                  <option :value="0">关闭</option>
-                                  <option :value="1">仅关闭 Pingback</option>
-                                  <option :value="2">开启</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsSiteXmlRpcEnabled" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
+
+                            <template v-if="settingsSiteXmlRpcEnabled">
+                              <div class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>XMLRPC 模式</label>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <select class="v3a-select" v-model.number="settingsSiteForm.allowXmlRpc">
+                                    <option :value="1">仅关闭 Pingback</option>
+                                    <option :value="2">开启</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </template>
 
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
@@ -6213,9 +6496,6 @@
                             </div>
                           </div>
 
-                          <div class="v3a-settings-actions">
-                            <button class="v3a-btn primary" type="button" @click="saveSettingsSite()" :disabled="settingsSaving">保存</button>
-                          </div>
                         </template>
                       </div>
                     </div>
@@ -6288,9 +6568,6 @@
                             </template>
                           </div>
 
-                          <div class="v3a-settings-actions">
-                            <button class="v3a-btn primary" type="button" @click="saveSettingsStorage()" :disabled="settingsSaving">保存</button>
-                          </div>
                         </template>
                       </div>
                     </div>
@@ -6396,10 +6673,10 @@
                                 <label>Feed 输出全文</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsReadingForm.feedFullText">
-                                  <option :value="0">关闭</option>
-                                  <option :value="1">开启</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsReadingForm.feedFullText" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -6408,10 +6685,10 @@
                                 <label>首页非最新时启用归档页</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsReadingForm.frontArchive">
-                                  <option :value="0">关闭</option>
-                                  <option :value="1">开启</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsReadingForm.frontArchive" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -6428,9 +6705,6 @@
                             </template>
                           </div>
 
-                          <div class="v3a-settings-actions">
-                            <button class="v3a-btn primary" type="button" @click="saveSettingsReading()" :disabled="settingsSaving">保存</button>
-                          </div>
                         </template>
                       </div>
 
@@ -6483,10 +6757,10 @@
                                 <label>评论中使用 Markdown</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsMarkdown">
-                                  <option :value="0">关闭</option>
-                                  <option :value="1">开启</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsMarkdown" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -6495,10 +6769,10 @@
                                 <label>评论分页</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsPageBreak">
-                                  <option :value="0">关闭</option>
-                                  <option :value="1">开启</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsPageBreak" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -6530,10 +6804,10 @@
                                 <label>所有评论必须审核</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsRequireModeration">
-                                  <option :value="0">关闭</option>
-                                  <option :value="1">开启</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsRequireModeration" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -6542,10 +6816,10 @@
                                 <label>必须填写邮箱</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsRequireMail">
-                                  <option :value="0">否</option>
-                                  <option :value="1">是</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsRequireMail" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -6554,10 +6828,10 @@
                                 <label>必须填写网址</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsRequireUrl">
-                                  <option :value="0">否</option>
-                                  <option :value="1">是</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsRequireUrl" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -6566,10 +6840,10 @@
                                 <label>反垃圾保护</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsAntiSpam">
-                                  <option :value="0">关闭</option>
-                                  <option :value="1">开启</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsAntiSpam" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -6587,10 +6861,10 @@
                                 <label>同 IP 评论间隔限制</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsPostIntervalEnable">
-                                  <option :value="0">关闭</option>
-                                  <option :value="1">开启</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsPostIntervalEnable" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -6615,9 +6889,6 @@
                             </div>
                           </div>
 
-                          <div class="v3a-settings-actions">
-                            <button class="v3a-btn primary" type="button" @click="saveSettingsDiscussion()" :disabled="settingsSaving">保存</button>
-                          </div>
                         </template>
                       </div>
                     </div>
@@ -6750,16 +7021,6 @@
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>评论提醒模板</label>
-                                <div class="v3a-settings-row-help">
-                                  支持变量：
-                                  <code v-pre>{{siteTitle}}</code>
-                                  <code v-pre>{{postTitle}}</code>
-                                  <code v-pre>{{postUrl}}</code>
-                                  <code v-pre>{{commentAuthor}}</code>
-                                  <code v-pre>{{commentTime}}</code>
-                                  <code v-pre>{{commentStatus}}</code>
-                                  <code v-pre>{{commentText}}</code>
-                                </div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <div class="v3a-mailtpl-card">
@@ -6768,14 +7029,21 @@
                                     <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor()">编辑</button>
                                   </div>
                                   <div class="v3a-mailtpl-preview" v-html="settingsNotifyTemplatePreviewHtml"></div>
+                                  <div class="v3a-mailtpl-vars">
+                                    <div class="v3a-mailtpl-vars-title">支持变量：</div>
+                                    <code v-pre>{{siteTitle}}</code>
+                                    <code v-pre>{{postTitle}}</code>
+                                    <code v-pre>{{postUrl}}</code>
+                                    <code v-pre>{{commentAuthor}}</code>
+                                    <code v-pre>{{commentTime}}</code>
+                                    <code v-pre>{{commentStatus}}</code>
+                                    <code v-pre>{{commentText}}</code>
+                                  </div>
                                 </div>
                               </div>
                             </div>
                           </div>
 
-                          <div class="v3a-settings-actions">
-                            <button class="v3a-btn primary" type="button" @click="saveSettingsNotify()" :disabled="settingsSaving">保存</button>
-                          </div>
                         </template>
                       </div>
                     </div>
@@ -6847,10 +7115,10 @@
                                 <label>Rewrite（地址重写）</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model.number="settingsPermalinkForm.rewrite" :disabled="settingsData.permalink.rewriteLocked">
-                                  <option :value="0">不启用</option>
-                                  <option :value="1">启用</option>
-                                </select>
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsPermalinkForm.rewrite" :true-value="1" :false-value="0" :disabled="settingsData.permalink.rewriteLocked" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -6909,9 +7177,6 @@
                             </div>
                           </div>
 
-                          <div class="v3a-settings-actions">
-                            <button class="v3a-btn primary" type="button" @click="saveSettingsPermalink()" :disabled="settingsSaving">保存</button>
-                          </div>
                         </template>
                       </div>
                     </div>
