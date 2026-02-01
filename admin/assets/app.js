@@ -115,18 +115,7 @@
     let observer = null;
 
     function readTooltipText(el) {
-      if (!el) return "";
-      const explicit = el.getAttribute("data-tooltip");
-      if (explicit) return String(explicit);
-
-      const aria = el.getAttribute("aria-label");
-      if (aria) return String(aria);
-
-      const title = el.getAttribute("title");
-      if (title) return String(title);
-
-      const stored = titleStore.get(el);
-      return stored ? String(stored) : "";
+      return "";
     }
 
     function stealTitle(el) {
