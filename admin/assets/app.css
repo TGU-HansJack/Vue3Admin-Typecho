@@ -2913,6 +2913,115 @@ a {
   gap: 12px;
 }
 
+/* Settings: switch + mail template */
+.v3a-switch {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+
+.v3a-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.v3a-switch-ui {
+  width: 40px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.14);
+  position: relative;
+  transition: background-color 0.2s ease;
+}
+
+.v3a-switch-ui::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.3), inset 0 0 1px 0 rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease;
+}
+
+.v3a-switch input:checked + .v3a-switch-ui {
+  background: var(--color-primary);
+}
+
+.v3a-switch input:checked + .v3a-switch-ui::after {
+  transform: translateX(18px);
+}
+
+.v3a-switch input:focus-visible + .v3a-switch-ui {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.06);
+}
+
+.v3a-switch input:disabled + .v3a-switch-ui {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.v3a-mailtpl-card {
+  width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.v3a-mailtpl-card-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #fafafa;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.v3a-mailtpl-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.62);
+}
+
+.v3a-mailtpl-preview {
+  padding: 12px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.v3a-settings-row-help code,
+.v3a-muted code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  color: rgba(0, 0, 0, 0.72);
+  display: inline-block;
+  margin: 2px 6px 2px 0;
+}
+
+.v3a-code-editor {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  min-height: 260px;
+  white-space: pre;
+}
+
 .v3a-container.v3a-container-files {
   height: 100%;
   display: flex;

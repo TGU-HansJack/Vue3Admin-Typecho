@@ -33,6 +33,29 @@ function v3a_exit_json(int $code, $data = null, string $message = ''): void
     exit;
 }
 
+/**
+ * Upsert option (global/user).
+ */
+function v3a_upsert_option($db, string $name, $value, int $user = 0): void
+{
+    $exists = (int) ($db->fetchObject(
+        $db->select(['COUNT(*)' => 'num'])->from('table.options')->where('name = ? AND user = ?', $name, $user)
+    )->num ?? 0);
+
+    if ($exists > 0) {
+        $db->query(
+            $db->update('table.options')->rows(['value' => $value])->where('name = ? AND user = ?', $name, $user),
+            \Typecho\Db::WRITE
+        );
+        return;
+    }
+
+    $db->query(
+        $db->insert('table.options')->rows(['name' => $name, 'value' => $value, 'user' => $user]),
+        \Typecho\Db::WRITE
+    );
+}
+
 function v3a_truncate(string $value, int $max = 120): string
 {
     $value = trim($value);
@@ -3222,6 +3245,19 @@ try {
                 'commentsPostIntervalMins' => (float) round(((float) ($options->commentsPostInterval ?? 0)) / 60, 1),
                 'commentsHTMLTagAllowed' => (string) ($options->commentsHTMLTagAllowed ?? ''),
             ],
+            'notify' => [
+                'mailEnabled' => (int) ($options->v3a_mail_enabled ?? 0),
+                'commentNotifyEnabled' => (int) ($options->v3a_mail_comment_enabled ?? 0),
+                'friendLinkNotifyEnabled' => (int) ($options->v3a_mail_friendlink_enabled ?? 0),
+                'smtpFrom' => (string) ($options->v3a_mail_smtp_from ?? ''),
+                'smtpHost' => (string) ($options->v3a_mail_smtp_host ?? ''),
+                'smtpPort' => (int) ($options->v3a_mail_smtp_port ?? 465),
+                'smtpUser' => (string) ($options->v3a_mail_smtp_user ?? ''),
+                'smtpPass' => '',
+                'smtpSecure' => (int) ($options->v3a_mail_smtp_secure ?? 1),
+                'commentTemplate' => (string) ($options->v3a_mail_comment_template ?? ''),
+                'hasSmtpPass' => (string) ($options->v3a_mail_smtp_pass ?? '') === '' ? 0 : 1,
+            ],
             'permalink' => [
                 'rewrite' => (int) ($options->rewrite ?? 0),
                 'rewriteLocked' => defined('__TYPECHO_REWRITE__'),
@@ -3563,7 +3599,7 @@ try {
         v3a_exit_json(0, ['reading' => $settings]);
     }
 
-    if ($do === 'settings.notify.save') {
+    if ($do === 'settings.discussion.save') {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
@@ -3617,6 +3653,82 @@ try {
         }
 
         v3a_exit_json(0, ['discussion' => $settings]);
+    }
+
+    if ($do === 'settings.notify.save') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+
+        $mailEnabled = v3a_bool_int($payload['mailEnabled'] ?? 0);
+        $commentNotifyEnabled = v3a_bool_int($payload['commentNotifyEnabled'] ?? 0);
+        $friendLinkNotifyEnabled = v3a_bool_int($payload['friendLinkNotifyEnabled'] ?? 0);
+        $smtpFrom = v3a_string($payload['smtpFrom'] ?? '', '');
+        $smtpHost = v3a_string($payload['smtpHost'] ?? '', '');
+        $smtpPort = v3a_int($payload['smtpPort'] ?? 465, 465);
+        $smtpUser = v3a_string($payload['smtpUser'] ?? '', '');
+        $smtpPass = v3a_string($payload['smtpPass'] ?? '', '');
+        $smtpSecure = v3a_bool_int($payload['smtpSecure'] ?? 1);
+        $commentTemplate = v3a_string($payload['commentTemplate'] ?? '', '');
+
+        if ($smtpFrom !== '' && !filter_var($smtpFrom, FILTER_VALIDATE_EMAIL)) {
+            v3a_exit_json(400, null, '发件邮箱地址格式错误');
+        }
+        if ($smtpPort <= 0 || $smtpPort > 65535) {
+            v3a_exit_json(400, null, 'SMTP 端口格式错误');
+        }
+
+        $hasExistingPass = (string) ($options->v3a_mail_smtp_pass ?? '') !== '';
+        if ($mailEnabled && $commentNotifyEnabled) {
+            if ($smtpFrom === '' || !filter_var($smtpFrom, FILTER_VALIDATE_EMAIL)) {
+                v3a_exit_json(400, null, '发件邮箱地址不能为空');
+            }
+            if (trim($smtpHost) === '') {
+                v3a_exit_json(400, null, 'SMTP 主机不能为空');
+            }
+            if (trim($smtpUser) === '') {
+                v3a_exit_json(400, null, 'SMTP 用户名不能为空');
+            }
+            if (!$hasExistingPass && trim($smtpPass) === '') {
+                v3a_exit_json(400, null, 'SMTP 密码不能为空');
+            }
+        }
+
+        v3a_upsert_option($db, 'v3a_mail_enabled', $mailEnabled, 0);
+        v3a_upsert_option($db, 'v3a_mail_comment_enabled', $commentNotifyEnabled, 0);
+        v3a_upsert_option($db, 'v3a_mail_friendlink_enabled', $friendLinkNotifyEnabled, 0);
+        v3a_upsert_option($db, 'v3a_mail_smtp_from', $smtpFrom, 0);
+        v3a_upsert_option($db, 'v3a_mail_smtp_host', $smtpHost, 0);
+        v3a_upsert_option($db, 'v3a_mail_smtp_port', $smtpPort, 0);
+        v3a_upsert_option($db, 'v3a_mail_smtp_user', $smtpUser, 0);
+        v3a_upsert_option($db, 'v3a_mail_smtp_secure', $smtpSecure, 0);
+        v3a_upsert_option($db, 'v3a_mail_comment_template', $commentTemplate, 0);
+        if (trim($smtpPass) !== '') {
+            v3a_upsert_option($db, 'v3a_mail_smtp_pass', $smtpPass, 0);
+        }
+
+        $notify = [
+            'mailEnabled' => $mailEnabled,
+            'commentNotifyEnabled' => $commentNotifyEnabled,
+            'friendLinkNotifyEnabled' => $friendLinkNotifyEnabled,
+            'smtpFrom' => $smtpFrom,
+            'smtpHost' => $smtpHost,
+            'smtpPort' => $smtpPort,
+            'smtpUser' => $smtpUser,
+            'smtpPass' => '',
+            'smtpSecure' => $smtpSecure,
+            'commentTemplate' => $commentTemplate,
+            'hasSmtpPass' => (trim($smtpPass) !== '' || $hasExistingPass) ? 1 : 0,
+        ];
+
+        v3a_exit_json(0, ['notify' => $notify]);
     }
 
     if ($do === 'settings.system.save') {

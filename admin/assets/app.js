@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   const Vue = window.Vue;
   if (!Vue) {
     console.error("[Vue3Admin] Vue is missing");
@@ -1586,6 +1586,7 @@
           feedFullText: 0,
         },
         discussion: {},
+        notify: {},
         permalink: {},
         lists: { langs: [], frontPagePages: [], frontPageFiles: [] },
       });
@@ -1630,6 +1631,26 @@
         postsListSize: 10,
         feedFullText: 0,
       });
+      const DEFAULT_NOTIFY_COMMENT_TEMPLATE = `
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">收到一条新的评论</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 8px;"><strong>文章：</strong><a href="{{postUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{postTitle}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>作者：</strong>{{commentAuthor}}</div>
+      <div style="margin-bottom: 8px;"><strong>状态：</strong>{{commentStatus}}</div>
+      <div style="margin-bottom: 12px;"><strong>时间：</strong>{{commentTime}}</div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{commentText}}</div>
+    </div>
+    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      请登录后台查看并处理。
+    </div>
+  </div>
+</div>
+`.trim();
       const settingsDiscussionForm = reactive({
         commentDateFormat: "",
         commentsListSize: 20,
@@ -1657,6 +1678,61 @@
         commentsPostIntervalMins: 0,
         commentsHTMLTagAllowed: "",
       });
+      const settingsNotifyForm = reactive({
+        mailEnabled: 0,
+        commentNotifyEnabled: 0,
+        friendLinkNotifyEnabled: 0,
+        smtpFrom: "",
+        smtpHost: "",
+        smtpPort: 465,
+        smtpUser: "",
+        smtpPass: "",
+        smtpSecure: 1,
+        commentTemplate: DEFAULT_NOTIFY_COMMENT_TEMPLATE,
+      });
+      const settingsNotifyTemplateEditorOpen = ref(false);
+      const settingsNotifyTemplateDraft = ref("");
+      const settingsNotifyTemplatePreviewHtml = computed(() => {
+        const tpl = String(
+          settingsNotifyForm.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE
+        );
+        const siteTitle = String(settingsData.site.title || "我的站点");
+        const siteUrlRaw = String(settingsData.site.siteUrl || "https://example.com");
+        const siteUrl = siteUrlRaw.replace(/\/+$/, "");
+        const now = new Date();
+        const sample = {
+          siteTitle,
+          postTitle: "示例文章标题",
+          postUrl: siteUrl ? siteUrl + "/archives/1/" : "https://example.com/archives/1/",
+          commentAuthor: "访客",
+          commentStatus: "approved",
+          commentTime: now.toLocaleString(),
+          commentText: escapeHtml("这是一条示例评论内容。\\n支持换行。").replace(
+            /\\n/g,
+            "<br />"
+          ),
+        };
+        return renderMailTemplate(tpl, sample);
+      });
+
+      function openSettingsNotifyTemplateEditor() {
+        settingsNotifyTemplateDraft.value = String(
+          settingsNotifyForm.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE
+        );
+        settingsNotifyTemplateEditorOpen.value = true;
+      }
+      function closeSettingsNotifyTemplateEditor() {
+        settingsNotifyTemplateEditorOpen.value = false;
+      }
+      function applySettingsNotifyTemplateDraft() {
+        settingsNotifyForm.commentTemplate = String(
+          settingsNotifyTemplateDraft.value || ""
+        ).trim();
+        if (!settingsNotifyForm.commentTemplate) {
+          settingsNotifyForm.commentTemplate = DEFAULT_NOTIFY_COMMENT_TEMPLATE;
+        }
+        settingsNotifyTemplateEditorOpen.value = false;
+      }
       const settingsPermalinkForm = reactive({
         rewrite: 0,
         postPattern: "",
@@ -2980,6 +3056,23 @@
         return { selected, other: other.join(",") };
       }
 
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function renderMailTemplate(template, vars) {
+        let html = String(template || "");
+        for (const [key, value] of Object.entries(vars || {})) {
+          html = html.split(`{{${key}}}`).join(String(value ?? ""));
+        }
+        return html;
+      }
+
       async function fetchSettings() {
         settingsLoading.value = true;
         settingsError.value = "";
@@ -2995,6 +3088,7 @@
           Object.assign(settingsData.storage, data.storage || {});
           Object.assign(settingsData.reading, data.reading || {});
           settingsData.discussion = Object.assign({}, data.discussion || {});
+          settingsData.notify = Object.assign({}, data.notify || {});
           settingsData.permalink = Object.assign({}, data.permalink || {});
           settingsData.lists = Object.assign(
             { langs: [], frontPagePages: [], frontPageFiles: [] },
@@ -3071,6 +3165,26 @@
           );
 
           Object.assign(settingsDiscussionForm, settingsData.discussion || {});
+
+          settingsNotifyForm.mailEnabled = Number(
+            settingsData.notify.mailEnabled || 0
+          );
+          settingsNotifyForm.commentNotifyEnabled = Number(
+            settingsData.notify.commentNotifyEnabled || 0
+          );
+          settingsNotifyForm.friendLinkNotifyEnabled = Number(
+            settingsData.notify.friendLinkNotifyEnabled || 0
+          );
+          settingsNotifyForm.smtpFrom = String(settingsData.notify.smtpFrom || "");
+          settingsNotifyForm.smtpHost = String(settingsData.notify.smtpHost || "");
+          settingsNotifyForm.smtpPort = Number(settingsData.notify.smtpPort || 465);
+          settingsNotifyForm.smtpUser = String(settingsData.notify.smtpUser || "");
+          settingsNotifyForm.smtpPass = String(settingsData.notify.smtpPass || "");
+          settingsNotifyForm.smtpSecure =
+            Number(settingsData.notify.smtpSecure ?? 1) ? 1 : 0;
+          settingsNotifyForm.commentTemplate = String(
+            settingsData.notify.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE
+          );
 
           settingsPermalinkForm.rewrite = Number(settingsData.permalink.rewrite || 0);
           const postUrlRaw = String(settingsData.permalink.postUrl || "");
@@ -3237,9 +3351,46 @@
         settingsMessage.value = "";
         try {
           const payload = Object.assign({}, settingsDiscussionForm);
-          const data = await apiPost("settings.notify.save", payload);
+          const data = await apiPost("settings.discussion.save", payload);
           if (data && data.discussion) {
             settingsData.discussion = Object.assign({}, data.discussion);
+          }
+          settingsMessage.value = "已保存";
+        } catch (e) {
+          settingsError.value = e && e.message ? e.message : "保存失败";
+        } finally {
+          settingsSaving.value = false;
+        }
+      }
+
+      async function saveSettingsNotify() {
+        settingsSaving.value = true;
+        settingsError.value = "";
+        settingsMessage.value = "";
+        try {
+          const payload = Object.assign({}, settingsNotifyForm);
+          const data = await apiPost("settings.notify.save", payload);
+          if (data && data.notify) {
+            settingsData.notify = Object.assign({}, data.notify);
+            settingsNotifyForm.mailEnabled = Number(data.notify.mailEnabled || 0);
+            settingsNotifyForm.commentNotifyEnabled = Number(
+              data.notify.commentNotifyEnabled || 0
+            );
+            settingsNotifyForm.friendLinkNotifyEnabled = Number(
+              data.notify.friendLinkNotifyEnabled || 0
+            );
+            settingsNotifyForm.smtpFrom = String(data.notify.smtpFrom || "");
+            settingsNotifyForm.smtpHost = String(data.notify.smtpHost || "");
+            settingsNotifyForm.smtpPort = Number(data.notify.smtpPort || 465);
+            settingsNotifyForm.smtpUser = String(data.notify.smtpUser || "");
+            settingsNotifyForm.smtpPass = "";
+            settingsNotifyForm.smtpSecure =
+              Number(data.notify.smtpSecure ?? 1) ? 1 : 0;
+            settingsNotifyForm.commentTemplate = String(
+              data.notify.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE
+            );
+          } else {
+            settingsNotifyForm.smtpPass = "";
           }
           settingsMessage.value = "已保存";
         } catch (e) {
@@ -4164,6 +4315,10 @@
         settingsStorageForm,
         settingsReadingForm,
         settingsDiscussionForm,
+        settingsNotifyForm,
+        settingsNotifyTemplateEditorOpen,
+        settingsNotifyTemplateDraft,
+        settingsNotifyTemplatePreviewHtml,
         settingsPermalinkForm,
         settingsPermalinkRewriteError,
         settingsPermalinkEnableRewriteAnyway,
@@ -4176,6 +4331,10 @@
         saveSettingsStorage,
         saveSettingsReading,
         saveSettingsDiscussion,
+        saveSettingsNotify,
+        openSettingsNotifyTemplateEditor,
+        closeSettingsNotifyTemplateEditor,
+        applySettingsNotifyTemplateDraft,
         saveSettingsPermalink,
         username,
         userInitial,
@@ -6274,11 +6433,7 @@
                           </div>
                         </template>
                       </div>
-                    </div>
-                  </template>
 
-                  <template v-else-if="settingsActiveKey === 'notify'">
-                    <div class="v3a-settings-user">
                       <div class="v3a-settings-section">
                         <div class="v3a-settings-section-hd">
                           <div class="v3a-settings-section-hd-left">
@@ -6464,6 +6619,197 @@
                             <button class="v3a-btn primary" type="button" @click="saveSettingsDiscussion()" :disabled="settingsSaving">保存</button>
                           </div>
                         </template>
+                      </div>
+                    </div>
+                  </template>
+
+                  <template v-else-if="settingsActiveKey === 'notify'">
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.bell"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">邮件通知设置</div>
+                              <div class="v3a-settings-section-subtitle">评论提醒、SMTP</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能修改通知设置。</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <template v-else>
+                          <div class="v3a-settings-fields">
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>开启邮箱提醒</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsNotifyForm.mailEnabled" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>评论提醒</label>
+                                <div class="v3a-settings-row-help">目前仅实现评论提醒（发送至管理员邮箱）</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsNotifyForm.commentNotifyEnabled" :true-value="1" :false-value="0" :disabled="!settingsNotifyForm.mailEnabled" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>友链申请提醒</label>
+                                <div class="v3a-settings-row-help">占位功能（暂不发送）</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsNotifyForm.friendLinkNotifyEnabled" :true-value="1" :false-value="0" :disabled="!settingsNotifyForm.mailEnabled" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>发件邮箱地址</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" type="email" v-model="settingsNotifyForm.smtpFrom" placeholder="example@domain.com" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>SMTP 用户名</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsNotifyForm.smtpUser" placeholder="通常与发件邮箱一致" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>SMTP 密码</label>
+                                <div class="v3a-settings-row-help">留空表示不修改</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" type="password" v-model="settingsNotifyForm.smtpPass" placeholder="输入授权码/密码" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>SMTP 端口</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" type="number" v-model.number="settingsNotifyForm.smtpPort" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>SMTP 主机</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsNotifyForm.smtpHost" placeholder="smtp.example.com" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>使用 SSL/TLS</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsNotifyForm.smtpSecure" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>评论提醒模板</label>
+                                <div class="v3a-settings-row-help">
+                                  支持变量：
+                                  <code v-pre>{{siteTitle}}</code>
+                                  <code v-pre>{{postTitle}}</code>
+                                  <code v-pre>{{postUrl}}</code>
+                                  <code v-pre>{{commentAuthor}}</code>
+                                  <code v-pre>{{commentTime}}</code>
+                                  <code v-pre>{{commentStatus}}</code>
+                                  <code v-pre>{{commentText}}</code>
+                                </div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-mailtpl-card">
+                                  <div class="v3a-mailtpl-card-hd">
+                                    <div class="v3a-mailtpl-card-title">预览</div>
+                                    <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor()">编辑</button>
+                                  </div>
+                                  <div class="v3a-mailtpl-preview" v-html="settingsNotifyTemplatePreviewHtml"></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-actions">
+                            <button class="v3a-btn primary" type="button" @click="saveSettingsNotify()" :disabled="settingsSaving">保存</button>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+
+                    <div v-if="settingsNotifyTemplateEditorOpen" class="v3a-modal-mask" @click.self="closeSettingsNotifyTemplateEditor()">
+                      <div class="v3a-modal-card" role="dialog" aria-modal="true">
+                        <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeSettingsNotifyTemplateEditor()">
+                          <span class="v3a-icon" v-html="ICONS.close"></span>
+                        </button>
+                        <div class="v3a-modal-head">
+                          <div class="v3a-modal-title">编辑邮件模板（HTML）</div>
+                        </div>
+                        <div class="v3a-modal-body">
+                          <div class="v3a-modal-form">
+                            <div class="v3a-modal-item">
+                              <label class="v3a-modal-label">模板内容</label>
+                              <textarea class="v3a-textarea v3a-modal-textarea v3a-code-editor" v-model="settingsNotifyTemplateDraft" placeholder="<div>...</div>"></textarea>
+                              <div class="v3a-muted" style="margin-top: 10px; font-size: 12px; line-height: 1.6;">
+                                可用变量：
+                                <code v-pre>{{siteTitle}}</code>
+                                <code v-pre>{{postTitle}}</code>
+                                <code v-pre>{{postUrl}}</code>
+                                <code v-pre>{{commentAuthor}}</code>
+                                <code v-pre>{{commentTime}}</code>
+                                <code v-pre>{{commentStatus}}</code>
+                                <code v-pre>{{commentText}}</code>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="v3a-modal-actions">
+                            <button class="v3a-btn v3a-modal-btn" type="button" @click="closeSettingsNotifyTemplateEditor()">取消</button>
+                            <button class="v3a-btn primary v3a-modal-btn" type="button" @click="applySettingsNotifyTemplateDraft()">确定</button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </template>
