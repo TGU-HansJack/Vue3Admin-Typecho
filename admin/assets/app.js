@@ -3957,7 +3957,9 @@
                     <button class="v3a-iconaction primary" type="button" @click="submitPost('publish')" :disabled="postSaving || postLoading" aria-label="发布" data-tooltip="发布">
                       <span class="v3a-icon" v-html="ICONS.send"></span>
                     </button>
-                    <button v-if="postForm.cid" class="v3a-btn" type="button" style="color: var(--v3a-danger);" @click="deletePost(postForm.cid)" :disabled="postSaving || postLoading">删除</button>
+                    <button v-if="postForm.cid" class="v3a-actionbtn danger" type="button" @click="deletePost(postForm.cid)" :disabled="postSaving || postLoading" aria-label="删除" data-tooltip="删除">
+                      <span class="v3a-icon" v-html="ICONS.trash"></span>
+                    </button>
                   </div>
                 </div>
 
@@ -4496,7 +4498,9 @@
                     <button class="v3a-iconaction primary" type="button" @click="submitPage('publish')" :disabled="pageSaving || pageLoading" aria-label="发布" data-tooltip="发布">
                       <span class="v3a-icon" v-html="ICONS.send"></span>
                     </button>
-                    <button v-if="pageForm.cid" class="v3a-btn" type="button" style="color: var(--v3a-danger);" @click="deletePage(pageForm.cid)" :disabled="pageSaving || pageLoading">删除</button>
+                    <button v-if="pageForm.cid" class="v3a-actionbtn danger" type="button" @click="deletePage(pageForm.cid)" :disabled="pageSaving || pageLoading" aria-label="删除" data-tooltip="删除">
+                      <span class="v3a-icon" v-html="ICONS.trash"></span>
+                    </button>
                   </div>
                 </div>
 
