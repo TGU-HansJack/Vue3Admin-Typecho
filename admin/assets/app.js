@@ -5902,16 +5902,41 @@
                   </template>
 
                   <template v-else-if="settingsActiveKey === 'security'">
-                    <div class="v3a-card">
-                      <div class="hd"><div class="title">修改密码</div></div>
-                      <div class="bd">
-                        <div class="v3a-kv">
-                          <div class="v3a-muted">新密码</div>
-                          <input class="v3a-input" type="password" v-model="settingsPasswordForm.password" placeholder="至少 6 位" />
-                          <div class="v3a-muted">确认密码</div>
-                          <input class="v3a-input" type="password" v-model="settingsPasswordForm.confirm" placeholder="再次输入" />
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.shield"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">账号安全</div>
+                              <div class="v3a-settings-section-subtitle">修改密码</div>
+                            </div>
+                          </div>
                         </div>
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
+
+                        <div class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>新密码</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <input class="v3a-input" type="password" v-model="settingsPasswordForm.password" placeholder="至少 6 位" />
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>确认密码</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <input class="v3a-input" type="password" v-model="settingsPasswordForm.confirm" placeholder="再次输入" />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="v3a-settings-actions">
                           <button class="v3a-btn primary" type="button" @click="saveSettingsPassword()" :disabled="settingsSaving">更新密码</button>
                         </div>
                       </div>
@@ -5919,252 +5944,629 @@
                   </template>
 
                   <template v-else-if="settingsActiveKey === 'site'">
-                    <div v-if="!settingsData.isAdmin" class="v3a-card">
-                      <div class="bd v3a-muted">需要管理员权限才能修改站点设置。</div>
-                    </div>
-                    <div v-else class="v3a-card">
-                      <div class="hd"><div class="title">网站设置</div></div>
-                      <div class="bd">
-                        <div class="v3a-kv">
-                          <div class="v3a-muted">站点地址</div>
-                          <input class="v3a-input" v-model="settingsSiteForm.siteUrl" :disabled="settingsData.site.siteUrlLocked" placeholder="https://example.com" />
-                          <div class="v3a-muted">站点名称</div>
-                          <input class="v3a-input" v-model="settingsSiteForm.title" placeholder="title" />
-                          <div class="v3a-muted">站点描述</div>
-                          <input class="v3a-input" v-model="settingsSiteForm.description" placeholder="description" />
-                          <div class="v3a-muted">关键词</div>
-                          <input class="v3a-input" v-model="settingsSiteForm.keywords" placeholder="用逗号分隔" />
-                          <div class="v3a-muted">允许注册</div>
-                          <select class="v3a-select" v-model.number="settingsSiteForm.allowRegister">
-                            <option :value="0">不允许</option>
-                            <option :value="1">允许</option>
-                          </select>
-                          <div class="v3a-muted">XMLRPC</div>
-                          <select class="v3a-select" v-model.number="settingsSiteForm.allowXmlRpc">
-                            <option :value="0">关闭</option>
-                            <option :value="1">仅关闭 Pingback</option>
-                            <option :value="2">开启</option>
-                          </select>
-                          <div class="v3a-muted">语言</div>
-                          <select class="v3a-select" v-model="settingsSiteForm.lang">
-                            <option v-for="l in settingsData.lists.langs" :key="l.value" :value="l.value">{{ l.label }}</option>
-                          </select>
-                          <div class="v3a-muted">时区（秒）</div>
-                          <input class="v3a-input" type="number" v-model.number="settingsSiteForm.timezone" />
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.globe"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">网站设置</div>
+                              <div class="v3a-settings-section-subtitle">站点地址、SEO</div>
+                            </div>
+                          </div>
                         </div>
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                          <button class="v3a-btn primary" type="button" @click="saveSettingsSite()" :disabled="settingsSaving">保存</button>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能修改站点设置。</div>
+                            </div>
+                          </div>
                         </div>
+
+                        <template v-else>
+                          <div class="v3a-settings-fields">
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>站点地址</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsSiteForm.siteUrl" :disabled="settingsData.site.siteUrlLocked" placeholder="https://example.com" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>站点名称</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsSiteForm.title" placeholder="title" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>站点描述</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsSiteForm.description" placeholder="description" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>关键词</label>
+                                <div class="v3a-settings-row-help">用逗号分隔</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsSiteForm.keywords" placeholder="用逗号分隔" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>允许注册</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsSiteForm.allowRegister">
+                                  <option :value="0">不允许</option>
+                                  <option :value="1">允许</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>XMLRPC</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsSiteForm.allowXmlRpc">
+                                  <option :value="0">关闭</option>
+                                  <option :value="1">仅关闭 Pingback</option>
+                                  <option :value="2">开启</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>语言</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model="settingsSiteForm.lang">
+                                  <option v-for="l in settingsData.lists.langs" :key="l.value" :value="l.value">{{ l.label }}</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>时区（秒）</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" type="number" v-model.number="settingsSiteForm.timezone" />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-actions">
+                            <button class="v3a-btn primary" type="button" @click="saveSettingsSite()" :disabled="settingsSaving">保存</button>
+                          </div>
+                        </template>
                       </div>
                     </div>
                   </template>
 
                   <template v-else-if="settingsActiveKey === 'storage'">
-                    <div v-if="!settingsData.isAdmin" class="v3a-card">
-                      <div class="bd v3a-muted">需要管理员权限才能修改附件设置。</div>
-                    </div>
-                    <div v-else class="v3a-card">
-                      <div class="hd"><div class="title">附件类型</div></div>
-                      <div class="bd">
-                        <div class="v3a-muted" style="margin-bottom: 10px;">勾选允许上传的类型（与旧后台一致）。</div>
-                        <div style="display:flex; flex-wrap: wrap; gap: 12px;">
-                          <label class="v3a-remember" style="margin: 0;">
-                            <input class="v3a-check" type="checkbox" value="@image@" v-model="settingsStorageForm.attachmentTypes" />
-                            <span>图片</span>
-                          </label>
-                          <label class="v3a-remember" style="margin: 0;">
-                            <input class="v3a-check" type="checkbox" value="@media@" v-model="settingsStorageForm.attachmentTypes" />
-                            <span>媒体</span>
-                          </label>
-                          <label class="v3a-remember" style="margin: 0;">
-                            <input class="v3a-check" type="checkbox" value="@doc@" v-model="settingsStorageForm.attachmentTypes" />
-                            <span>文档</span>
-                          </label>
-                          <label class="v3a-remember" style="margin: 0;">
-                            <input class="v3a-check" type="checkbox" value="@other@" v-model="settingsStorageForm.attachmentTypes" />
-                            <span>其他</span>
-                          </label>
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.data"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">附件类型</div>
+                              <div class="v3a-settings-section-subtitle">附件上传类型</div>
+                            </div>
+                          </div>
                         </div>
 
-                        <div class="v3a-divider"></div>
-
-                        <div class="v3a-kv" v-if="(settingsStorageForm.attachmentTypes || []).includes('@other@')">
-                          <div class="v3a-muted">其他格式（逗号分隔）</div>
-                          <input class="v3a-input" v-model="settingsStorageForm.attachmentTypesOther" placeholder="zip, rar, pdf" />
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能修改附件设置。</div>
+                            </div>
+                          </div>
                         </div>
 
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                          <button class="v3a-btn primary" type="button" @click="saveSettingsStorage()" :disabled="settingsSaving">保存</button>
-                        </div>
+                        <template v-else>
+                          <div class="v3a-settings-fields">
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>允许上传的类型</label>
+                                <div class="v3a-settings-row-help">勾选允许上传的类型（与旧后台一致）。</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div style="display:flex; flex-wrap: wrap; gap: 12px;">
+                                  <label class="v3a-remember" style="margin: 0;">
+                                    <input class="v3a-check" type="checkbox" value="@image@" v-model="settingsStorageForm.attachmentTypes" />
+                                    <span>图片</span>
+                                  </label>
+                                  <label class="v3a-remember" style="margin: 0;">
+                                    <input class="v3a-check" type="checkbox" value="@media@" v-model="settingsStorageForm.attachmentTypes" />
+                                    <span>媒体</span>
+                                  </label>
+                                  <label class="v3a-remember" style="margin: 0;">
+                                    <input class="v3a-check" type="checkbox" value="@doc@" v-model="settingsStorageForm.attachmentTypes" />
+                                    <span>文档</span>
+                                  </label>
+                                  <label class="v3a-remember" style="margin: 0;">
+                                    <input class="v3a-check" type="checkbox" value="@other@" v-model="settingsStorageForm.attachmentTypes" />
+                                    <span>其他</span>
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+
+                            <template v-if="(settingsStorageForm.attachmentTypes || []).includes('@other@')">
+                              <div class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>其他格式（逗号分隔）</label>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <input class="v3a-input" v-model="settingsStorageForm.attachmentTypesOther" placeholder="zip, rar, pdf" />
+                                </div>
+                              </div>
+                            </template>
+                          </div>
+
+                          <div class="v3a-settings-actions">
+                            <button class="v3a-btn primary" type="button" @click="saveSettingsStorage()" :disabled="settingsSaving">保存</button>
+                          </div>
+                        </template>
                       </div>
                     </div>
                   </template>
 
                   <template v-else-if="settingsActiveKey === 'content'">
-                    <div v-if="!settingsData.isAdmin" class="v3a-card">
-                      <div class="bd v3a-muted">需要管理员权限才能修改阅读设置。</div>
-                    </div>
-                    <div v-else class="v3a-card">
-                      <div class="hd"><div class="title">阅读设置</div></div>
-                      <div class="bd">
-                        <div class="v3a-kv">
-                          <div class="v3a-muted">文章日期格式</div>
-                          <input class="v3a-input" v-model="settingsReadingForm.postDateFormat" placeholder="Y-m-d" />
-                          <div class="v3a-muted">首页显示</div>
-                          <select class="v3a-select" v-model="settingsReadingForm.frontPageType">
-                            <option value="recent">最新文章</option>
-                            <option value="page">指定页面</option>
-                            <option value="file">主题文件</option>
-                          </select>
-                          <template v-if="settingsReadingForm.frontPageType === 'page'">
-                            <div class="v3a-muted">首页页面</div>
-                            <select class="v3a-select" v-model.number="settingsReadingForm.frontPagePage">
-                              <option :value="0">请选择</option>
-                              <option v-for="p in settingsData.lists.frontPagePages" :key="p.cid" :value="p.cid">{{ p.title }}</option>
-                            </select>
-                          </template>
-                          <template v-else-if="settingsReadingForm.frontPageType === 'file'">
-                            <div class="v3a-muted">首页文件</div>
-                            <select class="v3a-select" v-model="settingsReadingForm.frontPageFile">
-                              <option value="">请选择</option>
-                              <option v-for="f in settingsData.lists.frontPageFiles" :key="f" :value="f">{{ f }}</option>
-                            </select>
-                          </template>
-                          <div class="v3a-muted">每页文章数</div>
-                          <input class="v3a-input" type="number" v-model.number="settingsReadingForm.pageSize" />
-                          <div class="v3a-muted">侧边栏文章列表数</div>
-                          <input class="v3a-input" type="number" v-model.number="settingsReadingForm.postsListSize" />
-                          <div class="v3a-muted">Feed 输出全文</div>
-                          <select class="v3a-select" v-model.number="settingsReadingForm.feedFullText">
-                            <option :value="0">关闭</option>
-                            <option :value="1">开启</option>
-                          </select>
-                          <div class="v3a-muted">首页非最新时启用归档页</div>
-                          <select class="v3a-select" v-model.number="settingsReadingForm.frontArchive">
-                            <option :value="0">关闭</option>
-                            <option :value="1">开启</option>
-                          </select>
-                          <div class="v3a-muted" v-if="settingsReadingForm.frontArchive">归档页路径（如：/blog/）</div>
-                          <input v-if="settingsReadingForm.frontArchive" class="v3a-input" v-model="settingsReadingForm.archivePattern" placeholder="/archive/" />
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.fileText"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">阅读设置</div>
+                              <div class="v3a-settings-section-subtitle">阅读、归档、Feed</div>
+                            </div>
+                          </div>
                         </div>
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                          <button class="v3a-btn primary" type="button" @click="saveSettingsReading()" :disabled="settingsSaving">保存</button>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能修改阅读设置。</div>
+                            </div>
+                          </div>
                         </div>
+
+                        <template v-else>
+                          <div class="v3a-settings-fields">
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>文章日期格式</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsReadingForm.postDateFormat" placeholder="Y-m-d" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>首页显示</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model="settingsReadingForm.frontPageType">
+                                  <option value="recent">最新文章</option>
+                                  <option value="page">指定页面</option>
+                                  <option value="file">主题文件</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <template v-if="settingsReadingForm.frontPageType === 'page'">
+                              <div class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>首页页面</label>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <select class="v3a-select" v-model.number="settingsReadingForm.frontPagePage">
+                                    <option :value="0">请选择</option>
+                                    <option v-for="p in settingsData.lists.frontPagePages" :key="p.cid" :value="p.cid">{{ p.title }}</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </template>
+                            <template v-else-if="settingsReadingForm.frontPageType === 'file'">
+                              <div class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>首页文件</label>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <select class="v3a-select" v-model="settingsReadingForm.frontPageFile">
+                                    <option value="">请选择</option>
+                                    <option v-for="f in settingsData.lists.frontPageFiles" :key="f" :value="f">{{ f }}</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </template>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>每页文章数</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" type="number" v-model.number="settingsReadingForm.pageSize" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>侧边栏文章列表数</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" type="number" v-model.number="settingsReadingForm.postsListSize" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>Feed 输出全文</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsReadingForm.feedFullText">
+                                  <option :value="0">关闭</option>
+                                  <option :value="1">开启</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>首页非最新时启用归档页</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsReadingForm.frontArchive">
+                                  <option :value="0">关闭</option>
+                                  <option :value="1">开启</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <template v-if="settingsReadingForm.frontArchive">
+                              <div class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>归档页路径</label>
+                                  <div class="v3a-settings-row-help">如：/blog/</div>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <input class="v3a-input" v-model="settingsReadingForm.archivePattern" placeholder="/archive/" />
+                                </div>
+                              </div>
+                            </template>
+                          </div>
+
+                          <div class="v3a-settings-actions">
+                            <button class="v3a-btn primary" type="button" @click="saveSettingsReading()" :disabled="settingsSaving">保存</button>
+                          </div>
+                        </template>
                       </div>
                     </div>
                   </template>
 
                   <template v-else-if="settingsActiveKey === 'notify'">
-                    <div v-if="!settingsData.isAdmin" class="v3a-card">
-                      <div class="bd v3a-muted">需要管理员权限才能修改评论设置。</div>
-                    </div>
-                    <div v-else class="v3a-card">
-                      <div class="hd"><div class="title">评论设置</div></div>
-                      <div class="bd">
-                        <div class="v3a-kv">
-                          <div class="v3a-muted">评论日期格式</div>
-                          <input class="v3a-input" v-model="settingsDiscussionForm.commentDateFormat" placeholder="Y-m-d H:i" />
-                          <div class="v3a-muted">侧边栏评论列表数</div>
-                          <input class="v3a-input" type="number" v-model.number="settingsDiscussionForm.commentsListSize" />
-                          <div class="v3a-muted">评论中使用 Markdown</div>
-                          <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsMarkdown">
-                            <option :value="0">关闭</option>
-                            <option :value="1">开启</option>
-                          </select>
-                          <div class="v3a-muted">评论分页</div>
-                          <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsPageBreak">
-                            <option :value="0">关闭</option>
-                            <option :value="1">开启</option>
-                          </select>
-                          <div class="v3a-muted" v-if="settingsDiscussionForm.commentsPageBreak">每页评论数</div>
-                          <input v-if="settingsDiscussionForm.commentsPageBreak" class="v3a-input" type="number" v-model.number="settingsDiscussionForm.commentsPageSize" />
-                          <div class="v3a-muted">评论排序</div>
-                          <select class="v3a-select" v-model="settingsDiscussionForm.commentsOrder">
-                            <option value="DESC">较新在前</option>
-                            <option value="ASC">较旧在前</option>
-                          </select>
-                          <div class="v3a-muted">所有评论必须审核</div>
-                          <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsRequireModeration">
-                            <option :value="0">关闭</option>
-                            <option :value="1">开启</option>
-                          </select>
-                          <div class="v3a-muted">必须填写邮箱</div>
-                          <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsRequireMail">
-                            <option :value="0">否</option>
-                            <option :value="1">是</option>
-                          </select>
-                          <div class="v3a-muted">必须填写网址</div>
-                          <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsRequireUrl">
-                            <option :value="0">否</option>
-                            <option :value="1">是</option>
-                          </select>
-                          <div class="v3a-muted">反垃圾保护</div>
-                          <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsAntiSpam">
-                            <option :value="0">关闭</option>
-                            <option :value="1">开启</option>
-                          </select>
-                          <div class="v3a-muted">发布后自动关闭评论（天）</div>
-                          <input class="v3a-input" type="number" v-model.number="settingsDiscussionForm.commentsPostTimeoutDays" />
-                          <div class="v3a-muted">同 IP 评论间隔限制</div>
-                          <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsPostIntervalEnable">
-                            <option :value="0">关闭</option>
-                            <option :value="1">开启</option>
-                          </select>
-                          <div class="v3a-muted" v-if="settingsDiscussionForm.commentsPostIntervalEnable">间隔（分钟）</div>
-                          <input v-if="settingsDiscussionForm.commentsPostIntervalEnable" class="v3a-input" type="number" step="0.1" v-model.number="settingsDiscussionForm.commentsPostIntervalMins" />
-                          <div class="v3a-muted">允许 HTML 标签</div>
-                          <textarea class="v3a-textarea" v-model="settingsDiscussionForm.commentsHTMLTagAllowed" placeholder="<a href> <img src>"></textarea>
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.comments"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">评论设置</div>
+                              <div class="v3a-settings-section-subtitle">评论、反垃圾、HTML</div>
+                            </div>
+                          </div>
                         </div>
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                          <button class="v3a-btn primary" type="button" @click="saveSettingsDiscussion()" :disabled="settingsSaving">保存</button>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能修改评论设置。</div>
+                            </div>
+                          </div>
                         </div>
+
+                        <template v-else>
+                          <div class="v3a-settings-fields">
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>评论日期格式</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsDiscussionForm.commentDateFormat" placeholder="Y-m-d H:i" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>侧边栏评论列表数</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" type="number" v-model.number="settingsDiscussionForm.commentsListSize" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>评论中使用 Markdown</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsMarkdown">
+                                  <option :value="0">关闭</option>
+                                  <option :value="1">开启</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>评论分页</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsPageBreak">
+                                  <option :value="0">关闭</option>
+                                  <option :value="1">开启</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <template v-if="settingsDiscussionForm.commentsPageBreak">
+                              <div class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>每页评论数</label>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <input class="v3a-input" type="number" v-model.number="settingsDiscussionForm.commentsPageSize" />
+                                </div>
+                              </div>
+                            </template>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>评论排序</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model="settingsDiscussionForm.commentsOrder">
+                                  <option value="DESC">较新在前</option>
+                                  <option value="ASC">较旧在前</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>所有评论必须审核</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsRequireModeration">
+                                  <option :value="0">关闭</option>
+                                  <option :value="1">开启</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>必须填写邮箱</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsRequireMail">
+                                  <option :value="0">否</option>
+                                  <option :value="1">是</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>必须填写网址</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsRequireUrl">
+                                  <option :value="0">否</option>
+                                  <option :value="1">是</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>反垃圾保护</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsAntiSpam">
+                                  <option :value="0">关闭</option>
+                                  <option :value="1">开启</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>发布后自动关闭评论（天）</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" type="number" v-model.number="settingsDiscussionForm.commentsPostTimeoutDays" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>同 IP 评论间隔限制</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsDiscussionForm.commentsPostIntervalEnable">
+                                  <option :value="0">关闭</option>
+                                  <option :value="1">开启</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <template v-if="settingsDiscussionForm.commentsPostIntervalEnable">
+                              <div class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>间隔（分钟）</label>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <input class="v3a-input" type="number" step="0.1" v-model.number="settingsDiscussionForm.commentsPostIntervalMins" />
+                                </div>
+                              </div>
+                            </template>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>允许 HTML 标签</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <textarea class="v3a-textarea" v-model="settingsDiscussionForm.commentsHTMLTagAllowed" placeholder="<a href> <img src>"></textarea>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-actions">
+                            <button class="v3a-btn primary" type="button" @click="saveSettingsDiscussion()" :disabled="settingsSaving">保存</button>
+                          </div>
+                        </template>
                       </div>
                     </div>
                   </template>
 
                   <template v-else-if="settingsActiveKey === 'system'">
-                    <div v-if="!settingsData.isAdmin" class="v3a-card">
-                      <div class="bd v3a-muted">需要管理员权限才能修改链接设置。</div>
-                    </div>
-                    <div v-else class="v3a-card">
-                      <div class="hd"><div class="title">链接设置（Permalink）</div></div>
-                      <div class="bd">
-                        <div class="v3a-kv">
-                          <div class="v3a-muted">Rewrite（地址重写）</div>
-                          <select class="v3a-select" v-model.number="settingsPermalinkForm.rewrite" :disabled="settingsData.permalink.rewriteLocked">
-                            <option :value="0">不启用</option>
-                            <option :value="1">启用</option>
-                          </select>
-                          <div class="v3a-muted">文章链接规则</div>
-                          <div v-if="settingsPermalinkRewriteError && settingsPermalinkForm.rewrite" class="v3a-permalink-rewrite-hint">
-                            <div class="v3a-feedback">{{ settingsPermalinkRewriteError }}</div>
-                            <label class="v3a-remember v3a-permalink-rewrite-anyway" style="margin: 0;">
-                              <input class="v3a-check" type="checkbox" v-model="settingsPermalinkEnableRewriteAnyway" :true-value="1" :false-value="0" />
-                              <span>仍然启用</span>
-                            </label>
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.settings"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">链接设置（Permalink）</div>
+                              <div class="v3a-settings-section-subtitle">URL 规则、重写</div>
+                            </div>
                           </div>
-                          <div class="v3a-permalink-options">
-                            <label v-for="opt in permalinkPostPatternOptions" :key="opt.value" class="v3a-permalink-option">
-                              <input class="v3a-radio" type="radio" name="v3a-postpattern" :value="opt.value" v-model="settingsPermalinkForm.postPattern" />
-                              <span class="v3a-permalink-option-text">
-                                {{ opt.label }}
-                                <code v-if="opt.example">{{ opt.example }}</code>
-                                <template v-if="opt.value === 'custom'">
-                                  <input class="v3a-input v3a-permalink-custom" v-model="settingsPermalinkForm.customPattern" :disabled="settingsPermalinkForm.postPattern !== 'custom'" placeholder="输入个性化定义..." />
-                                </template>
-                              </span>
-                            </label>
+                        </div>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能修改链接设置。</div>
+                            </div>
                           </div>
-                          <div class="v3a-muted">页面链接规则</div>
-                          <input class="v3a-input" v-model="settingsPermalinkForm.pagePattern" placeholder="/{slug}.html" />
-                          <div class="v3a-muted">分类链接规则</div>
-                          <input class="v3a-input" v-model="settingsPermalinkForm.categoryPattern" placeholder="/category/{slug}/" />
                         </div>
-                        <div class="v3a-divider"></div>
-                        <div class="v3a-muted">占位符：{cid} {slug} {category} {directory} {year} {month} {day} {mid}</div>
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                          <button class="v3a-btn primary" type="button" @click="saveSettingsPermalink()" :disabled="settingsSaving">保存</button>
-                        </div>
+
+                        <template v-else>
+                          <div class="v3a-settings-fields">
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>Rewrite（地址重写）</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model.number="settingsPermalinkForm.rewrite" :disabled="settingsData.permalink.rewriteLocked">
+                                  <option :value="0">不启用</option>
+                                  <option :value="1">启用</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>文章链接规则</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div v-if="settingsPermalinkRewriteError && settingsPermalinkForm.rewrite" class="v3a-permalink-rewrite-hint">
+                                  <div class="v3a-feedback">{{ settingsPermalinkRewriteError }}</div>
+                                  <label class="v3a-remember v3a-permalink-rewrite-anyway" style="margin: 0;">
+                                    <input class="v3a-check" type="checkbox" v-model="settingsPermalinkEnableRewriteAnyway" :true-value="1" :false-value="0" />
+                                    <span>仍然启用</span>
+                                  </label>
+                                </div>
+                                <div class="v3a-permalink-options">
+                                  <label v-for="opt in permalinkPostPatternOptions" :key="opt.value" class="v3a-permalink-option">
+                                    <input class="v3a-radio" type="radio" name="v3a-postpattern" :value="opt.value" v-model="settingsPermalinkForm.postPattern" />
+                                    <span class="v3a-permalink-option-text">
+                                      {{ opt.label }}
+                                      <code v-if="opt.example">{{ opt.example }}</code>
+                                      <template v-if="opt.value === 'custom'">
+                                        <input class="v3a-input v3a-permalink-custom" v-model="settingsPermalinkForm.customPattern" :disabled="settingsPermalinkForm.postPattern !== 'custom'" placeholder="输入个性化定义..." />
+                                      </template>
+                                    </span>
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>页面链接规则</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsPermalinkForm.pagePattern" placeholder="/{slug}.html" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>分类链接规则</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsPermalinkForm.categoryPattern" placeholder="/category/{slug}/" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>占位符</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-muted">占位符：{cid} {slug} {category} {directory} {year} {month} {day} {mid}</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-actions">
+                            <button class="v3a-btn primary" type="button" @click="saveSettingsPermalink()" :disabled="settingsSaving">保存</button>
+                          </div>
+                        </template>
                       </div>
                     </div>
                   </template>
