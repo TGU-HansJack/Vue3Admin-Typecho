@@ -23,6 +23,10 @@
     data: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-database-icon lucide-database"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>`,
     subscribe: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mail-icon lucide-mail"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg>`,
     settings: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings2-icon lucide-settings-2"><path d="M14 17H5"/><path d="M19 7h-9"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>`,
+    globe: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>`,
+    fileText: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg>`,
+    bell: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>`,
+    shield: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path></svg>`,
     maintenance: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench-icon lucide-wrench"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg>`,
     chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`,
     collapse: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`,
@@ -61,13 +65,13 @@
   };
 
   const SETTINGS = [
-    { key: "user", label: "用户" },
-    { key: "site", label: "网站" },
-    { key: "content", label: "内容" },
-    { key: "notify", label: "通知" },
-    { key: "storage", label: "存储" },
-    { key: "system", label: "永久链接" },
-    { key: "security", label: "账号安全" },
+    { key: "user", label: "用户", icon: "user", subtitle: "个人资料" },
+    { key: "site", label: "网站", icon: "globe", subtitle: "站点地址、SEO" },
+    { key: "content", label: "内容", icon: "fileText", subtitle: "阅读、评论、文本" },
+    { key: "notify", label: "通知", icon: "bell", subtitle: "邮件、Bark 推送" },
+    { key: "storage", label: "存储", icon: "data", subtitle: "附件、备份、图床" },
+    { key: "system", label: "永久链接", icon: "settings", subtitle: "URL 规则、重写" },
+    { key: "security", label: "账号安全", icon: "shield", subtitle: "密码、凭证、安全" },
   ];
 
   const MENU = [
@@ -4229,15 +4233,22 @@
 
         <aside class="v3a-subsidebar" v-show="settingsOpen && !sidebarCollapsed">
           <div class="v3a-subsidebar-bd">
-            <div
+            <button
               class="v3a-subsidebar-item"
               v-for="s in SETTINGS"
               :key="s.key"
               :class="{ active: settingsActiveKey === s.key }"
+              type="button"
               @click="selectSettings(s.key)"
             >
-              {{ s.label }}
-            </div>
+              <div class="v3a-subsidebar-item-icon" :class="{ active: settingsActiveKey === s.key }">
+                <span class="v3a-icon" v-html="ICONS[s.icon] || ICONS.settings"></span>
+              </div>
+              <div class="v3a-subsidebar-item-text">
+                <div class="v3a-subsidebar-item-title">{{ s.label }}</div>
+                <div class="v3a-subsidebar-item-subtitle">{{ s.subtitle }}</div>
+              </div>
+            </button>
           </div>
         </aside>
 
@@ -5724,63 +5735,166 @@
 
                 <div v-else class="v3a-grid">
                   <template v-if="settingsActiveKey === 'user'">
-                    <div class="v3a-card">
-                      <div class="hd"><div class="title">个人资料</div></div>
-                      <div class="bd">
-                        <div class="v3a-kv">
-                          <div class="v3a-muted">昵称</div>
-                          <input class="v3a-input" v-model="settingsProfileForm.screenName" placeholder="昵称（screenName）" />
-                          <div class="v3a-muted">邮箱</div>
-                          <input class="v3a-input" v-model="settingsProfileForm.mail" placeholder="邮箱（mail）" />
-                          <div class="v3a-muted">个人主页</div>
-                          <input class="v3a-input" v-model="settingsProfileForm.url" placeholder="https://..." />
-                        </div>
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                          <button class="v3a-btn primary" type="button" @click="saveSettingsProfile()" :disabled="settingsSaving">保存</button>
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-user-head">
+                        <a class="v3a-settings-avatar" href="https://gravatar.com" target="_blank" rel="noreferrer" title="在 Gravatar 上修改头像">
+                          <img v-if="settingsData.profile.avatar" :src="settingsData.profile.avatar" alt="" />
+                          <div v-else class="v3a-settings-avatar-fallback">{{ userInitial }}</div>
+                          <div class="v3a-settings-avatar-overlay">
+                            <span class="v3a-icon" v-html="ICONS.plus"></span>
+                          </div>
+                        </a>
+                        <div class="v3a-settings-user-meta">
+                          <div class="v3a-settings-user-name">{{ settingsProfileForm.screenName || settingsData.profile.screenName || username }}</div>
+                          <div v-if="settingsData.profile.name" class="v3a-settings-user-sub">@{{ settingsData.profile.name }}</div>
+                          <div class="v3a-settings-user-pills">
+                            <span v-if="settingsProfileForm.mail" class="v3a-settings-user-pill">
+                              <span class="v3a-icon" v-html="ICONS.subscribe"></span>
+                              {{ settingsProfileForm.mail }}
+                            </span>
+                            <span v-if="settingsProfileForm.url" class="v3a-settings-user-pill">
+                              <span class="v3a-icon" v-html="ICONS.link"></span>
+                              {{ settingsProfileForm.url }}
+                            </span>
+                            <span v-if="settingsData.profile.group" class="v3a-settings-user-pill">
+                              <span class="v3a-icon" v-html="ICONS.shield"></span>
+                              {{ settingsData.profile.group }}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div class="v3a-card">
-                      <div class="hd"><div class="title">撰写设置</div></div>
-                      <div class="bd">
-                        <div class="v3a-kv">
-                          <div class="v3a-muted">使用 Markdown</div>
-                          <select class="v3a-select" v-model.number="settingsUserOptionsForm.markdown">
-                            <option :value="1">开启</option>
-                            <option :value="0">关闭</option>
-                          </select>
-
-                          <div class="v3a-muted">XMLRPC Markdown</div>
-                          <select class="v3a-select" v-model.number="settingsUserOptionsForm.xmlrpcMarkdown">
-                            <option :value="1">开启</option>
-                            <option :value="0">关闭</option>
-                          </select>
-
-                          <div class="v3a-muted">自动保存</div>
-                          <select class="v3a-select" v-model.number="settingsUserOptionsForm.autoSave">
-                            <option :value="1">开启</option>
-                            <option :value="0">关闭</option>
-                          </select>
-
-                          <div class="v3a-muted">默认允许</div>
-                          <div style="display:flex; flex-wrap: wrap; gap: 12px;">
-                            <label class="v3a-remember" style="margin: 0;">
-                              <input class="v3a-check" type="checkbox" value="comment" v-model="settingsUserOptionsForm.defaultAllow" />
-                              <span>评论</span>
-                            </label>
-                            <label class="v3a-remember" style="margin: 0;">
-                              <input class="v3a-check" type="checkbox" value="ping" v-model="settingsUserOptionsForm.defaultAllow" />
-                              <span>引用</span>
-                            </label>
-                            <label class="v3a-remember" style="margin: 0;">
-                              <input class="v3a-check" type="checkbox" value="feed" v-model="settingsUserOptionsForm.defaultAllow" />
-                              <span>聚合</span>
-                            </label>
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.user"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">基本信息</div>
+                              <div class="v3a-settings-section-subtitle">昵称、邮箱、主页</div>
+                            </div>
                           </div>
                         </div>
 
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
+                        <div class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>昵称</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <input class="v3a-input" v-model="settingsProfileForm.screenName" placeholder="输入昵称…" />
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>用户名</label>
+                              <div class="v3a-settings-row-help">登录名（不可修改）</div>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <input class="v3a-input" :value="settingsData.profile.name" disabled />
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>邮箱</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <input class="v3a-input" type="email" v-model="settingsProfileForm.mail" placeholder="输入邮箱…" />
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>个人主页</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <input class="v3a-input" type="url" v-model="settingsProfileForm.url" placeholder="https://example.com" />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="v3a-settings-actions">
+                          <button class="v3a-btn primary" type="button" @click="saveSettingsProfile()" :disabled="settingsSaving">保存</button>
+                        </div>
+                      </div>
+
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.fileText"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">撰写设置</div>
+                              <div class="v3a-settings-section-subtitle">编辑器与默认选项</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>使用 Markdown</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <select class="v3a-select" v-model.number="settingsUserOptionsForm.markdown">
+                                <option :value="1">开启</option>
+                                <option :value="0">关闭</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>XMLRPC Markdown</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <select class="v3a-select" v-model.number="settingsUserOptionsForm.xmlrpcMarkdown">
+                                <option :value="1">开启</option>
+                                <option :value="0">关闭</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>自动保存</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <select class="v3a-select" v-model.number="settingsUserOptionsForm.autoSave">
+                                <option :value="1">开启</option>
+                                <option :value="0">关闭</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>默认允许</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div style="display:flex; flex-wrap: wrap; gap: 12px;">
+                                <label class="v3a-remember" style="margin: 0;">
+                                  <input class="v3a-check" type="checkbox" value="comment" v-model="settingsUserOptionsForm.defaultAllow" />
+                                  <span>评论</span>
+                                </label>
+                                <label class="v3a-remember" style="margin: 0;">
+                                  <input class="v3a-check" type="checkbox" value="ping" v-model="settingsUserOptionsForm.defaultAllow" />
+                                  <span>引用</span>
+                                </label>
+                                <label class="v3a-remember" style="margin: 0;">
+                                  <input class="v3a-check" type="checkbox" value="feed" v-model="settingsUserOptionsForm.defaultAllow" />
+                                  <span>聚合</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="v3a-settings-actions">
                           <button class="v3a-btn primary" type="button" @click="saveSettingsUserOptions()" :disabled="settingsSaving">保存</button>
                         </div>
                       </div>

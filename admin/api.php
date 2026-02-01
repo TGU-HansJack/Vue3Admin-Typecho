@@ -3151,6 +3151,13 @@ try {
                 'screenName' => (string) ($user->screenName ?? ''),
                 'mail' => (string) ($user->mail ?? ''),
                 'url' => (string) ($user->url ?? ''),
+                'avatar' => (string) \Typecho\Common::gravatarUrl(
+                    (string) ($user->mail ?? ''),
+                    160,
+                    'X',
+                    'mm',
+                    $request->isSecure()
+                ),
                 'group' => (string) ($user->group ?? ''),
             ],
             'userOptions' => [
