@@ -988,7 +988,7 @@ a {
   border-bottom: 1px solid transparent;
   padding: 0 2px;
   color: #525252;
-  min-width: 80px;
+  min-width: 0;
   max-width: 100%;
   transition: border-color 0.15s ease;
 }

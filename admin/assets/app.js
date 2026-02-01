@@ -735,7 +735,8 @@
 
       const postSlugInputWidth = computed(() => {
         const len = String(postForm.slug || "").length;
-        const width = Math.max(8, len + 2);
+        const placeholderLen = 4; // "slug"
+        const width = Math.max(placeholderLen, len || placeholderLen);
         return Math.min(28, width);
       });
 
