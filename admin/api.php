@@ -289,6 +289,21 @@ function v3a_bool_int($value): int
     return 0;
 }
 
+function v3a_layout_text($layout): string
+{
+    if (!$layout) {
+        return '';
+    }
+
+    ob_start();
+    try {
+        $layout->html();
+    } catch (\Throwable $e) {
+    }
+    $out = ob_get_clean();
+    return v3a_string($out, '');
+}
+
 /**
  * Post edit proxy: reuse Typecho internal publish/save logic without redirect.
  */
@@ -3817,6 +3832,908 @@ try {
                     : '',
             ],
         ]);
+    }
+
+    if ($do === 'themes.list') {
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $themes = glob(__TYPECHO_ROOT_DIR__ . __TYPECHO_THEME_DIR__ . '/*', GLOB_ONLYDIR);
+        $result = [];
+
+        foreach ((array) $themes as $dir) {
+            $dir = (string) $dir;
+            if ($dir === '') {
+                continue;
+            }
+
+            $themeFile = rtrim($dir, "/\\") . '/index.php';
+            if (!file_exists($themeFile)) {
+                continue;
+            }
+
+            $info = \Typecho\Plugin::parseInfo($themeFile);
+            $name = basename($dir);
+            $info['name'] = $name;
+            $info['activated'] = ((string) ($options->theme ?? '')) === $name ? 1 : 0;
+
+            $screen = array_filter(glob(rtrim($dir, "/\\") . '/*'), function ($path) {
+                return is_string($path) && preg_match("/screenshot\\.(jpg|png|gif|bmp|jpeg|webp|avif)$/i", $path);
+            });
+            if ($screen) {
+                $info['screen'] = (string) $options->themeUrl(basename((string) current($screen)), $name);
+            } else {
+                $info['screen'] = (string) \Typecho\Common::url('noscreen.png', $options->adminStaticUrl('img'));
+            }
+
+            $result[] = $info;
+        }
+
+        // Put activated theme at top
+        usort($result, function ($a, $b) {
+            return (int) (($b['activated'] ?? 0) <=> ($a['activated'] ?? 0));
+        });
+
+        v3a_exit_json(0, [
+            'current' => (string) ($options->theme ?? ''),
+            'themes' => $result,
+        ]);
+    }
+
+    if ($do === 'themes.activate') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $theme = trim(v3a_string($payload['theme'] ?? '', ''), './');
+        if ($theme === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $theme)) {
+            v3a_exit_json(400, null, 'Invalid theme');
+        }
+
+        $themeDir = $options->themeFile($theme);
+        if (!is_dir($themeDir)) {
+            v3a_exit_json(404, null, 'Theme not found');
+        }
+
+        // Delete old theme settings
+        $oldTheme = (string) (($options->missingTheme ?? '') !== '' ? ($options->missingTheme ?? '') : ($options->theme ?? ''));
+        if ($oldTheme !== '') {
+            $db->query(
+                $db->delete('table.options')->where('name = ? AND user = ?', 'theme:' . $oldTheme, 0),
+                \Typecho\Db::WRITE
+            );
+        }
+
+        v3a_upsert_option($db, 'theme', $theme, 0);
+
+        // Unbind homepage file routing
+        $frontPage = (string) ($options->frontPage ?? 'recent');
+        if (strpos($frontPage, 'file:') === 0) {
+            v3a_upsert_option($db, 'frontPage', 'recent', 0);
+        }
+
+        // Init theme config (default values)
+        try {
+            $configFile = $options->themeFile($theme, 'functions.php');
+            if (file_exists($configFile)) {
+                require_once $configFile;
+                if (function_exists('themeConfig')) {
+                    $form = new \Typecho\Widget\Helper\Form();
+                    themeConfig($form);
+                    $defaults = $form->getValues();
+                    if (!empty($defaults)) {
+                        $handled = false;
+                        if (function_exists('themeConfigHandle')) {
+                            themeConfigHandle($defaults, true);
+                            $handled = true;
+                        }
+                        if (!$handled) {
+                            v3a_upsert_option(
+                                $db,
+                                'theme:' . $theme,
+                                json_encode($defaults, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                                0
+                            );
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        v3a_exit_json(0, ['current' => $theme]);
+    }
+
+    if ($do === 'themes.files') {
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $theme = v3a_string($request->get('theme', ''), '');
+        $theme = $theme !== '' ? trim($theme, './') : (string) ($options->theme ?? '');
+        if ($theme === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $theme)) {
+            v3a_exit_json(400, null, 'Invalid theme');
+        }
+
+        $dir = $options->themeFile($theme);
+        $writeable = (!defined('__TYPECHO_THEME_WRITEABLE__') || __TYPECHO_THEME_WRITEABLE__)
+            && (string) ($options->missingTheme ?? '') === '';
+
+        if (!is_dir($dir) || !$writeable) {
+            v3a_exit_json(400, null, 'Theme not writable');
+        }
+
+        $files = array_filter(glob(rtrim($dir, "/\\") . '/*'), function ($path) {
+            return is_string($path) && preg_match("/\\.(php|js|css|vbs)$/i", $path);
+        });
+
+        $result = [];
+        foreach ((array) $files as $file) {
+            $result[] = basename((string) $file);
+        }
+        sort($result);
+
+        v3a_exit_json(0, [
+            'theme' => $theme,
+            'files' => $result,
+        ]);
+    }
+
+    if ($do === 'themes.file.get') {
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $theme = v3a_string($request->get('theme', ''), '');
+        $file = v3a_string($request->get('file', ''), '');
+        $theme = $theme !== '' ? trim($theme, './') : (string) ($options->theme ?? '');
+
+        if ($theme === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $theme)) {
+            v3a_exit_json(400, null, 'Invalid theme');
+        }
+        if ($file === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $file)) {
+            v3a_exit_json(400, null, 'Invalid file');
+        }
+
+        $dir = $options->themeFile($theme);
+        $path = rtrim($dir, "/\\") . '/' . $file;
+        if (!is_dir($dir) || !file_exists($path)) {
+            v3a_exit_json(404, null, 'File not found');
+        }
+
+        $writeable = (!defined('__TYPECHO_THEME_WRITEABLE__') || __TYPECHO_THEME_WRITEABLE__)
+            && (string) ($options->missingTheme ?? '') === ''
+            && is_writable($path);
+
+        $content = (string) file_get_contents($path);
+        v3a_exit_json(0, [
+            'theme' => $theme,
+            'file' => $file,
+            'content' => $content,
+            'writeable' => $writeable ? 1 : 0,
+        ]);
+    }
+
+    if ($do === 'themes.file.save') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $theme = trim(v3a_string($payload['theme'] ?? '', ''), './');
+        $file = v3a_string($payload['file'] ?? '', '');
+        $content = (string) ($payload['content'] ?? '');
+
+        if ($theme === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $theme)) {
+            v3a_exit_json(400, null, 'Invalid theme');
+        }
+        if ($file === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $file)) {
+            v3a_exit_json(400, null, 'Invalid file');
+        }
+
+        $dir = $options->themeFile($theme);
+        $path = rtrim($dir, "/\\") . '/' . $file;
+
+        $writeable = (!defined('__TYPECHO_THEME_WRITEABLE__') || __TYPECHO_THEME_WRITEABLE__)
+            && (string) ($options->missingTheme ?? '') === '';
+
+        if (!is_dir($dir) || !file_exists($path) || !is_writable($path) || !$writeable) {
+            v3a_exit_json(400, null, 'File not writable');
+        }
+
+        $handle = @fopen($path, 'wb');
+        if (!$handle) {
+            v3a_exit_json(500, null, 'Write failed');
+        }
+        $written = fwrite($handle, $content);
+        fclose($handle);
+        if ($written === false) {
+            v3a_exit_json(500, null, 'Write failed');
+        }
+
+        v3a_exit_json(0, ['saved' => 1]);
+    }
+
+    if ($do === 'themes.config.get') {
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $theme = v3a_string($request->get('theme', ''), '');
+        $theme = $theme !== '' ? trim($theme, './') : (string) ($options->theme ?? '');
+        if ($theme === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $theme)) {
+            v3a_exit_json(400, null, 'Invalid theme');
+        }
+
+        $configFile = $options->themeFile($theme, 'functions.php');
+        if (!file_exists($configFile)) {
+            v3a_exit_json(0, ['theme' => $theme, 'exists' => 0, 'fields' => []]);
+        }
+
+        require_once $configFile;
+        if (!function_exists('themeConfig')) {
+            v3a_exit_json(0, ['theme' => $theme, 'exists' => 0, 'fields' => []]);
+        }
+
+        $themeOptions = [];
+        try {
+            $row = $db->fetchObject(
+                $db->select('value')->from('table.options')->where('name = ? AND user = ?', 'theme:' . $theme, 0)
+            );
+            $raw = is_object($row) ? (string) ($row->value ?? '') : '';
+            $decoded = json_decode($raw, true);
+            $themeOptions = is_array($decoded) ? $decoded : [];
+        } catch (\Throwable $e) {
+        }
+
+        $form = new \Typecho\Widget\Helper\Form();
+        themeConfig($form);
+        $inputs = $form->getInputs();
+
+        $fields = [];
+        foreach ((array) $inputs as $name => $input) {
+            if (!is_string($name) || $name === '' || !($input instanceof \Typecho\Widget\Helper\Form\Element)) {
+                continue;
+            }
+
+            // Override with stored values when available
+            if (array_key_exists($name, $themeOptions)) {
+                $input->value($themeOptions[$name]);
+            } else {
+                try {
+                    if (isset($options->{$name})) {
+                        $input->value($options->{$name});
+                    }
+                } catch (\Throwable $e) {
+                }
+            }
+
+            $type = 'text';
+            if ($input instanceof \Typecho\Widget\Helper\Form\Element\Textarea) {
+                $type = 'textarea';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Select) {
+                $type = 'select';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Radio) {
+                $type = 'radio';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Checkbox) {
+                $type = 'checkbox';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Number) {
+                $type = 'number';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Password) {
+                $type = 'password';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Url) {
+                $type = 'url';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Hidden) {
+                $type = 'hidden';
+            }
+
+            $desc = '';
+            try {
+                foreach ((array) ($input->container ? $input->container->getItems() : []) as $item) {
+                    if (!($item instanceof \Typecho\Widget\Helper\Layout)) {
+                        continue;
+                    }
+                    $cls = (string) ($item->getAttribute('class') ?? '');
+                    if ($item->getTagName() === 'p' && strpos($cls, 'description') !== false) {
+                        $desc = v3a_layout_text($item);
+                        break;
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
+
+            $optionsList = [];
+            try {
+                if ($type === 'select' && $input->input instanceof \Typecho\Widget\Helper\Layout) {
+                    foreach ((array) $input->input->getItems() as $opt) {
+                        if (!($opt instanceof \Typecho\Widget\Helper\Layout)) {
+                            continue;
+                        }
+                        $optionsList[] = [
+                            'value' => (string) ($opt->getAttribute('value') ?? ''),
+                            'label' => v3a_layout_text($opt),
+                        ];
+                    }
+                } elseif (($type === 'radio' || $type === 'checkbox') && $input->container) {
+                    foreach ((array) $input->container->getItems() as $node) {
+                        if (!($node instanceof \Typecho\Widget\Helper\Layout)) {
+                            continue;
+                        }
+                        if ($node->getTagName() !== 'span') {
+                            continue;
+                        }
+                        $sub = (array) $node->getItems();
+                        $subInput = null;
+                        $subLabel = null;
+                        foreach ($sub as $subNode) {
+                            if (!($subNode instanceof \Typecho\Widget\Helper\Layout)) {
+                                continue;
+                            }
+                            if ($subNode->getTagName() === 'input') {
+                                $subInput = $subNode;
+                            } elseif ($subNode->getTagName() === 'label') {
+                                $subLabel = $subNode;
+                            }
+                        }
+                        if ($subInput) {
+                            $optionsList[] = [
+                                'value' => (string) ($subInput->getAttribute('value') ?? ''),
+                                'label' => $subLabel ? v3a_layout_text($subLabel) : '',
+                            ];
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
+
+            $fields[] = [
+                'name' => $name,
+                'type' => $type,
+                'label' => v3a_layout_text($input->label),
+                'description' => $desc,
+                'options' => $optionsList,
+                'value' => $input->value,
+            ];
+        }
+
+        v3a_exit_json(0, [
+            'theme' => $theme,
+            'exists' => 1,
+            'fields' => $fields,
+        ]);
+    }
+
+    if ($do === 'themes.config.save') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $theme = v3a_string($payload['theme'] ?? '', '');
+        $theme = $theme !== '' ? trim($theme, './') : (string) ($options->theme ?? '');
+        if ($theme === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $theme)) {
+            v3a_exit_json(400, null, 'Invalid theme');
+        }
+
+        $configFile = $options->themeFile($theme, 'functions.php');
+        if (!file_exists($configFile)) {
+            v3a_exit_json(404, null, 'Theme config not found');
+        }
+
+        require_once $configFile;
+        if (!function_exists('themeConfig')) {
+            v3a_exit_json(400, null, 'Theme config not supported');
+        }
+
+        $values = isset($payload['values']) && is_array($payload['values']) ? $payload['values'] : [];
+
+        $form = new \Typecho\Widget\Helper\Form();
+        themeConfig($form);
+        $inputs = $form->getInputs();
+
+        $settings = [];
+        foreach ((array) $inputs as $name => $input) {
+            if (!is_string($name) || $name === '') {
+                continue;
+            }
+            if (!array_key_exists($name, $values)) {
+                continue;
+            }
+
+            $v = $values[$name];
+            if ($input instanceof \Typecho\Widget\Helper\Form\Element\Checkbox) {
+                $settings[$name] = is_array($v) ? array_values($v) : (isset($v) ? [$v] : []);
+            } else {
+                $settings[$name] = $v;
+            }
+        }
+
+        $handled = false;
+        if (function_exists('themeConfigHandle')) {
+            themeConfigHandle($settings, false);
+            $handled = true;
+        }
+
+        if (!$handled) {
+            v3a_upsert_option(
+                $db,
+                'theme:' . $theme,
+                json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                0
+            );
+        }
+
+        v3a_exit_json(0, ['saved' => 1]);
+    }
+
+    if ($do === 'plugins.list') {
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $pluginDirs = glob(__TYPECHO_ROOT_DIR__ . '/' . __TYPECHO_PLUGIN_DIR__ . '/*');
+        $plugins = \Typecho\Plugin::export();
+        $activatedPlugins = (array) ($plugins['activated'] ?? []);
+
+        $activated = [];
+        $inactive = [];
+
+        foreach ((array) $pluginDirs as $pluginDir) {
+            if (!is_string($pluginDir) || $pluginDir === '') {
+                continue;
+            }
+
+            $pluginName = '';
+            $pluginFileName = '';
+            if (is_dir($pluginDir)) {
+                $pluginName = basename($pluginDir);
+                $pluginFileName = rtrim($pluginDir, "/\\") . '/Plugin.php';
+            } elseif (file_exists($pluginDir) && basename($pluginDir) !== 'index.php') {
+                $pluginFileName = $pluginDir;
+                $part = explode('.', basename($pluginDir));
+                if (count($part) === 2 && strtolower($part[1]) === 'php') {
+                    $pluginName = $part[0];
+                }
+            }
+
+            if ($pluginName === '' || $pluginFileName === '' || !file_exists($pluginFileName)) {
+                continue;
+            }
+
+            $info = \Typecho\Plugin::parseInfo($pluginFileName);
+            $info['name'] = $pluginName;
+            $info['dependence'] = \Typecho\Plugin::checkDependence($info['since'] ?? null) ? 1 : 0;
+
+            $manageable = !empty($info['activate']) || !empty($info['deactivate']) || !empty($info['config']) || !empty($info['personalConfig']);
+            $info['manageable'] = $manageable ? 1 : 0;
+            $info['canConfig'] = (!empty($info['config']) || !empty($info['personalConfig'])) ? 1 : 0;
+
+            if ($manageable) {
+                $info['activated'] = isset($activatedPlugins[$pluginName]) ? 1 : 0;
+                if (isset($activatedPlugins[$pluginName])) {
+                    unset($activatedPlugins[$pluginName]);
+                }
+            } else {
+                $info['activated'] = 1;
+            }
+
+            if (!empty($info['activated'])) {
+                $activated[] = $info;
+            } else {
+                $inactive[] = $info;
+            }
+        }
+
+        // Missing plugins but still activated in options
+        foreach ($activatedPlugins as $pluginName => $_val) {
+            if (!is_string($pluginName) || $pluginName === '') {
+                continue;
+            }
+            $activated[] = [
+                'name' => $pluginName,
+                'title' => $pluginName,
+                'description' => '插件文件缺失',
+                'author' => '',
+                'homepage' => '',
+                'version' => '',
+                'since' => '',
+                'dependence' => 1,
+                'activate' => 1,
+                'deactivate' => 1,
+                'config' => 0,
+                'personalConfig' => 0,
+                'manageable' => 1,
+                'canConfig' => 0,
+                'activated' => 1,
+                'missing' => 1,
+            ];
+        }
+
+        v3a_exit_json(0, [
+            'activated' => $activated,
+            'inactive' => $inactive,
+        ]);
+    }
+
+    if ($do === 'plugins.activate') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $pluginName = v3a_string($payload['plugin'] ?? '', '');
+        if ($pluginName === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $pluginName)) {
+            v3a_exit_json(400, null, 'Invalid plugin');
+        }
+
+        [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, (string) ($options->pluginDir ?? ''));
+        $info = \Typecho\Plugin::parseInfo($pluginFileName);
+        if (!\Typecho\Plugin::checkDependence($info['since'] ?? null)) {
+            v3a_exit_json(400, null, 'Plugin version dependence not met');
+        }
+
+        $plugins = \Typecho\Plugin::export();
+        $activatedPlugins = (array) ($plugins['activated'] ?? []);
+
+        require_once $pluginFileName;
+
+        if (isset($activatedPlugins[$pluginName]) || !class_exists($className) || !method_exists($className, 'activate')) {
+            v3a_exit_json(400, null, 'Unable to activate plugin');
+        }
+
+        call_user_func([$className, 'activate']);
+        \Typecho\Plugin::activate($pluginName);
+        v3a_upsert_option(
+            $db,
+            'plugins',
+            json_encode(\Typecho\Plugin::export(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            0
+        );
+
+        // Init config defaults
+        try {
+            if (method_exists($className, 'config')) {
+                $form = new \Typecho\Widget\Helper\Form();
+                call_user_func([$className, 'config'], $form);
+                $vals = $form->getValues();
+                if (!empty($vals)) {
+                    $handled = false;
+                    if (method_exists($className, 'configHandle')) {
+                        call_user_func([$className, 'configHandle'], $vals, true);
+                        $handled = true;
+                    }
+                    if (!$handled) {
+                        \Widget\Plugins\Edit::configPlugin($pluginName, $vals, false);
+                    }
+                }
+            }
+
+            if (method_exists($className, 'personalConfig')) {
+                $form = new \Typecho\Widget\Helper\Form();
+                call_user_func([$className, 'personalConfig'], $form);
+                $vals = $form->getValues();
+                if (!empty($vals)) {
+                    $handled = false;
+                    if (method_exists($className, 'personalConfigHandle')) {
+                        call_user_func([$className, 'personalConfigHandle'], $vals, true);
+                        $handled = true;
+                    }
+                    if (!$handled) {
+                        \Widget\Plugins\Edit::configPlugin($pluginName, $vals, true);
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        v3a_exit_json(0, ['activated' => 1]);
+    }
+
+    if ($do === 'plugins.deactivate') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $pluginName = v3a_string($payload['plugin'] ?? '', '');
+        if ($pluginName === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $pluginName)) {
+            v3a_exit_json(400, null, 'Invalid plugin');
+        }
+
+        $plugins = \Typecho\Plugin::export();
+        $activatedPlugins = (array) ($plugins['activated'] ?? []);
+        $pluginFileExist = true;
+        $pluginFileName = '';
+        $className = '';
+
+        try {
+            [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, (string) ($options->pluginDir ?? ''));
+        } catch (\Throwable $e) {
+            $pluginFileExist = false;
+            if (!isset($activatedPlugins[$pluginName])) {
+                throw $e;
+            }
+        }
+
+        if (!isset($activatedPlugins[$pluginName])) {
+            v3a_exit_json(400, null, 'Unable to deactivate plugin');
+        }
+
+        if ($pluginFileExist) {
+            require_once $pluginFileName;
+            if (!class_exists($className) || !method_exists($className, 'deactivate')) {
+                v3a_exit_json(400, null, 'Unable to deactivate plugin');
+            }
+            call_user_func([$className, 'deactivate']);
+        }
+
+        \Typecho\Plugin::deactivate($pluginName);
+        v3a_upsert_option(
+            $db,
+            'plugins',
+            json_encode(\Typecho\Plugin::export(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            0
+        );
+
+        // Clear plugin options
+        $db->query(
+            $db->delete('table.options')->where('name = ? AND user = ?', 'plugin:' . $pluginName, 0),
+            \Typecho\Db::WRITE
+        );
+        $db->query(
+            $db->delete('table.options')->where('name = ? AND user = ?', '_plugin:' . $pluginName, 0),
+            \Typecho\Db::WRITE
+        );
+
+        v3a_exit_json(0, ['deactivated' => 1]);
+    }
+
+    if ($do === 'plugins.config.get') {
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $pluginName = v3a_string($request->get('plugin', ''), '');
+        if ($pluginName === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $pluginName)) {
+            v3a_exit_json(400, null, 'Invalid plugin');
+        }
+
+        $plugins = \Typecho\Plugin::export();
+        $activatedPlugins = (array) ($plugins['activated'] ?? []);
+        if (!isset($activatedPlugins[$pluginName])) {
+            v3a_exit_json(400, null, 'Plugin not activated');
+        }
+
+        [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, (string) ($options->pluginDir ?? ''));
+        if (!file_exists($pluginFileName)) {
+            v3a_exit_json(404, null, 'Plugin not found');
+        }
+
+        require_once $pluginFileName;
+        if (!class_exists($className) || !method_exists($className, 'config')) {
+            v3a_exit_json(0, ['plugin' => $pluginName, 'exists' => 0, 'fields' => []]);
+        }
+
+        $pluginOptions = [];
+        try {
+            $row = $db->fetchObject(
+                $db->select('value')->from('table.options')->where('name = ? AND user = ?', 'plugin:' . $pluginName, 0)
+            );
+            $raw = is_object($row) ? (string) ($row->value ?? '') : '';
+            $decoded = json_decode($raw, true);
+            $pluginOptions = is_array($decoded) ? $decoded : [];
+        } catch (\Throwable $e) {
+        }
+
+        $form = new \Typecho\Widget\Helper\Form();
+        call_user_func([$className, 'config'], $form);
+        $inputs = $form->getInputs();
+
+        $fields = [];
+        foreach ((array) $inputs as $name => $input) {
+            if (!is_string($name) || $name === '' || !($input instanceof \Typecho\Widget\Helper\Form\Element)) {
+                continue;
+            }
+
+            if (array_key_exists($name, $pluginOptions)) {
+                $input->value($pluginOptions[$name]);
+            }
+
+            $type = 'text';
+            if ($input instanceof \Typecho\Widget\Helper\Form\Element\Textarea) {
+                $type = 'textarea';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Select) {
+                $type = 'select';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Radio) {
+                $type = 'radio';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Checkbox) {
+                $type = 'checkbox';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Number) {
+                $type = 'number';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Password) {
+                $type = 'password';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Url) {
+                $type = 'url';
+            } elseif ($input instanceof \Typecho\Widget\Helper\Form\Element\Hidden) {
+                $type = 'hidden';
+            }
+
+            $desc = '';
+            try {
+                foreach ((array) ($input->container ? $input->container->getItems() : []) as $item) {
+                    if (!($item instanceof \Typecho\Widget\Helper\Layout)) {
+                        continue;
+                    }
+                    $cls = (string) ($item->getAttribute('class') ?? '');
+                    if ($item->getTagName() === 'p' && strpos($cls, 'description') !== false) {
+                        $desc = v3a_layout_text($item);
+                        break;
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
+
+            $optionsList = [];
+            try {
+                if ($type === 'select' && $input->input instanceof \Typecho\Widget\Helper\Layout) {
+                    foreach ((array) $input->input->getItems() as $opt) {
+                        if (!($opt instanceof \Typecho\Widget\Helper\Layout)) {
+                            continue;
+                        }
+                        $optionsList[] = [
+                            'value' => (string) ($opt->getAttribute('value') ?? ''),
+                            'label' => v3a_layout_text($opt),
+                        ];
+                    }
+                } elseif (($type === 'radio' || $type === 'checkbox') && $input->container) {
+                    foreach ((array) $input->container->getItems() as $node) {
+                        if (!($node instanceof \Typecho\Widget\Helper\Layout)) {
+                            continue;
+                        }
+                        if ($node->getTagName() !== 'span') {
+                            continue;
+                        }
+                        $sub = (array) $node->getItems();
+                        $subInput = null;
+                        $subLabel = null;
+                        foreach ($sub as $subNode) {
+                            if (!($subNode instanceof \Typecho\Widget\Helper\Layout)) {
+                                continue;
+                            }
+                            if ($subNode->getTagName() === 'input') {
+                                $subInput = $subNode;
+                            } elseif ($subNode->getTagName() === 'label') {
+                                $subLabel = $subNode;
+                            }
+                        }
+                        if ($subInput) {
+                            $optionsList[] = [
+                                'value' => (string) ($subInput->getAttribute('value') ?? ''),
+                                'label' => $subLabel ? v3a_layout_text($subLabel) : '',
+                            ];
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
+
+            $fields[] = [
+                'name' => $name,
+                'type' => $type,
+                'label' => v3a_layout_text($input->label),
+                'description' => $desc,
+                'options' => $optionsList,
+                'value' => $input->value,
+            ];
+        }
+
+        v3a_exit_json(0, [
+            'plugin' => $pluginName,
+            'exists' => 1,
+            'fields' => $fields,
+        ]);
+    }
+
+    if ($do === 'plugins.config.save') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $pluginName = v3a_string($payload['plugin'] ?? '', '');
+        if ($pluginName === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $pluginName)) {
+            v3a_exit_json(400, null, 'Invalid plugin');
+        }
+
+        $plugins = \Typecho\Plugin::export();
+        $activatedPlugins = (array) ($plugins['activated'] ?? []);
+        if (!isset($activatedPlugins[$pluginName])) {
+            v3a_exit_json(400, null, 'Plugin not activated');
+        }
+
+        [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, (string) ($options->pluginDir ?? ''));
+        if (!file_exists($pluginFileName)) {
+            v3a_exit_json(404, null, 'Plugin not found');
+        }
+
+        require_once $pluginFileName;
+        if (!class_exists($className) || !method_exists($className, 'config')) {
+            v3a_exit_json(400, null, 'Plugin config not supported');
+        }
+
+        $values = isset($payload['values']) && is_array($payload['values']) ? $payload['values'] : [];
+
+        $form = new \Typecho\Widget\Helper\Form();
+        call_user_func([$className, 'config'], $form);
+        $inputs = $form->getInputs();
+
+        $settings = [];
+        foreach ((array) $inputs as $name => $input) {
+            if (!is_string($name) || $name === '') {
+                continue;
+            }
+            if (!array_key_exists($name, $values)) {
+                continue;
+            }
+
+            $v = $values[$name];
+            if ($input instanceof \Typecho\Widget\Helper\Form\Element\Checkbox) {
+                $settings[$name] = is_array($v) ? array_values($v) : (isset($v) ? [$v] : []);
+            } else {
+                $settings[$name] = $v;
+            }
+        }
+
+        if (method_exists($className, 'configCheck')) {
+            $result = call_user_func([$className, 'configCheck'], $settings);
+            if (!empty($result) && is_string($result)) {
+                v3a_exit_json(400, null, $result);
+            }
+        }
+
+        $handled = false;
+        if (method_exists($className, 'configHandle')) {
+            call_user_func([$className, 'configHandle'], $settings, false);
+            $handled = true;
+        }
+
+        if (!$handled) {
+            \Widget\Plugins\Edit::configPlugin($pluginName, $settings, false);
+        }
+
+        v3a_exit_json(0, ['saved' => 1]);
     }
 
     v3a_exit_json(404, null, 'Unknown action');

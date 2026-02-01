@@ -27,6 +27,8 @@
     fileText: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg>`,
     bell: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>`,
     shield: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path></svg>`,
+    palette: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-palette-icon lucide-palette"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></svg>`,
+    blocks: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-blocks-icon lucide-blocks"><path d="M10 22V7a1 1 0 0 0-1-1H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5a1 1 0 0 0-1-1H2"/><rect x="14" y="2" width="8" height="8" rx="1"/></svg>`,
     maintenance: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench-icon lucide-wrench"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg>`,
     chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`,
     collapse: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`,
@@ -69,6 +71,8 @@
     { key: "site", label: "网站", icon: "globe", subtitle: "站点地址、SEO" },
     { key: "content", label: "内容", icon: "fileText", subtitle: "阅读、评论、文本" },
     { key: "notify", label: "通知", icon: "bell", subtitle: "邮件、Bark 推送" },
+    { key: "theme", label: "主题", icon: "palette", subtitle: "主题、外观" },
+    { key: "plugins", label: "插件", icon: "blocks", subtitle: "扩展、插件" },
     { key: "storage", label: "存储", icon: "data", subtitle: "附件、备份、图床" },
     { key: "system", label: "永久链接", icon: "settings", subtitle: "URL 规则、重写" },
     { key: "security", label: "账号安全", icon: "shield", subtitle: "密码、凭证、安全" },
@@ -1789,6 +1793,70 @@
         { value: "/[category]/[slug].html", label: "按分类归档", example: "/{category}/{slug}.html" },
         { value: "custom", label: "个性化定义", example: "" },
       ];
+
+      // Settings: Themes & Plugins
+      const themesLoading = ref(false);
+      const themesError = ref("");
+      const themesItems = ref([]);
+      const themeCurrent = ref("");
+      const themeSelected = ref("");
+      const themeActivating = ref(false);
+
+      const themeFilesLoading = ref(false);
+      const themeFilesTheme = ref("");
+      const themeFiles = ref([]);
+      const themeFile = ref("");
+      const themeFileLoading = ref(false);
+      const themeFileContent = ref("");
+      const themeFileWriteable = ref(0);
+      const themeFileSaving = ref(false);
+
+      const themeConfigLoading = ref(false);
+      const themeConfigTheme = ref("");
+      const themeConfigExists = ref(0);
+      const themeConfigFields = ref([]);
+      const themeConfigForm = reactive({});
+      const themeConfigBase = ref("");
+      const themeConfigSaving = ref(false);
+
+      const pluginsLoading = ref(false);
+      const pluginsError = ref("");
+      const pluginsActivated = ref([]);
+      const pluginsInactive = ref([]);
+      const pluginsActing = ref(false);
+
+      const pluginConfigOpen = ref(false);
+      const pluginConfigLoading = ref(false);
+      const pluginConfigSaving = ref(false);
+      const pluginConfigName = ref("");
+      const pluginConfigTitle = ref("");
+      const pluginConfigExists = ref(0);
+      const pluginConfigFields = ref([]);
+      const pluginConfigForm = reactive({});
+      const pluginConfigBase = ref("");
+
+      function v3aStableStringify(value) {
+        if (value === undefined) return "null";
+        if (value === null) return "null";
+        if (typeof value !== "object") return JSON.stringify(value);
+        if (Array.isArray(value)) {
+          return `[${value.map((v) => v3aStableStringify(v)).join(",")}]`;
+        }
+        const keys = Object.keys(value).sort();
+        return `{${keys
+          .map((k) => `${JSON.stringify(k)}:${v3aStableStringify(value[k])}`)
+          .join(",")}}`;
+      }
+
+      const themeConfigDirty = computed(() => {
+        if (themeConfigLoading.value) return false;
+        return v3aStableStringify(themeConfigForm) !== themeConfigBase.value;
+      });
+
+      const pluginConfigDirty = computed(() => {
+        if (pluginConfigLoading.value) return false;
+        return v3aStableStringify(pluginConfigForm) !== pluginConfigBase.value;
+      });
 
       let chartVisitWeek = null;
       let chartPublish = null;
@@ -3621,6 +3689,340 @@
         }
       }
 
+      async function fetchThemes() {
+        themesLoading.value = true;
+        themesError.value = "";
+        try {
+          const data = await apiGet("themes.list");
+          themeCurrent.value = String(data.current || "");
+          themesItems.value = Array.isArray(data.themes) ? data.themes : [];
+
+          const selected = String(themeSelected.value || "");
+          const exists =
+            selected &&
+            themesItems.value.some((t) => String(t?.name || "") === selected);
+          if (!selected || !exists) {
+            themeSelected.value = themeCurrent.value || String(themesItems.value?.[0]?.name || "");
+          }
+        } catch (e) {
+          themesError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          themesLoading.value = false;
+        }
+      }
+
+      async function activateTheme(themeName) {
+        const theme = String(themeName || "").trim();
+        if (!theme || themeActivating.value) return;
+        themeActivating.value = true;
+        try {
+          await apiPost("themes.activate", { theme });
+          toastSuccess("主题已启用");
+          themeSelected.value = theme;
+          await fetchThemes();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "启用失败");
+        } finally {
+          themeActivating.value = false;
+        }
+      }
+
+      async function fetchThemeFiles() {
+        const theme = String(themeSelected.value || "");
+        if (!theme) return;
+        if (themeFilesLoading.value) return;
+
+        themeFilesLoading.value = true;
+        try {
+          const data = await apiGet("themes.files", { theme });
+          themeFilesTheme.value = theme;
+          themeFiles.value = Array.isArray(data.files) ? data.files : [];
+
+          const current = String(themeFile.value || "");
+          const next =
+            current && themeFiles.value.includes(current)
+              ? current
+              : themeFiles.value.includes("index.php")
+                ? "index.php"
+                : String(themeFiles.value?.[0] || "");
+          themeFile.value = next;
+        } catch (e) {
+          toastError(e && e.message ? e.message : "加载失败");
+        } finally {
+          themeFilesLoading.value = false;
+        }
+      }
+
+      async function fetchThemeFile() {
+        const theme = String(themeSelected.value || "");
+        const file = String(themeFile.value || "");
+        if (!theme || !file) return;
+
+        themeFileLoading.value = true;
+        try {
+          const data = await apiGet("themes.file.get", { theme, file });
+          themeFileContent.value = String(data.content ?? "");
+          themeFileWriteable.value = Number(data.writeable || 0) ? 1 : 0;
+        } catch (e) {
+          toastError(e && e.message ? e.message : "加载失败");
+        } finally {
+          themeFileLoading.value = false;
+        }
+      }
+
+      async function saveThemeFile() {
+        const theme = String(themeSelected.value || "");
+        const file = String(themeFile.value || "");
+        if (!theme || !file || themeFileSaving.value) return;
+
+        themeFileSaving.value = true;
+        try {
+          await apiPost("themes.file.save", {
+            theme,
+            file,
+            content: String(themeFileContent.value ?? ""),
+          });
+          toastSuccess("文件已保存");
+        } catch (e) {
+          toastError(e && e.message ? e.message : "保存失败");
+        } finally {
+          themeFileSaving.value = false;
+        }
+      }
+
+      async function fetchThemeConfig() {
+        const theme = String(themeSelected.value || "");
+        if (!theme) return;
+        if (themeConfigLoading.value) return;
+
+        themeConfigLoading.value = true;
+        try {
+          const data = await apiGet("themes.config.get", { theme });
+          themeConfigTheme.value = theme;
+          themeConfigExists.value = Number(data.exists || 0) ? 1 : 0;
+          themeConfigFields.value = Array.isArray(data.fields) ? data.fields : [];
+
+          for (const k of Object.keys(themeConfigForm)) {
+            delete themeConfigForm[k];
+          }
+          for (const f of themeConfigFields.value) {
+            const name = String(f?.name || "");
+            if (!name) continue;
+            const type = String(f?.type || "text");
+            let v = f?.value;
+            if (type === "checkbox") {
+              if (Array.isArray(v)) {
+                v = v.map(String);
+              } else if (v === null || v === undefined || v === "") {
+                v = [];
+              } else {
+                v = [String(v)];
+              }
+            } else if (type === "number") {
+              v = v === null || v === undefined ? "" : String(v);
+            } else {
+              v = v === null || v === undefined ? "" : String(v);
+            }
+            themeConfigForm[name] = v;
+          }
+          themeConfigBase.value = v3aStableStringify(themeConfigForm);
+        } catch (e) {
+          toastError(e && e.message ? e.message : "加载失败");
+        } finally {
+          themeConfigLoading.value = false;
+        }
+      }
+
+      async function saveThemeConfig() {
+        const theme = String(themeSelected.value || "");
+        if (!theme || !themeConfigExists.value || themeConfigSaving.value) return;
+
+        themeConfigSaving.value = true;
+        try {
+          await apiPost("themes.config.save", {
+            theme,
+            values: Object.assign({}, themeConfigForm),
+          });
+          toastSuccess("主题设置已保存");
+          await fetchThemeConfig();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "保存失败");
+        } finally {
+          themeConfigSaving.value = false;
+        }
+      }
+
+      async function fetchPlugins() {
+        pluginsLoading.value = true;
+        pluginsError.value = "";
+        try {
+          const data = await apiGet("plugins.list");
+          pluginsActivated.value = Array.isArray(data.activated) ? data.activated : [];
+          pluginsInactive.value = Array.isArray(data.inactive) ? data.inactive : [];
+        } catch (e) {
+          pluginsError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          pluginsLoading.value = false;
+        }
+      }
+
+      function closePluginConfig() {
+        pluginConfigOpen.value = false;
+      }
+
+      async function fetchPluginConfig() {
+        const plugin = String(pluginConfigName.value || "");
+        if (!plugin) return;
+
+        pluginConfigLoading.value = true;
+        try {
+          const data = await apiGet("plugins.config.get", { plugin });
+          pluginConfigExists.value = Number(data.exists || 0) ? 1 : 0;
+          pluginConfigFields.value = Array.isArray(data.fields) ? data.fields : [];
+
+          for (const k of Object.keys(pluginConfigForm)) {
+            delete pluginConfigForm[k];
+          }
+          for (const f of pluginConfigFields.value) {
+            const name = String(f?.name || "");
+            if (!name) continue;
+            const type = String(f?.type || "text");
+            let v = f?.value;
+            if (type === "checkbox") {
+              if (Array.isArray(v)) {
+                v = v.map(String);
+              } else if (v === null || v === undefined || v === "") {
+                v = [];
+              } else {
+                v = [String(v)];
+              }
+            } else if (type === "number") {
+              v = v === null || v === undefined ? "" : String(v);
+            } else {
+              v = v === null || v === undefined ? "" : String(v);
+            }
+            pluginConfigForm[name] = v;
+          }
+
+          pluginConfigBase.value = v3aStableStringify(pluginConfigForm);
+        } catch (e) {
+          pluginConfigExists.value = 0;
+          pluginConfigFields.value = [];
+          for (const k of Object.keys(pluginConfigForm)) {
+            delete pluginConfigForm[k];
+          }
+          pluginConfigBase.value = "";
+          toastError(e && e.message ? e.message : "加载失败");
+        } finally {
+          pluginConfigLoading.value = false;
+        }
+      }
+
+      async function openPluginConfig(p) {
+        const name = String(p?.name || "");
+        if (!name) return;
+
+        pluginConfigTitle.value = String(p?.title || p?.name || "");
+        pluginConfigName.value = name;
+        pluginConfigOpen.value = true;
+        pluginConfigExists.value = 0;
+        pluginConfigFields.value = [];
+        for (const k of Object.keys(pluginConfigForm)) {
+          delete pluginConfigForm[k];
+        }
+        pluginConfigBase.value = "";
+
+        await fetchPluginConfig();
+      }
+
+      async function savePluginConfig() {
+        const plugin = String(pluginConfigName.value || "");
+        if (
+          !plugin ||
+          !pluginConfigExists.value ||
+          pluginConfigSaving.value ||
+          !pluginConfigDirty.value
+        ) {
+          return;
+        }
+
+        pluginConfigSaving.value = true;
+        try {
+          await apiPost("plugins.config.save", {
+            plugin,
+            values: Object.assign({}, pluginConfigForm),
+          });
+          toastSuccess("插件设置已保存");
+          await fetchPluginConfig();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "保存失败");
+        } finally {
+          pluginConfigSaving.value = false;
+        }
+      }
+
+      async function activatePlugin(p) {
+        const name = String(p?.name || "");
+        if (!name || pluginsActing.value) return;
+        pluginsActing.value = true;
+        try {
+          await apiPost("plugins.activate", { plugin: name });
+          toastSuccess("插件已启动");
+          await fetchPlugins();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "操作失败");
+        } finally {
+          pluginsActing.value = false;
+        }
+      }
+
+      async function deactivatePlugin(p) {
+        const name = String(p?.name || "");
+        if (!name || pluginsActing.value) return;
+        if (!confirm("确认移除（停用）该插件吗？")) return;
+        pluginsActing.value = true;
+        try {
+          await apiPost("plugins.deactivate", { plugin: name });
+          toastSuccess("插件已移除");
+          await fetchPlugins();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "操作失败");
+        } finally {
+          pluginsActing.value = false;
+        }
+      }
+
+      async function maybeFetchSettingsExtras() {
+        if (routePath.value !== "/settings") return;
+
+        if (settingsActiveKey.value === "theme") {
+          if (!themesItems.value.length && !themesLoading.value) {
+            await fetchThemes();
+          }
+          if (themeSelected.value) {
+            if (themeFilesTheme.value !== themeSelected.value) {
+              await fetchThemeFiles();
+            }
+            if (themeFile.value) {
+              await fetchThemeFile();
+            }
+            if (themeConfigTheme.value !== themeSelected.value) {
+              await fetchThemeConfig();
+            }
+          }
+        }
+
+        if (settingsActiveKey.value === "plugins") {
+          if (
+            !pluginsLoading.value &&
+            !pluginsActivated.value.length &&
+            !pluginsInactive.value.length
+          ) {
+            await fetchPlugins();
+          }
+        }
+      }
+
       function v3aNormStr(v) {
         return String(v ?? "").trim();
       }
@@ -4403,7 +4805,54 @@
           }
           if (p === "/settings") {
             await fetchSettings();
+            await maybeFetchSettingsExtras();
           }
+        }
+      );
+
+      watch(
+        () => settingsActiveKey.value,
+        async () => {
+          await maybeFetchSettingsExtras();
+        }
+      );
+
+      watch(
+        () => themeSelected.value,
+        async (v, prev) => {
+          if (routePath.value !== "/settings") return;
+          if (settingsActiveKey.value !== "theme") return;
+          const next = String(v || "");
+          const before = String(prev || "");
+          if (next === before) return;
+
+          themeFilesTheme.value = "";
+          themeFiles.value = [];
+          themeFile.value = "";
+          themeFileContent.value = "";
+          themeFileWriteable.value = 0;
+
+          themeConfigTheme.value = "";
+          themeConfigExists.value = 0;
+          themeConfigFields.value = [];
+          for (const k of Object.keys(themeConfigForm)) {
+            delete themeConfigForm[k];
+          }
+          themeConfigBase.value = "";
+
+          await maybeFetchSettingsExtras();
+        }
+      );
+
+      watch(
+        () => themeFile.value,
+        async (v, prev) => {
+          if (routePath.value !== "/settings") return;
+          if (settingsActiveKey.value !== "theme") return;
+          const next = String(v || "");
+          const before = String(prev || "");
+          if (!next || next === before) return;
+          await fetchThemeFile();
         }
       );
 
@@ -4454,6 +4903,7 @@
         }
         if (routePath.value === "/settings") {
           await fetchSettings();
+          await maybeFetchSettingsExtras();
         }
       });
 
@@ -4493,6 +4943,8 @@
         pageError,
         filesError,
         settingsError,
+        themesError,
+        pluginsError,
       ];
       for (const r of toastErrorRefs) {
         watch(r, (v) => {
@@ -4764,6 +5216,52 @@
         applySettingsNotifyTemplateDraft,
         saveSettingsPermalink,
         saveSettingsAll,
+        themesLoading,
+        themesError,
+        themesItems,
+        themeCurrent,
+        themeSelected,
+        themeActivating,
+        themeFilesLoading,
+        themeFiles,
+        themeFile,
+        themeFileLoading,
+        themeFileContent,
+        themeFileWriteable,
+        themeFileSaving,
+        themeConfigLoading,
+        themeConfigExists,
+        themeConfigFields,
+        themeConfigForm,
+        themeConfigDirty,
+        themeConfigSaving,
+        pluginsLoading,
+        pluginsError,
+        pluginsActivated,
+        pluginsInactive,
+        pluginsActing,
+        pluginConfigOpen,
+        pluginConfigLoading,
+        pluginConfigSaving,
+        pluginConfigName,
+        pluginConfigTitle,
+        pluginConfigExists,
+        pluginConfigFields,
+        pluginConfigForm,
+        pluginConfigDirty,
+        fetchThemes,
+        activateTheme,
+        fetchThemeFiles,
+        fetchThemeFile,
+        saveThemeFile,
+        fetchThemeConfig,
+        saveThemeConfig,
+        fetchPlugins,
+        openPluginConfig,
+        closePluginConfig,
+        savePluginConfig,
+        activatePlugin,
+        deactivatePlugin,
         username,
         userInitial,
         formatNumber,
@@ -7238,6 +7736,446 @@
                           <div class="v3a-modal-actions">
                             <button class="v3a-btn v3a-modal-btn" type="button" @click="closeSettingsNotifyTemplateEditor()">取消</button>
                             <button class="v3a-btn primary v3a-modal-btn" type="button" @click="applySettingsNotifyTemplateDraft()">确定</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+
+                  <template v-else-if="settingsActiveKey === 'theme'">
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.palette"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">主题</div>
+                              <div class="v3a-settings-section-subtitle">主题、外观</div>
+                            </div>
+                          </div>
+                          <div class="v3a-settings-section-hd-right">
+                            <button class="v3a-btn" type="button" @click="fetchThemes()" :disabled="themesLoading">刷新</button>
+                          </div>
+                        </div>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能管理主题。</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <template v-else>
+                          <div v-if="themesLoading" class="v3a-muted" style="padding: 14px 16px;">正在加载…</div>
+                          <div v-else class="v3a-settings-fields">
+                            <div v-if="themesError" class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>错误</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-muted">{{ themesError }}</div>
+                              </div>
+                            </div>
+
+                            <div v-if="!themesItems.length" class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>主题列表</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-muted">未找到主题。</div>
+                              </div>
+                            </div>
+
+                            <div v-for="t in themesItems" :key="t.name" class="v3a-settings-row v3a-theme-row-item" :class="{ active: themeSelected === t.name }">
+                              <div class="v3a-settings-row-label">
+                                <div class="v3a-theme-shot">
+                                  <img :src="t.screen" alt="" loading="lazy" />
+                                </div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-theme-row">
+                                  <div class="v3a-theme-info">
+                                    <div class="v3a-theme-name">
+                                      {{ t.title || t.name }}
+                                      <span v-if="t.activated" class="v3a-pill success">
+                                        <span class="v3a-icon" v-html="ICONS.checkCheck"></span>
+                                        当前
+                                      </span>
+                                    </div>
+                                    <div class="v3a-theme-meta v3a-muted">
+                                      <span v-if="t.version">v{{ t.version }}</span>
+                                      <span v-if="t.author"> · {{ t.author }}</span>
+                                      <a v-if="t.homepage" class="v3a-link" :href="t.homepage" target="_blank" rel="noreferrer">官网</a>
+                                    </div>
+                                    <div v-if="t.description" class="v3a-theme-desc v3a-muted">{{ t.description }}</div>
+                                  </div>
+                                  <div class="v3a-theme-actions">
+                                    <button class="v3a-btn" type="button" @click="themeSelected = t.name" :disabled="themeSelected === t.name">编辑/设置</button>
+                                    <button class="v3a-btn primary" type="button" @click="activateTheme(t.name)" :disabled="themeActivating || t.activated">启用</button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.edit"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">主题编辑</div>
+                              <div class="v3a-settings-section-subtitle">文件编辑（{{ themeSelected || themeCurrent || '—' }}）</div>
+                            </div>
+                          </div>
+                          <div class="v3a-settings-section-hd-right">
+                            <button class="v3a-btn" type="button" @click="fetchThemeFiles()" :disabled="themeFilesLoading || !themeSelected">刷新</button>
+                            <button class="v3a-btn primary" type="button" @click="saveThemeFile()" :disabled="!themeFileWriteable || themeFileSaving || !themeSelected || !themeFile">保存文件</button>
+                          </div>
+                        </div>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能编辑主题文件。</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <template v-else>
+                          <div class="v3a-settings-fields">
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>主题</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model="themeSelected" :disabled="themesLoading || !themesItems.length">
+                                  <option v-for="t in themesItems" :key="t.name" :value="t.name">{{ t.title || t.name }}</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>文件</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model="themeFile" :disabled="themeFilesLoading || !themeFiles.length">
+                                  <option v-for="f in themeFiles" :key="f" :value="f">{{ f }}</option>
+                                </select>
+                                <div v-if="themeFile && !themeFileWriteable" class="v3a-settings-row-help">该文件不可写（或已被系统禁用编辑）。</div>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>内容</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <textarea class="v3a-textarea v3a-code-editor v3a-theme-editor" v-model="themeFileContent" :disabled="themeFileLoading"></textarea>
+                              </div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.settings"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">主题设置</div>
+                              <div class="v3a-settings-section-subtitle">配置项（{{ themeSelected || themeCurrent || '—' }}）</div>
+                            </div>
+                          </div>
+                          <div class="v3a-settings-section-hd-right">
+                            <span v-if="themeConfigDirty" class="v3a-settings-savehint">有未保存的修改</span>
+                            <button class="v3a-btn" type="button" @click="fetchThemeConfig()" :disabled="themeConfigLoading || !themeSelected">刷新</button>
+                            <button class="v3a-btn primary" type="button" @click="saveThemeConfig()" :disabled="themeConfigSaving || !themeConfigDirty || !themeConfigExists">保存设置</button>
+                          </div>
+                        </div>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能配置主题设置。</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <template v-else>
+                          <div v-if="themeConfigLoading" class="v3a-muted" style="padding: 14px 16px;">正在加载…</div>
+                          <div v-else class="v3a-settings-fields">
+                            <div v-if="!themeConfigExists" class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>提示</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-muted">当前主题没有可配置项。</div>
+                              </div>
+                            </div>
+
+                            <template v-else>
+                              <template v-for="(f, idx) in themeConfigFields" :key="(f && f.name) || idx">
+                                <div v-if="f && f.type !== 'hidden'" class="v3a-settings-row">
+                                  <div class="v3a-settings-row-label">
+                                    <label>{{ f.label || f.name }}</label>
+                                    <div v-if="f.description" class="v3a-settings-row-help">{{ f.description }}</div>
+                                  </div>
+                                  <div class="v3a-settings-row-control">
+                                    <template v-if="f.type === 'textarea'">
+                                      <textarea class="v3a-textarea" v-model="themeConfigForm[f.name]"></textarea>
+                                    </template>
+                                    <template v-else-if="f.type === 'select'">
+                                      <select class="v3a-select" v-model="themeConfigForm[f.name]">
+                                        <option v-for="opt in f.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                      </select>
+                                    </template>
+                                    <template v-else-if="f.type === 'radio'">
+                                      <div class="v3a-optionlist">
+                                        <label v-for="opt in f.options" :key="opt.value" class="v3a-option-item">
+                                          <input class="v3a-check" type="radio" :name="'v3a-theme-' + f.name" :value="opt.value" v-model="themeConfigForm[f.name]" />
+                                          <span>{{ opt.label }}</span>
+                                        </label>
+                                      </div>
+                                    </template>
+                                    <template v-else-if="f.type === 'checkbox'">
+                                      <div class="v3a-optionlist">
+                                        <label v-for="opt in f.options" :key="opt.value" class="v3a-option-item">
+                                          <input class="v3a-check" type="checkbox" :value="opt.value" v-model="themeConfigForm[f.name]" />
+                                          <span>{{ opt.label }}</span>
+                                        </label>
+                                      </div>
+                                    </template>
+                                    <template v-else>
+                                      <input
+                                        class="v3a-input"
+                                        :type="f.type === 'password' ? 'password' : f.type === 'url' ? 'url' : f.type === 'number' ? 'number' : 'text'"
+                                        v-model="themeConfigForm[f.name]"
+                                      />
+                                    </template>
+                                  </div>
+                                </div>
+                              </template>
+                            </template>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+
+                  <template v-else-if="settingsActiveKey === 'plugins'">
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.blocks"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">已启动插件</div>
+                              <div class="v3a-settings-section-subtitle">扩展、插件</div>
+                            </div>
+                          </div>
+                          <div class="v3a-settings-section-hd-right">
+                            <button class="v3a-btn" type="button" @click="fetchPlugins()" :disabled="pluginsLoading">刷新</button>
+                          </div>
+                        </div>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能管理插件。</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <template v-else>
+                          <div v-if="pluginsLoading" class="v3a-muted" style="padding: 14px 16px;">正在加载…</div>
+                          <div v-else class="v3a-settings-fields v3a-settings-fields-table">
+                            <table class="v3a-table v3a-settings-table">
+                              <thead>
+                                <tr>
+                                  <th>插件</th>
+                                  <th style="width: 90px;">版本</th>
+                                  <th style="width: 120px;">作者</th>
+                                  <th style="width: 180px; text-align: right;">操作</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr v-if="!pluginsActivated.length">
+                                  <td colspan="4" class="v3a-muted" style="padding: 14px 16px;">暂无已启动插件</td>
+                                </tr>
+                                <tr v-for="p in pluginsActivated" :key="p.name">
+                                  <td>
+                                    <div class="v3a-plugin-title">
+                                      {{ p.title || p.name }}
+                                      <span v-if="p.missing" class="v3a-pill danger">缺失</span>
+                                      <span v-else class="v3a-pill success">已启动</span>
+                                    </div>
+                                    <div v-if="p.description" class="v3a-muted v3a-plugin-desc">{{ p.description }}</div>
+                                  </td>
+                                  <td>{{ p.version || "—" }}</td>
+                                  <td>{{ p.author || "—" }}</td>
+                                  <td style="text-align: right; white-space: nowrap;">
+                                    <button v-if="p.config && !p.missing" class="v3a-btn" type="button" @click="openPluginConfig(p)">设置</button>
+                                    <button v-if="p.manageable" class="v3a-btn" type="button" @click="deactivatePlugin(p)" :disabled="pluginsActing">移除</button>
+                                    <span v-else class="v3a-muted">内置</span>
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </template>
+                      </div>
+
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.blocks"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">未启动插件</div>
+                              <div class="v3a-settings-section-subtitle">可启动的扩展</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能管理插件。</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <template v-else>
+                          <div class="v3a-settings-fields v3a-settings-fields-table">
+                            <table class="v3a-table v3a-settings-table">
+                              <thead>
+                                <tr>
+                                  <th>插件</th>
+                                  <th style="width: 90px;">版本</th>
+                                  <th style="width: 120px;">作者</th>
+                                  <th style="width: 180px; text-align: right;">操作</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr v-if="!pluginsInactive.length">
+                                  <td colspan="4" class="v3a-muted" style="padding: 14px 16px;">暂无未启动插件</td>
+                                </tr>
+                                <tr v-for="p in pluginsInactive" :key="p.name">
+                                  <td>
+                                    <div class="v3a-plugin-title">
+                                      {{ p.title || p.name }}
+                                      <span v-if="!p.dependence" class="v3a-pill warn">版本不兼容</span>
+                                      <span v-else class="v3a-pill">未启动</span>
+                                    </div>
+                                    <div v-if="p.description" class="v3a-muted v3a-plugin-desc">{{ p.description }}</div>
+                                  </td>
+                                  <td>{{ p.version || "—" }}</td>
+                                  <td>{{ p.author || "—" }}</td>
+                                  <td style="text-align: right; white-space: nowrap;">
+                                    <button class="v3a-btn primary" type="button" @click="activatePlugin(p)" :disabled="pluginsActing || !p.dependence">启动</button>
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+
+                    <div v-if="pluginConfigOpen" class="v3a-modal-mask" @click.self="closePluginConfig()">
+                      <div class="v3a-modal-card" role="dialog" aria-modal="true">
+                        <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closePluginConfig()">
+                          <span class="v3a-icon" v-html="ICONS.close"></span>
+                        </button>
+                        <div class="v3a-modal-head">
+                          <div class="v3a-modal-title">插件设置：{{ pluginConfigTitle || pluginConfigName }}</div>
+                        </div>
+                        <div class="v3a-modal-body">
+                          <div class="v3a-modal-form">
+                            <template v-if="pluginConfigLoading">
+                              <div class="v3a-muted">正在加载…</div>
+                            </template>
+
+                            <template v-else-if="!pluginConfigExists">
+                              <div class="v3a-muted">该插件暂无可配置项。</div>
+                            </template>
+
+                            <template v-else>
+                              <template v-for="(f, idx) in pluginConfigFields" :key="(f && f.name) || idx">
+                                <div v-if="f && f.type !== 'hidden'" class="v3a-modal-item">
+                                  <label class="v3a-modal-label">{{ f.label || f.name }}</label>
+                                  <div v-if="f.description" class="v3a-muted" style="margin-top: 6px; font-size: 12px; line-height: 1.6;">{{ f.description }}</div>
+                                  <div style="margin-top: 10px;">
+                                    <template v-if="f.type === 'textarea'">
+                                      <textarea class="v3a-textarea v3a-modal-textarea" v-model="pluginConfigForm[f.name]"></textarea>
+                                    </template>
+                                    <template v-else-if="f.type === 'select'">
+                                      <select class="v3a-select" v-model="pluginConfigForm[f.name]">
+                                        <option v-for="opt in f.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                      </select>
+                                    </template>
+                                    <template v-else-if="f.type === 'radio'">
+                                      <div class="v3a-optionlist">
+                                        <label v-for="opt in f.options" :key="opt.value" class="v3a-option-item">
+                                          <input class="v3a-check" type="radio" :name="'v3a-plugin-' + f.name" :value="opt.value" v-model="pluginConfigForm[f.name]" />
+                                          <span>{{ opt.label }}</span>
+                                        </label>
+                                      </div>
+                                    </template>
+                                    <template v-else-if="f.type === 'checkbox'">
+                                      <div class="v3a-optionlist">
+                                        <label v-for="opt in f.options" :key="opt.value" class="v3a-option-item">
+                                          <input class="v3a-check" type="checkbox" :value="opt.value" v-model="pluginConfigForm[f.name]" />
+                                          <span>{{ opt.label }}</span>
+                                        </label>
+                                      </div>
+                                    </template>
+                                    <template v-else>
+                                      <input
+                                        class="v3a-input"
+                                        :type="f.type === 'password' ? 'password' : f.type === 'url' ? 'url' : f.type === 'number' ? 'number' : 'text'"
+                                        v-model="pluginConfigForm[f.name]"
+                                      />
+                                    </template>
+                                  </div>
+                                </div>
+                              </template>
+                            </template>
+                          </div>
+
+                          <div class="v3a-modal-actions">
+                            <button class="v3a-btn v3a-modal-btn" type="button" @click="closePluginConfig()">关闭</button>
+                            <button class="v3a-btn primary v3a-modal-btn" type="button" @click="savePluginConfig()" :disabled="pluginConfigSaving || !pluginConfigDirty">
+                              保存
+                            </button>
                           </div>
                         </div>
                       </div>
