@@ -1045,7 +1045,7 @@ try {
         $tagTop = [];
         try {
             $rows = $db->fetchAll(
-                $db->select('table.metas.name', ['COUNT(table.contents.cid)' => 'count'])
+                $db->select('table.metas.mid', 'table.metas.name', ['COUNT(table.contents.cid)' => 'count'])
                     ->from('table.metas')
                     ->join('table.relationships', 'table.relationships.mid = table.metas.mid', \Typecho\Db::LEFT_JOIN)
                     ->join(
@@ -1060,9 +1060,109 @@ try {
             );
             foreach ($rows as $r) {
                 $tagTop[] = [
+                    'mid' => (int) ($r['mid'] ?? 0),
                     'name' => (string) $r['name'],
                     'count' => (int) $r['count'],
                 ];
+            }
+        } catch (\Throwable $e) {
+        }
+
+        // 关系图谱（标签-文章二部图，标签取 Top 20）
+        $tagGraph = ['nodes' => [], 'links' => []];
+        try {
+            $tagMids = [];
+            $tagMap = [];
+            foreach ($tagTop as $t) {
+                $mid = (int) ($t['mid'] ?? 0);
+                if ($mid <= 0) {
+                    continue;
+                }
+                $tagMids[] = $mid;
+                $tagMap[$mid] = $t;
+            }
+
+            if (!empty($tagMids)) {
+                foreach ($tagMids as $mid) {
+                    $tagGraph['nodes'][] = [
+                        'id' => 't:' . $mid,
+                        'kind' => 'tag',
+                        'category' => 0,
+                        'mid' => (int) $mid,
+                        'name' => (string) ($tagMap[$mid]['name'] ?? ''),
+                        'count' => (int) ($tagMap[$mid]['count'] ?? 0),
+                    ];
+                }
+
+                $rows = $db->fetchAll(
+                    $db->select(
+                        'table.contents.cid',
+                        'table.contents.title',
+                        'table.contents.modified',
+                        'table.relationships.mid'
+                    )
+                        ->from('table.relationships')
+                        ->join(
+                            'table.contents',
+                            "table.contents.cid = table.relationships.cid AND table.contents.type = 'post' AND table.contents.status = 'publish'"
+                        )
+                        ->where('table.relationships.mid IN ?', $tagMids)
+                        ->order('table.contents.modified', \Typecho\Db::SORT_DESC)
+                        ->limit(2000)
+                );
+
+                $maxPosts = 140;
+                $posts = [];
+                foreach ($rows as $r) {
+                    $cid = (int) ($r['cid'] ?? 0);
+                    $mid = (int) ($r['mid'] ?? 0);
+                    if ($cid <= 0 || $mid <= 0) {
+                        continue;
+                    }
+
+                    if (!isset($posts[$cid])) {
+                        if (count($posts) >= $maxPosts) {
+                            continue;
+                        }
+                        $posts[$cid] = [
+                            'cid' => $cid,
+                            'title' => (string) ($r['title'] ?? ''),
+                            'mids' => [],
+                        ];
+                    }
+
+                    if (!in_array($mid, $posts[$cid]['mids'], true)) {
+                        $posts[$cid]['mids'][] = $mid;
+                    }
+                }
+
+                foreach ($posts as $p) {
+                    $cid = (int) ($p['cid'] ?? 0);
+                    if ($cid <= 0) {
+                        continue;
+                    }
+
+                    $title = (string) ($p['title'] ?? '');
+                    $tagGraph['nodes'][] = [
+                        'id' => 'p:' . $cid,
+                        'kind' => 'post',
+                        'category' => 1,
+                        'cid' => $cid,
+                        'name' => $title,
+                        'short' => v3a_truncate($title, 26),
+                    ];
+
+                    foreach ((array) ($p['mids'] ?? []) as $mid) {
+                        $mid = (int) $mid;
+                        if ($mid <= 0) {
+                            continue;
+                        }
+                        $tagGraph['links'][] = [
+                            'source' => 't:' . $mid,
+                            'target' => 'p:' . $cid,
+                        ];
+                    }
+                }
             }
         } catch (\Throwable $e) {
         }
@@ -1181,6 +1281,7 @@ try {
             'commentActivity' => $commentActivity,
             'hotPosts' => $hotPosts,
             'tagTop' => $tagTop,
+            'tagGraph' => $tagGraph,
             'system' => $system,
             'recentPosts' => $recentPosts,
             'recentComments' => $recentComments,

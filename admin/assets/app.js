@@ -503,6 +503,7 @@
       const categoryDistribution = ref([]);
       const hotPosts = ref([]);
       const tagTop = ref([]);
+      const tagGraph = ref({ nodes: [], links: [] });
       const systemInfo = ref({
         typechoVersion: "",
         phpVersion: "",
@@ -1403,6 +1404,7 @@
           categoryDistribution.value = json.data.categoryDistribution || [];
           hotPosts.value = json.data.hotPosts || [];
           tagTop.value = json.data.tagTop || [];
+          tagGraph.value = json.data.tagGraph || { nodes: [], links: [] };
           realtime.value = Object.assign(realtime.value, json.data.realtime || {});
           systemInfo.value = Object.assign(
             systemInfo.value,
@@ -3077,45 +3079,163 @@
           chartTag =
             window.echarts.getInstanceByDom(tagEl) || window.echarts.init(tagEl);
 
-          const data = tagTop.value
-            .slice(0, 20)
-            .map((t) => ({ name: t.name, value: Number(t.count || 0) }));
+          const graph = tagGraph.value || {};
+          const rawNodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+          const rawLinks = Array.isArray(graph.links) ? graph.links : [];
 
-          if (!data.length) {
+          if (!rawNodes.length) {
             try {
               chartTag.clear();
             } catch (e) {}
           } else {
+            const deg = new Map();
+            const links = [];
+            for (const l of rawLinks) {
+              const source = l && l.source ? String(l.source) : "";
+              const target = l && l.target ? String(l.target) : "";
+              if (!source || !target) continue;
+              links.push({ source, target });
+              deg.set(source, (deg.get(source) || 0) + 1);
+              deg.set(target, (deg.get(target) || 0) + 1);
+            }
+
+            const isTagNode = (n) =>
+              (n && typeof n === "object" && String(n.kind || "") === "tag") ||
+              Number(n && n.category) === 0;
+
+            const tagFill = isDark ? "#e5e5e5" : "#171717";
+            const tagText = isDark ? "#171717" : "#ffffff";
+            const postFill = isDark ? "#737373" : "#a3a3a3";
+            const edgeColor = gridColor;
+            const nodeLabelColor = isDark ? "#e5e5e5" : "#171717";
+
+            const nodes = rawNodes
+              .map((n) => {
+                const node = n && typeof n === "object" ? n : {};
+                const id = String(node.id || "");
+                if (!id) return null;
+
+                const tag = isTagNode(node);
+                const degree = deg.get(id) || 0;
+                const symbolSize = tag
+                  ? Math.min(46, 10 + Math.sqrt(Math.max(1, degree)) * 6)
+                  : 10;
+
+                const name = String(node.name || "");
+                const short = String(node.short || "");
+
+                return {
+                  id,
+                  cid: tag ? 0 : Number(node.cid || 0),
+                  mid: tag ? Number(node.mid || 0) : 0,
+                  name,
+                  short,
+                  category: tag ? 0 : 1,
+                  symbol: "circle",
+                  symbolSize,
+                  draggable: true,
+                  itemStyle: {
+                    color: tag ? tagFill : postFill,
+                    opacity: tag ? 0.92 : 0.72,
+                  },
+                  label: tag
+                    ? {
+                        show: true,
+                        position: "bottom",
+                        distance: 3,
+                        color: nodeLabelColor,
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }
+                    : { show: false },
+                  emphasis: tag
+                    ? undefined
+                    : {
+                        label: {
+                          show: true,
+                          position: "bottom",
+                          distance: 3,
+                          color: isDark ? "#ffffff" : "#171717",
+                          backgroundColor: isDark
+                            ? "rgba(0,0,0,0.65)"
+                            : "rgba(255,255,255,0.92)",
+                          borderRadius: 6,
+                          padding: [4, 6],
+                          width: 220,
+                          overflow: "truncate",
+                          formatter: (p) => (p && p.name ? p.name : ""),
+                        },
+                      },
+                  value: tag ? Number(node.count || 0) : degree,
+                };
+              })
+              .filter(Boolean);
+
             try {
               chartTag.setOption(
                 {
-                  tooltip: {
-                    formatter: (p) =>
-                      `${p.name}: ${formatNumber(p.value)} 篇文章`,
-                  },
+                  tooltip: { show: false },
                   series: [
                     {
-                      type: "wordCloud",
-                      shape: "square",
-                      gridSize: 2,
-                      sizeRange: [14, 32],
-                      rotationRange: [0, 0],
-                      textStyle: {
-                        color: axisLabelColor,
-                        fontFamily:
-                          "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial",
+                      type: "graph",
+                      layout: "force",
+                      data: nodes,
+                      links,
+                      categories: [{ name: "标签" }, { name: "文章" }],
+                      roam: true,
+                      draggable: true,
+                      lineStyle: { color: edgeColor, opacity: 0.35, width: 1 },
+                      force: {
+                        repulsion: 180,
+                        edgeLength: [40, 140],
+                        gravity: 0.08,
                       },
+                      labelLayout: { hideOverlap: true },
                       emphasis: {
-                        textStyle: { color: axisStrokeColor },
+                        focus: "adjacency",
+                        lineStyle: { width: 2, opacity: 0.9 },
+                        label: {
+                          show: true,
+                          position: "bottom",
+                          distance: 3,
+                          color: isDark ? "#ffffff" : "#171717",
+                          backgroundColor: isDark
+                            ? "rgba(0,0,0,0.65)"
+                            : "rgba(255,255,255,0.92)",
+                          borderRadius: 6,
+                          padding: [4, 6],
+                          formatter: (p) => (p && p.name ? p.name : ""),
+                        },
                       },
-                      data,
+                      blur: {
+                        lineStyle: { opacity: 0.08 },
+                        itemStyle: { opacity: 0.2 },
+                        label: { opacity: 0.2 },
+                      },
                     },
                   ],
                 },
                 { notMerge: true }
               );
+
+              chartTag.off("click");
+              chartTag.on("click", (params) => {
+                if (!params || params.dataType !== "node") return;
+                const data =
+                  params.data && typeof params.data === "object" ? params.data : {};
+                if (Number(data.category) !== 1) return;
+
+                let cid = Number(data.cid || 0);
+                if (!cid) {
+                  const id = String(data.id || "");
+                  if (id.startsWith("p:")) cid = Number(id.slice(2)) || 0;
+                }
+                if (cid > 0) openPostEditor(cid);
+              });
             } catch (e) {
-              // wordCloud plugin may be missing
+              try {
+                chartTag.clear();
+              } catch (e2) {}
             }
           }
         }
@@ -3327,6 +3447,7 @@
         realtime,
         hotPosts,
         tagTop,
+        tagGraph,
         systemInfo,
         recentPosts,
         recentComments,
@@ -3823,11 +3944,11 @@
 
                     <div class="v3a-chartcard">
                       <div class="v3a-charthead">
-                        <div class="v3a-charttitle">标签热词 Top 20</div>
+                        <div class="v3a-charttitle">关系图谱</div>
                         <span class="v3a-charticon" v-html="ICONS.tags"></span>
                       </div>
                       <div id="v3a-chart-tag" class="v3a-chart"></div>
-                      <div v-if="!tagTop.length" class="v3a-empty">暂无数据</div>
+                      <div v-if="!tagGraph.nodes.length" class="v3a-empty">暂无数据</div>
                     </div>
 
                     <div class="v3a-chartcard">
