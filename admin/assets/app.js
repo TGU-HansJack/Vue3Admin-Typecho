@@ -6522,7 +6522,7 @@
                                 </div>
                                 <div class="v3a-permalink-options">
                                   <label v-for="opt in permalinkPostPatternOptions" :key="opt.value" class="v3a-permalink-option">
-                                    <input class="v3a-radio" type="radio" name="v3a-postpattern" :value="opt.value" v-model="settingsPermalinkForm.postPattern" />
+                                    <input class="v3a-check" type="radio" name="v3a-postpattern" :value="opt.value" v-model="settingsPermalinkForm.postPattern" />
                                     <span class="v3a-permalink-option-text">
                                       {{ opt.label }}
                                       <code v-if="opt.example">{{ opt.example }}</code>

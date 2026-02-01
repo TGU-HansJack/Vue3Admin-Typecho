@@ -1257,6 +1257,35 @@ a {
   gap: 8px;
 }
 
+.v3a-permalink-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.v3a-permalink-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--v3a-muted);
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.v3a-permalink-option-text {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.v3a-permalink-custom {
+  width: 100%;
+  max-width: 360px;
+}
+
 .v3a-modal-actions {
   margin-top: 24px;
   display: flex;
