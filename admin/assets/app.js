@@ -575,6 +575,10 @@
       const postEditorType = ref("vditor");
       let postVditor = null;
       let postVditorSyncing = false;
+      const pageTextEl = ref(null);
+      const pageEditorType = ref("vditor");
+      let pageVditor = null;
+      let pageVditorSyncing = false;
 
       function vditorUploadFormat(files, responseText) {
         const list = Array.isArray(files) ? files : [];
@@ -723,6 +727,104 @@
         }
       }
 
+      function destroyPageVditor() {
+        if (!pageVditor) return;
+        try {
+          pageVditor.destroy();
+        } catch (e) {}
+        pageVditor = null;
+      }
+
+      function syncPageTextFromEditor() {
+        if (pageEditorType.value !== "vditor") return;
+        if (!pageVditor) return;
+        try {
+          if (pageForm.markdown || typeof pageVditor.getHTML !== "function") {
+            if (typeof pageVditor.getValue === "function") {
+              pageForm.text = String(pageVditor.getValue() || "");
+            }
+          } else {
+            pageForm.text = String(pageVditor.getHTML() || "");
+          }
+        } catch (e) {}
+      }
+
+      function setPageEditorValue(value, clearStack) {
+        if (pageEditorType.value !== "vditor") return;
+        if (!pageVditor || typeof pageVditor.setValue !== "function") return;
+        pageVditorSyncing = true;
+        try {
+          pageVditor.setValue(String(value || ""), !!clearStack);
+        } catch (e) {}
+        pageVditorSyncing = false;
+      }
+
+      function initPageVditor() {
+        const VditorCtor =
+          typeof window !== "undefined" ? window.Vditor : undefined;
+        if (!VditorCtor) {
+          pageEditorType.value = "textarea";
+          destroyPageVditor();
+          return;
+        }
+
+        pageEditorType.value = "vditor";
+        const host = document.getElementById("v3a-page-vditor");
+        if (!host) return;
+
+        if (pageVditor) {
+          setPageEditorValue(pageForm.text, true);
+          return;
+        }
+
+        const isDark = document.documentElement.classList.contains("dark");
+        const theme = isDark ? "dark" : "classic";
+        const cdn =
+          String((V3A.vditor && V3A.vditor.cdn) || "").trim() ||
+          "https://cdn.jsdelivr.net/npm/vditor@3.11.2";
+
+        try {
+          pageVditor = new VditorCtor("v3a-page-vditor", {
+            height: "auto",
+            mode: "ir",
+            lang: "zh_CN",
+            cdn,
+            theme,
+            cache: { enable: false },
+            value: String(pageForm.text || ""),
+            placeholder: "",
+            toolbarConfig: { pin: false },
+            input: (value) => {
+              if (pageVditorSyncing) return;
+              pageForm.text = String(value || "");
+            },
+            blur: (value) => {
+              if (pageVditorSyncing) return;
+              pageForm.text = String(value || "");
+            },
+            upload: V3A.uploadUrl
+              ? {
+                  url: String(V3A.uploadUrl || ""),
+                  fieldName: "file",
+                  multiple: false,
+                  withCredentials: true,
+                  headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    Accept: "application/json",
+                  },
+                  format: vditorUploadFormat,
+                }
+              : { url: "" },
+            after: () => {
+              setPageEditorValue(pageForm.text, true);
+            },
+          });
+        } catch (e) {
+          pageEditorType.value = "textarea";
+          pageVditor = null;
+        }
+      }
+
       function v3aAutoGrowTextarea(el) {
         if (!el) return;
         el.style.height = "";
@@ -734,6 +836,10 @@
 
       function autoSizePostText() {
         nextTick(() => v3aAutoGrowTextarea(postTextEl.value));
+      }
+
+      function autoSizePageText() {
+        nextTick(() => v3aAutoGrowTextarea(pageTextEl.value));
       }
 
       function v3aDecodeRule(rule) {
@@ -875,6 +981,59 @@
 
       const postSlugInputWidth = computed(() => {
         const len = String(postForm.slug || "").length;
+        const placeholderLen = 4; // "slug"
+        const width = Math.max(placeholderLen, len || placeholderLen);
+        return Math.min(28, width);
+      });
+
+      const permalinkPagePattern = computed(() => {
+        const raw = String(settingsData?.permalink?.pagePattern || "").trim();
+        return raw ? raw : "/{slug}.html";
+      });
+
+      function v3aFillPagePermalinkParams(raw) {
+        const tpl = String(raw || "");
+        const cid = Number(pageForm.cid || 0);
+        return tpl.replace(/\{cid\}/gi, (m) => (cid > 0 ? String(cid) : m));
+      }
+
+      const pageSlugPreview = computed(() => {
+        const basePrefix = String(V3A.indexUrl || V3A.siteUrl || "").trim();
+        const rule = v3aDecodeRule(String(permalinkPagePattern.value || ""));
+
+        if (!basePrefix || !rule) {
+          const base = String(V3A.siteUrl || "").trim();
+          if (!base) return { prefix: "", suffix: "", hasSlug: true };
+          return {
+            prefix: base.endsWith("/") ? base : `${base}/`,
+            suffix: "",
+            hasSlug: true,
+          };
+        }
+
+        const template = v3aCommonUrl(rule, basePrefix);
+        const filled = v3aFillPagePermalinkParams(template);
+
+        const match = filled.match(/\{slug\}/i);
+        if (!match || match.index == null) {
+          return { prefix: filled, suffix: "", hasSlug: false };
+        }
+
+        const idx = match.index;
+        const placeholder = match[0];
+        return {
+          prefix: filled.slice(0, idx),
+          suffix: filled.slice(idx + placeholder.length),
+          hasSlug: true,
+        };
+      });
+
+      const pageSlugPrefix = computed(() => pageSlugPreview.value.prefix);
+      const pageSlugSuffix = computed(() => pageSlugPreview.value.suffix);
+      const pageSlugHasSlug = computed(() => !!pageSlugPreview.value.hasSlug);
+
+      const pageSlugInputWidth = computed(() => {
+        const len = String(pageForm.slug || "").length;
         const placeholderLen = 4; // "slug"
         const width = Math.max(placeholderLen, len || placeholderLen);
         return Math.min(28, width);
@@ -2537,10 +2696,12 @@
 
       async function submitPage(mode) {
         const m = mode === "publish" ? "publish" : "save";
+        if (pageSaving.value) return;
         pageSaving.value = true;
         pageError.value = "";
         pageMessage.value = "";
         try {
+          syncPageTextFromEditor();
           const payload = {
             cid: pageForm.cid || 0,
             title: pageForm.title,
@@ -3424,6 +3585,9 @@
           if (p !== "/posts/write") {
             destroyPostVditor();
           }
+          if (p !== "/pages/edit") {
+            destroyPageVditor();
+          }
 
           document.title = `${crumb.value} - Vue3Admin`;
           if (p === "/dashboard") {
@@ -3460,6 +3624,8 @@
             } else {
               await loadPageEditorFromRoute();
             }
+            await nextTick();
+            initPageVditor();
           }
           if (p === "/settings") {
             await fetchSettings();
@@ -3504,6 +3670,8 @@
         }
         if (routePath.value === "/pages/edit") {
           await loadPageEditorFromRoute();
+          await nextTick();
+          initPageVditor();
         }
         if (routePath.value === "/settings") {
           await fetchSettings();
@@ -3744,6 +3912,13 @@
         pageTemplates,
         pageParentOptions,
         pageForm,
+        pageSlugPrefix,
+        pageSlugSuffix,
+        pageSlugHasSlug,
+        pageSlugInputWidth,
+        pageTextEl,
+        pageEditorType,
+        autoSizePageText,
         addPageField,
         removePageField,
         submitPage,
@@ -4767,7 +4942,7 @@
             </template>
 
             <template v-else-if="routePath === '/pages/edit'">
-              <div class="v3a-container">
+              <div class="v3a-container v3a-container-write">
                 <div class="v3a-pagehead v3a-pagehead-sticky">
                   <div class="v3a-head-left">
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
@@ -4779,7 +4954,6 @@
                     <button class="v3a-iconbtn v3a-write-side-toggle" type="button" @click="toggleWriteSidebar()" :title="writeSidebarOpen ? '收起发布设置' : '展开发布设置'">
                       <span class="v3a-icon" v-html="ICONS.settings"></span>
                     </button>
-                    <button class="v3a-btn" type="button" @click="navTo('/pages/manage')">返回列表</button>
                     <button class="v3a-iconaction" type="button" @click="submitPage('save')" :disabled="pageSaving || pageLoading" aria-label="保存草稿" data-tooltip="保存草稿">
                       <span class="v3a-icon" v-html="ICONS.save"></span>
                     </button>
@@ -4794,31 +4968,68 @@
 
                 <div v-if="pageLoading" class="v3a-muted">正在加载…</div>
 
-                <div v-else>
-                  <div class="v3a-write-shell" :class="{ 'side-open': writeSidebarOpen }">
-                    <div class="v3a-write-main">
-                      <div class="v3a-card">
-                    <div class="hd"><div class="title">内容</div></div>
-                    <div class="bd">
-                      <label class="v3a-fieldrow" style="min-width: 100%;">
-                        <span>标题</span>
-                        <input class="v3a-input" v-model="pageForm.title" placeholder="输入标题" />
-                      </label>
-                      <div class="v3a-divider"></div>
-                      <label class="v3a-fieldrow" style="min-width: 100%;">
-                        <span>正文</span>
-                        <textarea id="v3a-page-text" class="v3a-textarea" v-model="pageForm.text" placeholder="Markdown / 纯文本"></textarea>
-                      </label>
+                <div v-else class="v3a-write-shell" :class="{ 'side-open': writeSidebarOpen }">
+                  <div class="v3a-write-main">
+                    <div class="v3a-write-editor">
+                      <div class="v3a-write-editor-header">
+                        <input class="v3a-write-title" v-model="pageForm.title" placeholder="输入标题..." />
+                        <div class="v3a-write-subtitle">
+                          <div class="v3a-write-subline">
+                            <span class="v3a-write-baseurl">{{ pageSlugPrefix }}</span>
+                            <template v-if="pageSlugHasSlug">
+                              <input class="v3a-write-slug" v-model="pageForm.slug" placeholder="slug" :style="{ width: pageSlugInputWidth + 'ch' }" />
+                              <span v-if="pageSlugSuffix" class="v3a-write-baseurl v3a-write-baseurl-suffix">{{ pageSlugSuffix }}</span>
+                            </template>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="v3a-write-editor-content">
+                        <div v-if="pageEditorType === 'vditor'" id="v3a-page-vditor" class="v3a-vditor"></div>
+                        <textarea v-else id="v3a-page-text" ref="pageTextEl" class="v3a-write-textarea" v-model="pageForm.text" @input="autoSizePageText"></textarea>
+                      </div>
                     </div>
                   </div>
 
+                  <div class="v3a-write-side-mask" v-if="writeSidebarOpen" @click="toggleWriteSidebar(false)"></div>
+                  <div class="v3a-write-side" :class="{ open: writeSidebarOpen }">
+                    <div class="v3a-write-drawer-header">
+                      <div class="v3a-write-drawer-title" role="heading" aria-level="1">页面设定</div>
+                      <button class="v3a-write-drawer-close" type="button" @click="toggleWriteSidebar(false)" aria-label="close">
+                        <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                      </button>
                     </div>
+                    <div class="v3a-write-drawer-body">
+                      <div class="v3a-write-section">
+                        <div class="v3a-write-section-head">
+                          <span class="v3a-icon" v-html="ICONS.files"></span>
+                          <span class="v3a-write-section-title">页面设置</span>
+                        </div>
 
-                    <div class="v3a-write-side-mask" v-if="writeSidebarOpen" @click="toggleWriteSidebar(false)"></div>
-                    <div class="v3a-write-side" :class="{ open: writeSidebarOpen }">
-                      <div class="v3a-card">
-                    <div class="hd"><div class="title">页面设置</div></div>
-                    <div class="bd">
+                        <div class="v3a-write-formitem">
+                          <label class="v3a-write-label">父级页面</label>
+                          <select class="v3a-select" v-model.number="pageForm.parent">
+                            <option v-for="p in pageParentOptions" :key="p.cid" :value="p.cid">
+                              {{ (p.levels ? '—'.repeat(Number(p.levels)) + ' ' : '') + p.title }}
+                            </option>
+                          </select>
+                        </div>
+
+                        <div class="v3a-write-formitem">
+                          <label class="v3a-write-label">自定义模板</label>
+                          <select class="v3a-select" v-model="pageForm.template">
+                            <option value="">默认</option>
+                            <option v-for="t in pageTemplates" :key="t.value" :value="t.value">{{ t.label }}</option>
+                          </select>
+                        </div>
+
+                        <div class="v3a-write-formitem">
+                          <label class="v3a-write-label">排序</label>
+                          <input class="v3a-input" type="number" v-model.number="pageForm.order" />
+                        </div>
+                      </div>
+
+                      <div class="v3a-divider"></div>
+
                       <div class="v3a-kv">
                         <div class="v3a-muted">可见性</div>
                         <select class="v3a-select" v-model="pageForm.visibility">
@@ -4826,100 +5037,75 @@
                           <option value="hidden">隐藏</option>
                         </select>
 
-                        <div class="v3a-muted">缩略名</div>
-                        <input class="v3a-input" v-model="pageForm.slug" placeholder="可留空（自动生成）" />
-
-                        <div class="v3a-muted">父级页面</div>
-                        <select class="v3a-select" v-model.number="pageForm.parent">
-                          <option v-for="p in pageParentOptions" :key="p.cid" :value="p.cid">
-                            {{ (p.levels ? '—'.repeat(Number(p.levels)) + ' ' : '') + p.title }}
-                          </option>
-                        </select>
-
-                        <div class="v3a-muted">自定义模板</div>
-                        <select class="v3a-select" v-model="pageForm.template">
-                          <option value="">默认</option>
-                          <option v-for="t in pageTemplates" :key="t.value" :value="t.value">{{ t.label }}</option>
-                        </select>
-
-                        <div class="v3a-muted">排序</div>
-                        <input class="v3a-input" type="number" v-model.number="pageForm.order" />
-                      </div>
-
-                      <div class="v3a-divider"></div>
-
-                      <div class="v3a-muted" style="margin-bottom: 8px;">撰写</div>
-                      <div style="display:flex; flex-wrap: wrap; gap: 12px;">
-                        <label class="v3a-remember" style="margin: 0;">
+                        <div class="v3a-muted">Markdown</div>
+                        <label class="v3a-remember" style="justify-content:flex-start;">
                           <input class="v3a-check" type="checkbox" v-model="pageForm.markdown" :disabled="!pageCapabilities.markdownEnabled" />
-                          <span>使用 Markdown</span>
+                          <span>{{ pageCapabilities.markdownEnabled ? '启用' : '未开启' }}</span>
                         </label>
+
+                        <div class="v3a-kv-span">
+                          <div class="v3a-muted">权限</div>
+                          <div class="v3a-kv-inline">
+                            <label class="v3a-remember" style="margin: 0;">
+                              <input class="v3a-check" type="checkbox" v-model="pageForm.allowComment" />
+                              <span>允许评论</span>
+                            </label>
+                            <label class="v3a-remember" style="margin: 0;">
+                              <input class="v3a-check" type="checkbox" v-model="pageForm.allowPing" />
+                              <span>允许引用</span>
+                            </label>
+                            <label class="v3a-remember" style="margin: 0;">
+                              <input class="v3a-check" type="checkbox" v-model="pageForm.allowFeed" />
+                              <span>允许聚合</span>
+                            </label>
+                          </div>
+                        </div>
                       </div>
 
                       <div class="v3a-divider"></div>
+                      <div class="v3a-muted">发布权限：{{ pageCapabilities.canPublish ? '可直接发布' : '无权限' }}</div>
 
-                      <div class="v3a-muted" style="margin-bottom: 8px;">允许</div>
-                      <div style="display:flex; flex-wrap: wrap; gap: 12px;">
-                        <label class="v3a-remember" style="margin: 0;">
-                          <input class="v3a-check" type="checkbox" v-model="pageForm.allowComment" />
-                          <span>允许评论</span>
-                        </label>
-                        <label class="v3a-remember" style="margin: 0;">
-                          <input class="v3a-check" type="checkbox" v-model="pageForm.allowPing" />
-                          <span>允许引用</span>
-                        </label>
-                        <label class="v3a-remember" style="margin: 0;">
-                          <input class="v3a-check" type="checkbox" v-model="pageForm.allowFeed" />
-                          <span>允许聚合</span>
-                        </label>
+                      <div class="v3a-divider"></div>
+
+                      <div style="display:flex; align-items:center; justify-content:space-between; gap: 8px;">
+                        <div class="title" style="font-weight: 600;">自定义字段</div>
+                        <button class="v3a-mini-btn" type="button" @click="addPageField()">新增字段</button>
                       </div>
 
-                  <div class="v3a-divider"></div>
-                  <div class="v3a-muted">发布权限：{{ pageCapabilities.canPublish ? '可直接发布' : '无权限' }}</div>
-                </div>
-              </div>
-
-              </div>
-            </div>
-
-            <div class="v3a-card" style="margin-top: 16px;">
-                <div class="hd" style="display:flex; align-items:center; justify-content:space-between; gap: 8px;">
-                  <div class="title">自定义字段</div>
-                  <button class="v3a-mini-btn" type="button" @click="addPageField()">新增字段</button>
-                </div>
-                <div class="bd">
-                      <table class="v3a-table">
-                        <thead>
-                          <tr>
-                            <th>名称</th>
-                            <th style="width: 90px;">类型</th>
-                            <th>值</th>
-                            <th style="width: 80px;">操作</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="(f, idx) in pageForm.fields" :key="idx">
-                            <td><input class="v3a-input" v-model="f.name" placeholder="字段名（a-z0-9_）" /></td>
-                            <td>
-                              <select class="v3a-select" v-model="f.type">
-                                <option value="str">文本</option>
-                                <option value="int">整数</option>
-                                <option value="float">小数</option>
-                                <option value="json">JSON</option>
-                              </select>
-                            </td>
-                            <td>
-                              <input class="v3a-input" v-model="f.value" :placeholder="f.type === 'json' ? jsonExample : ''" />
-                            </td>
-                            <td>
-                              <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="removePageField(idx)">删除</button>
-                            </td>
-                          </tr>
-                          <tr v-if="!pageForm.fields.length">
-                            <td colspan="4" class="v3a-muted">暂无自定义字段</td>
-                          </tr>
-                        </tbody>
-                      </table>
+                      <div style="margin-top: 12px;">
+                        <table class="v3a-table">
+                          <thead>
+                            <tr>
+                              <th>名称</th>
+                              <th style="width: 90px;">类型</th>
+                              <th>值</th>
+                              <th style="width: 80px;">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="(f, idx) in pageForm.fields" :key="idx">
+                              <td><input class="v3a-input" v-model="f.name" placeholder="字段名（a-z0-9_）" /></td>
+                              <td>
+                                <select class="v3a-select" v-model="f.type">
+                                  <option value="str">文本</option>
+                                  <option value="int">整数</option>
+                                  <option value="float">小数</option>
+                                  <option value="json">JSON</option>
+                                </select>
+                              </td>
+                              <td>
+                                <input class="v3a-input" v-model="f.value" :placeholder="f.type === 'json' ? jsonExample : ''" />
+                              </td>
+                              <td>
+                                <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="removePageField(idx)">删除</button>
+                              </td>
+                            </tr>
+                            <tr v-if="!pageForm.fields.length">
+                              <td colspan="4" class="v3a-muted">暂无自定义字段</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
