@@ -741,6 +741,7 @@
       });
 
       const postTagInput = ref("");
+      const postTagEditorOpen = ref(false);
       const postTagFocused = ref(false);
       const postTagActiveIndex = ref(-1);
       const postTagInputEl = ref(null);
@@ -830,6 +831,15 @@
         addPostTag();
         postTagFocused.value = false;
         postTagActiveIndex.value = -1;
+        postTagEditorOpen.value = false;
+      }
+
+      function openPostTagEditor() {
+        postTagEditorOpen.value = true;
+        nextTick(() => {
+          const el = postTagInputEl.value;
+          if (el && typeof el.focus === "function") el.focus();
+        });
       }
 
       function onPostTagKeydown(e) {
@@ -1619,6 +1629,7 @@
         postForm.created = 0;
         postForm.modified = 0;
         postTagInput.value = "";
+        postTagEditorOpen.value = false;
         postTagFocused.value = false;
         postTagActiveIndex.value = -1;
         categorySelectOpen.value = false;
@@ -1694,6 +1705,7 @@
           postForm.created = Number(p.created || 0) || 0;
           postForm.modified = Number(p.modified || 0) || 0;
           postTagInput.value = "";
+          postTagEditorOpen.value = false;
           postTagFocused.value = false;
           postTagActiveIndex.value = -1;
           categorySelectOpen.value = false;
@@ -3364,6 +3376,7 @@
         postSlugInputWidth,
         postTags,
         postTagInput,
+        postTagEditorOpen,
         postTagFocused,
         postTagActiveIndex,
         postTextEl,
@@ -3376,6 +3389,7 @@
         onPostTagBlur,
         onPostTagKeydown,
         selectTagSuggestion,
+        openPostTagEditor,
         categorySelectOpen,
         categorySelectEl,
         postSelectedCategories,
@@ -4035,7 +4049,7 @@
                                 <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
                               </button>
                             </span>
-                            <div class="v3a-write-tag-editor">
+                            <div v-if="postTagEditorOpen" class="v3a-write-tag-editor">
                               <input ref="postTagInputEl" class="v3a-write-tags-input" v-model="postTagInput" placeholder="" @focus="onPostTagFocus()" @blur="onPostTagBlur()" @keydown="onPostTagKeydown" />
                               <div v-if="postTagSuggestions.length" class="v3a-write-select-menu v3a-write-tag-suggest">
                                 <button v-for="(t, idx) in postTagSuggestions" :key="t" class="v3a-write-select-option" :class="{ active: idx === postTagActiveIndex }" type="button" @mousedown.prevent="selectTagSuggestion(t)">
@@ -4043,6 +4057,9 @@
                                 </button>
                               </div>
                             </div>
+                            <button class="v3a-write-tags-add" type="button" @click="openPostTagEditor()" :aria-expanded="postTagEditorOpen" data-tooltip="添加标签">
+                              <span class="v3a-icon" v-html="ICONS.plus"></span>
+                            </button>
                           </div>
                         </div>
                       </div>
