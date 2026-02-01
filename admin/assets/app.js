@@ -572,6 +572,156 @@
       });
 
       const postTextEl = ref(null);
+      const postEditorType = ref("vditor");
+      let postVditor = null;
+      let postVditorSyncing = false;
+
+      function vditorUploadFormat(files, responseText) {
+        const list = Array.isArray(files) ? files : [];
+        const names = list
+          .map((f) => (f && f.name ? String(f.name) : ""))
+          .filter(Boolean);
+
+        const fail = (msg) =>
+          JSON.stringify({
+            code: 1,
+            msg: String(msg || "上传失败"),
+            data: { errFiles: names, succMap: {} },
+          });
+
+        try {
+          const raw = String(responseText || "").trim();
+          if (!raw) return fail("上传失败");
+          const json = JSON.parse(raw);
+          if (json === false) return fail("上传失败");
+
+          // Typecho upload action returns: [url, meta]
+          if (Array.isArray(json) && json[0]) {
+            const url = String(json[0] || "");
+            if (!url) return fail("上传失败");
+            const filename = names[0] || url;
+            return JSON.stringify({
+              code: 0,
+              msg: "",
+              data: { errFiles: [], succMap: { [filename]: url } },
+            });
+          }
+
+          // Generic {url: "..."} fallback
+          if (json && typeof json === "object" && json.url) {
+            const url = String(json.url || "");
+            if (!url) return fail("上传失败");
+            const filename = names[0] || url;
+            return JSON.stringify({
+              code: 0,
+              msg: "",
+              data: { errFiles: [], succMap: { [filename]: url } },
+            });
+          }
+        } catch (e) {
+          return fail("上传失败");
+        }
+
+        return fail("上传失败");
+      }
+
+      function destroyPostVditor() {
+        if (!postVditor) return;
+        try {
+          postVditor.destroy();
+        } catch (e) {}
+        postVditor = null;
+      }
+
+      function syncPostTextFromEditor() {
+        if (postEditorType.value !== "vditor") return;
+        if (!postVditor) return;
+        try {
+          if (postForm.markdown || typeof postVditor.getHTML !== "function") {
+            if (typeof postVditor.getValue === "function") {
+              postForm.text = String(postVditor.getValue() || "");
+            }
+          } else {
+            postForm.text = String(postVditor.getHTML() || "");
+          }
+        } catch (e) {}
+      }
+
+      function setPostEditorValue(value, clearStack) {
+        if (postEditorType.value !== "vditor") return;
+        if (!postVditor || typeof postVditor.setValue !== "function") return;
+        postVditorSyncing = true;
+        try {
+          postVditor.setValue(String(value || ""), !!clearStack);
+        } catch (e) {}
+        postVditorSyncing = false;
+      }
+
+      function initPostVditor() {
+        const VditorCtor =
+          typeof window !== "undefined" ? window.Vditor : undefined;
+        if (!VditorCtor) {
+          postEditorType.value = "textarea";
+          destroyPostVditor();
+          return;
+        }
+
+        postEditorType.value = "vditor";
+        const host = document.getElementById("v3a-post-vditor");
+        if (!host) return;
+
+        if (postVditor) {
+          setPostEditorValue(postForm.text, true);
+          return;
+        }
+
+        const isDark = document.documentElement.classList.contains("dark");
+        const theme = isDark ? "dark" : "classic";
+        const cdn =
+          String((V3A.vditor && V3A.vditor.cdn) || "").trim() ||
+          "https://cdn.jsdelivr.net/npm/vditor@3.11.2";
+
+        try {
+          postVditor = new VditorCtor("v3a-post-vditor", {
+            height: "auto",
+            mode: "ir",
+            lang: "zh_CN",
+            cdn,
+            theme,
+            cache: { enable: false },
+            value: String(postForm.text || ""),
+            placeholder: "",
+            toolbarConfig: { pin: false },
+            input: (value) => {
+              if (postVditorSyncing) return;
+              postForm.text = String(value || "");
+            },
+            blur: (value) => {
+              if (postVditorSyncing) return;
+              postForm.text = String(value || "");
+            },
+            upload: V3A.uploadUrl
+              ? {
+                  url: String(V3A.uploadUrl || ""),
+                  fieldName: "file",
+                  multiple: false,
+                  withCredentials: true,
+                  headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    Accept: "application/json",
+                  },
+                  format: vditorUploadFormat,
+                }
+              : { url: "" },
+            after: () => {
+              setPostEditorValue(postForm.text, true);
+            },
+          });
+        } catch (e) {
+          postEditorType.value = "textarea";
+          postVditor = null;
+        }
+      }
 
       function v3aAutoGrowTextarea(el) {
         if (!el) return;
@@ -1740,6 +1890,7 @@
         postError.value = "";
         postMessage.value = "";
         try {
+          syncPostTextFromEditor();
           const payload = {
             cid: postForm.cid || 0,
             title: postForm.title,
@@ -3270,6 +3421,10 @@
         async (r) => {
           const p = String(r || "/").split("?")[0] || "/";
 
+          if (p !== "/posts/write") {
+            destroyPostVditor();
+          }
+
           document.title = `${crumb.value} - Vue3Admin`;
           if (p === "/dashboard") {
             await nextTick();
@@ -3284,6 +3439,8 @@
             } else {
               await loadPostEditorFromRoute();
             }
+            await nextTick();
+            initPostVditor();
           }
           if (p === "/files") {
             await fetchFiles();
@@ -3330,6 +3487,8 @@
         }
         if (routePath.value === "/posts/write") {
           await loadPostEditorFromRoute();
+          await nextTick();
+          initPostVditor();
         }
         if (routePath.value === "/files") {
           await fetchFiles();
@@ -3490,6 +3649,7 @@
         postTagFocused,
         postTagActiveIndex,
         postTextEl,
+        postEditorType,
         autoSizePostText,
         addPostTag,
         removePostTag,
@@ -4105,7 +4265,8 @@
                         </div>
                       </div>
                       <div class="v3a-write-editor-content">
-                        <textarea id="v3a-post-text" ref="postTextEl" class="v3a-write-textarea" v-model="postForm.text" @input="autoSizePostText"></textarea>
+                        <div v-if="postEditorType === 'vditor'" id="v3a-post-vditor" class="v3a-vditor"></div>
+                        <textarea v-else id="v3a-post-text" ref="postTextEl" class="v3a-write-textarea" v-model="postForm.text" @input="autoSizePostText"></textarea>
                       </div>
                     </div>
                   </div>

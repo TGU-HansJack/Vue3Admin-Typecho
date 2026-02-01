@@ -1028,6 +1028,32 @@ a {
   resize: none;
 }
 
+.v3a-vditor {
+  width: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+.v3a-vditor .vditor {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.v3a-vditor .vditor-toolbar {
+  border-bottom: 0;
+  background: transparent;
+}
+
+.v3a-vditor .vditor-content {
+  border: 0;
+  background: transparent;
+}
+
+.v3a-vditor .vditor-reset {
+  font-family: inherit;
+}
+
 .v3a-write-side {
   position: fixed;
   top: 0;

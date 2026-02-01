@@ -44,6 +44,9 @@ if (is_string($primaryColor)) {
 
 $vueCdn = $pluginOptions->vueCdn ?? 'https://unpkg.com/vue@3/dist/vue.global.prod.js';
 $echartsCdn = $pluginOptions->echartsCdn ?? 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
+$vditorCdn = $pluginOptions->vditorCdn ?? 'https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.min.js';
+$vditorCssCdn = $pluginOptions->vditorCssCdn ?? 'https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.css';
+$vditorCdnBase = $pluginOptions->vditorCdnBase ?? 'https://cdn.jsdelivr.net/npm/vditor@3.11.2';
 
 $assetCssVer = @filemtime(__DIR__ . '/assets/app.css');
 if ($assetCssVer === false) {
@@ -79,6 +82,7 @@ try {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Vue3Admin - <?php echo htmlspecialchars($options->title ?? 'Typecho', ENT_QUOTES); ?></title>
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($vditorCssCdn, ENT_QUOTES); ?>" />
     <link rel="stylesheet" href="<?php echo $options->adminUrl('assets/app.css'); ?>?v=<?php echo htmlspecialchars((string) $assetCssVer, ENT_QUOTES); ?>" />
     <script>
         window.V3A = {
@@ -93,6 +97,9 @@ try {
             indexUrl: <?php echo json_encode($indexUrl, JSON_UNESCAPED_SLASHES); ?>,
             permalink: {
                 postUrl: <?php echo json_encode($postPermalinkRule, JSON_UNESCAPED_SLASHES); ?>
+            },
+            vditor: {
+                cdn: <?php echo json_encode($vditorCdnBase, JSON_UNESCAPED_SLASHES); ?>
             },
             logoutUrl: <?php echo json_encode($options->logoutUrl, JSON_UNESCAPED_SLASHES); ?>,
             canPublish: <?php echo $user->pass('editor', true) ? 'true' : 'false'; ?>,
@@ -110,6 +117,7 @@ try {
 <script src="<?php echo htmlspecialchars($vueCdn, ENT_QUOTES); ?>"></script>
 <script src="<?php echo htmlspecialchars($echartsCdn, ENT_QUOTES); ?>"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2/dist/echarts-wordcloud.min.js"></script>
+<script src="<?php echo htmlspecialchars($vditorCdn, ENT_QUOTES); ?>"></script>
 <script src="<?php echo $options->adminUrl('assets/app.js'); ?>?v=<?php echo htmlspecialchars((string) $assetJsVer, ENT_QUOTES); ?>"></script>
 </body>
 </html>

@@ -97,6 +97,33 @@ class Plugin implements PluginInterface
             _t('ECharts 地址（可替换为自建静态资源）。')
         );
         $form->addInput($echartsCdn);
+
+        $vditorCdn = new Text(
+            'vditorCdn',
+            null,
+            'https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.min.js',
+            _t('Vditor JS CDN'),
+            _t('Vditor 编辑器 JS 地址（可替换为自建静态资源）。')
+        );
+        $form->addInput($vditorCdn);
+
+        $vditorCssCdn = new Text(
+            'vditorCssCdn',
+            null,
+            'https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.css',
+            _t('Vditor CSS CDN'),
+            _t('Vditor 编辑器 CSS 地址（可替换为自建静态资源）。')
+        );
+        $form->addInput($vditorCssCdn);
+
+        $vditorCdnBase = new Text(
+            'vditorCdnBase',
+            null,
+            'https://cdn.jsdelivr.net/npm/vditor@3.11.2',
+            _t('Vditor CDN Base'),
+            _t('Vditor cdn 基础路径，用于加载 Mermaid/KaTeX/Highlight.js 等内置资源。')
+        );
+        $form->addInput($vditorCdnBase);
     }
 
     public static function personalConfig(Form $form)
