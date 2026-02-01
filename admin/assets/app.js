@@ -42,6 +42,12 @@
     plus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
     copy: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>`,
     externalLink: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>`,
+    checkCheck: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>`,
+    square: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`,
+    squareCheck: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>`,
+    upload: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>`,
+    refreshCw: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>`,
+    edit: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
     trash: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
     save: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-save-icon lucide-save"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>`,
     send: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send-icon lucide-send"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg>`,
@@ -1340,6 +1346,96 @@
       function closeFilePreview() {
         filePreviewOpen.value = false;
         filePreviewItem.value = null;
+      }
+
+      const filesSelectMode = ref(false);
+      const filesSelectedIds = ref([]);
+      const filesUploadModalOpen = ref(false);
+      const filesUploadDragging = ref(false);
+      const filesUploadInputEl = ref(null);
+
+      function toggleFilesSelectMode() {
+        filesSelectMode.value = !filesSelectMode.value;
+        filesSelectedIds.value = [];
+      }
+
+      function isFileSelected(cid) {
+        const id = Number(cid || 0);
+        if (!id) return false;
+        return filesSelectedIds.value.includes(id);
+      }
+
+      function toggleFileSelected(cid) {
+        const id = Number(cid || 0);
+        if (!id) return;
+        const list = filesSelectedIds.value;
+        const idx = list.indexOf(id);
+        if (idx >= 0) {
+          list.splice(idx, 1);
+        } else {
+          list.push(id);
+        }
+      }
+
+      function onFileItemActivate(file) {
+        if (filesSelectMode.value) {
+          toggleFileSelected(file && file.cid);
+          return;
+        }
+        openFilePreview(file);
+      }
+
+      async function deleteSelectedFiles() {
+        const ids = (filesSelectedIds.value || [])
+          .map((x) => Number(x || 0))
+          .filter((x) => x > 0);
+        if (!ids.length) return;
+        if (!confirm(`确认删除选中的 ${ids.length} 个文件吗？此操作不可恢复。`)) return;
+
+        filesError.value = "";
+        try {
+          await apiPost("files.delete", { cids: ids });
+          filesSelectedIds.value = [];
+          await fetchFiles();
+        } catch (e) {
+          filesError.value = e && e.message ? e.message : "删除失败";
+        }
+      }
+
+      function refreshFiles() {
+        fetchFiles();
+      }
+
+      function openFilesUploadModal() {
+        filesUploadModalOpen.value = true;
+        filesUploadDragging.value = false;
+      }
+
+      function closeFilesUploadModal() {
+        filesUploadModalOpen.value = false;
+        filesUploadDragging.value = false;
+      }
+
+      async function uploadFilesFromModal(fileList) {
+        await uploadFiles(fileList);
+        if (!filesError.value) {
+          closeFilesUploadModal();
+        }
+      }
+
+      function onFilesUploadDrop(e) {
+        filesUploadDragging.value = false;
+        const dt = e && e.dataTransfer ? e.dataTransfer : null;
+        const files = dt && dt.files ? dt.files : null;
+        if (!files || !files.length) return;
+        uploadFilesFromModal(files);
+      }
+
+      function onFilesUploadInputChange(e) {
+        const files = e && e.target && e.target.files ? e.target.files : null;
+        if (e && e.target) e.target.value = "";
+        if (!files || !files.length) return;
+        uploadFilesFromModal(files);
       }
 
       // Taxonomy (categories/tags)
@@ -3960,6 +4056,21 @@
         filePreviewIsVideo,
         openFilePreview,
         closeFilePreview,
+        filesSelectMode,
+        filesSelectedIds,
+        toggleFilesSelectMode,
+        isFileSelected,
+        toggleFileSelected,
+        onFileItemActivate,
+        deleteSelectedFiles,
+        refreshFiles,
+        filesUploadModalOpen,
+        filesUploadDragging,
+        filesUploadInputEl,
+        openFilesUploadModal,
+        closeFilesUploadModal,
+        onFilesUploadDrop,
+        onFilesUploadInputChange,
         fileTitleFor,
         fileMetaFor,
         fileUrlFor,
@@ -5237,11 +5348,27 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
-                    <button class="v3a-btn" type="button" @click="applyFilesFilters()" :disabled="filesLoading">刷新</button>
-                    <label class="v3a-btn primary" style="display:inline-flex; align-items:center; gap: 8px; cursor: pointer;">
-                      <input type="file" multiple style="display:none;" @change="uploadFiles($event.target.files); $event.target.value='';" />
-                      <span>上传文件</span>
-                    </label>
+                    <button
+                      class="v3a-actionbtn primary"
+                      type="button"
+                      :class="{ active: filesSelectMode }"
+                      :title="filesSelectMode ? '退出多选' : '多选'"
+                      @click="toggleFilesSelectMode()"
+                    >
+                      <span class="v3a-icon" v-html="ICONS.checkCheck"></span>
+                    </button>
+                    <button class="v3a-actionbtn danger" type="button" title="删除多条" :disabled="!filesSelectMode || !filesSelectedIds.length" @click="deleteSelectedFiles()">
+                      <span class="v3a-icon" v-html="ICONS.trash"></span>
+                    </button>
+                    <button class="v3a-actionbtn primary" type="button" title="上传文件" :disabled="filesUploading" @click="openFilesUploadModal()">
+                      <span class="v3a-icon" v-html="ICONS.upload"></span>
+                    </button>
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="filesLoading" @click="refreshFiles()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                    <button class="v3a-actionbtn" type="button" title="编辑（占位）" disabled>
+                      <span class="v3a-icon" v-html="ICONS.edit"></span>
+                    </button>
                   </div>
                 </div>
 
@@ -5261,9 +5388,10 @@
                         class="v3a-fileitem"
                         v-for="f in filesItems"
                         :key="f.cid"
-                        @click="openFilePreview(f)"
-                        @keydown.enter.self.prevent="openFilePreview(f)"
-                        @keydown.space.self.prevent="openFilePreview(f)"
+                        :class="{ 'select-mode': filesSelectMode, selected: filesSelectMode && isFileSelected(f.cid) }"
+                        @click="onFileItemActivate(f)"
+                        @keydown.enter.self.prevent="onFileItemActivate(f)"
+                        @keydown.space.self.prevent="onFileItemActivate(f)"
                         role="button"
                         tabindex="0"
                         :aria-label="fileTitleFor(f)"
@@ -5273,6 +5401,16 @@
                         <div v-else class="v3a-filethumb-fallback">
                           <span class="v3a-icon" v-html="ICONS.files"></span>
                         </div>
+
+                        <button
+                          v-if="filesSelectMode"
+                          class="v3a-fileselect"
+                          type="button"
+                          :class="{ selected: isFileSelected(f.cid) }"
+                          :aria-label="isFileSelected(f.cid) ? '取消选择' : '选择'"
+                          @click.stop="toggleFileSelected(f.cid)"
+                          v-html="isFileSelected(f.cid) ? ICONS.squareCheck : ICONS.square"
+                        ></button>
 
                         <div class="v3a-filethumb-overlay">
                           <div class="v3a-filethumb-name">{{ fileTitleFor(f) }}</div>
@@ -5318,6 +5456,34 @@
                       <div class="v3a-muted" style="text-align:center; margin-top: 12px;">
                         {{ fileMetaFor(filePreviewItem) }}
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="filesUploadModalOpen" class="v3a-modal-mask" @click.self="closeFilesUploadModal()">
+                  <div class="v3a-modal-card v3a-files-upload-modal" role="dialog" aria-modal="true">
+                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeFilesUploadModal()">
+                      <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                    </button>
+                    <div class="v3a-modal-head">
+                      <div class="v3a-modal-title">上传文件</div>
+                    </div>
+                    <div class="v3a-modal-body">
+                      <div
+                        class="v3a-files-upload-dragger"
+                        :class="{ dragging: filesUploadDragging, busy: filesUploading }"
+                        @click="filesUploadInputEl && filesUploadInputEl.click()"
+                        @dragenter.prevent="filesUploadDragging = true"
+                        @dragover.prevent="filesUploadDragging = true"
+                        @dragleave.prevent="filesUploadDragging = false"
+                        @drop.prevent="onFilesUploadDrop($event)"
+                      >
+                        <input ref="filesUploadInputEl" type="file" multiple style="display:none;" @change="onFilesUploadInputChange($event)" />
+                        <div class="v3a-files-upload-icon" v-html="ICONS.upload"></div>
+                        <div class="v3a-files-upload-title">点击或拖动文件到该区域来上传</div>
+                        <div class="v3a-muted">支持图片/媒体/文档（由 Typecho 允许的附件类型决定）</div>
+                      </div>
+                      <div v-if="filesError" class="v3a-feedback" style="margin-top: 12px;">{{ filesError }}</div>
                     </div>
                   </div>
                 </div>
