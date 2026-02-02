@@ -2339,7 +2339,7 @@
         }
       );
 
-      function v3aAssetUrl(pathname) {
+      function v3aAdminStaticUrl(pathname) {
         const p = String(pathname || "").replace(/^\/+/, "");
         if (!p) return "";
         try {
@@ -2388,9 +2388,9 @@
       }
 
       async function v3aEnsureAdminDepsLoaded() {
-        await v3aLoadScriptOnce(v3aAssetUrl("js/jquery.js"));
-        await v3aLoadScriptOnce(v3aAssetUrl("js/jquery-ui.js"));
-        await v3aLoadScriptOnce(v3aAssetUrl("js/typecho.js"));
+        await v3aLoadScriptOnce(v3aAdminStaticUrl("js/jquery.js"));
+        await v3aLoadScriptOnce(v3aAdminStaticUrl("js/jquery-ui.js"));
+        await v3aLoadScriptOnce(v3aAdminStaticUrl("js/typecho.js"));
       }
 
       async function v3aExecuteScriptsIn(root) {
