@@ -1589,6 +1589,38 @@
         pageCount: 1,
       });
 
+      // Comments UI (master-detail split, mx-admin like)
+      const commentsSplitLeftWidth = ref(360);
+      function clampCommentsSplitLeftWidth(w) {
+        const n = Number(w);
+        if (!Number.isFinite(n)) return 360;
+        return Math.max(280, Math.min(520, n));
+      }
+      function startCommentsSplitResize(event) {
+        const e = event;
+        if (!e || typeof e.clientX !== "number") return;
+        try {
+          e.preventDefault();
+        } catch (err) {}
+        const startX = e.clientX;
+        const startW = clampCommentsSplitLeftWidth(commentsSplitLeftWidth.value);
+
+        const onMove = (ev) => {
+          if (!ev || typeof ev.clientX !== "number") return;
+          commentsSplitLeftWidth.value = clampCommentsSplitLeftWidth(
+            startW + (ev.clientX - startX)
+          );
+        };
+
+        const onUp = () => {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+        };
+
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+      }
+
       const commentEditorOpen = ref(false);
       const commentEditorLoading = ref(false);
       const commentEditorSaving = ref(false);
@@ -3457,10 +3489,11 @@
         commentEditorOpen.value = true;
         commentEditorLoading.value = true;
         commentEditorError.value = "";
+        resetCommentEditor();
+        commentForm.coid = id;
         try {
           const data = await apiGet("comments.get", { coid: id });
           const c = data.comment || {};
-          resetCommentEditor();
           commentForm.coid = Number(c.coid || id) || id;
           commentForm.cid = Number(c.cid || 0) || 0;
           commentForm.author = String(c.author || "");
@@ -3527,6 +3560,9 @@
         commentsError.value = "";
         try {
           await apiPost("comments.mark", { coids: [id], status: st });
+          if (commentEditorOpen.value && Number(commentForm.coid || 0) === id) {
+            commentForm.status = st;
+          }
           await fetchComments();
           await fetchDashboard();
         } catch (e) {
@@ -3541,6 +3577,9 @@
         commentsError.value = "";
         try {
           await apiPost("comments.delete", { coids: [id] });
+          if (commentEditorOpen.value && Number(commentForm.coid || 0) === id) {
+            closeCommentEditor();
+          }
           await fetchComments();
           await fetchDashboard();
         } catch (e) {
@@ -5904,6 +5943,8 @@
         commentsItems,
         commentsFilters,
         commentsPagination,
+        commentsSplitLeftWidth,
+        startCommentsSplitResize,
         getCommentBadge,
         applyCommentsFilters,
         commentsGoPage,
@@ -6915,115 +6956,162 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
-                    <button class="v3a-btn" :class="{ primary: commentsFilters.status === 'approved' }" type="button" @click="quickSetCommentsStatus('approved')">已通过</button>
-                    <button class="v3a-btn" :class="{ primary: commentsFilters.status === 'waiting' }" type="button" @click="quickSetCommentsStatus('waiting')">待审核</button>
-                    <button class="v3a-btn" :class="{ primary: commentsFilters.status === 'spam' }" type="button" @click="quickSetCommentsStatus('spam')">垃圾</button>
-                    <button class="v3a-btn" :class="{ primary: commentsFilters.status === 'all' }" type="button" @click="quickSetCommentsStatus('all')">全部</button>
-                    <button class="v3a-btn" type="button" @click="applyCommentsFilters()" :disabled="commentsLoading">刷新</button>
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="commentsLoading" @click="applyCommentsFilters()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
                   </div>
                 </div>
 
-                <div class="v3a-posts-search">
-                  <div class="v3a-searchbox">
-                    <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
-                    <input class="v3a-input" v-model="commentsFilters.keywords" @keyup.enter="applyCommentsFilters()" placeholder="搜索作者 / 邮箱 / 内容..." />
-                  </div>
-                </div>
-
-                <div class="v3a-grid">
-                  <div class="v3a-card" v-if="commentEditorOpen">
-                    <div class="hd" style="display:flex; align-items:center; justify-content:space-between; gap: 8px;">
-                      <div class="title">编辑 / 回复</div>
-                      <button class="v3a-mini-btn" type="button" @click="closeCommentEditor()">关闭</button>
-                    </div>
-                    <div class="bd">
-                      <div v-if="commentEditorLoading" class="v3a-muted">正在加载…</div>
-                      <div v-else>
-                        <div v-if="commentEditorPost" class="v3a-muted" style="margin-bottom: 10px;">
-                          关联：{{ commentEditorPost.title || ('#' + commentForm.cid) }}
+                <div class="v3a-comments-split" :style="{ '--v3a-comments-left': commentsSplitLeftWidth + 'px' }">
+                  <div class="v3a-comments-left">
+                    <div class="v3a-card v3a-comments-panel">
+                      <div class="hd">
+                        <div class="v3a-comments-tabs" role="tablist" aria-label="评论状态">
+                          <button class="v3a-comments-tab" :class="{ active: commentsFilters.status === 'waiting' }" type="button" @click="quickSetCommentsStatus('waiting')">待审核</button>
+                          <button class="v3a-comments-tab" :class="{ active: commentsFilters.status === 'approved' }" type="button" @click="quickSetCommentsStatus('approved')">已通过</button>
+                          <button class="v3a-comments-tab" :class="{ active: commentsFilters.status === 'spam' }" type="button" @click="quickSetCommentsStatus('spam')">垃圾</button>
+                          <button class="v3a-comments-tab" :class="{ active: commentsFilters.status === 'all' }" type="button" @click="quickSetCommentsStatus('all')">全部</button>
                         </div>
-                        <div class="v3a-kv">
-                          <div class="v3a-muted">作者</div>
-                          <input class="v3a-input" v-model="commentForm.author" />
-                          <div class="v3a-muted">邮箱</div>
-                          <input class="v3a-input" v-model="commentForm.mail" />
-                          <div class="v3a-muted">网址</div>
-                          <input class="v3a-input" v-model="commentForm.url" />
-                          <div class="v3a-muted">时间戳</div>
-                          <input class="v3a-input" type="number" v-model.number="commentForm.created" />
-                          <div class="v3a-muted">内容</div>
-                          <textarea class="v3a-textarea" v-model="commentForm.text"></textarea>
+                        <div class="v3a-comments-count v3a-muted">{{ formatNumber(commentsPagination.total) }} 条</div>
+                      </div>
+
+                      <div class="bd" style="padding: 0;">
+                        <div class="v3a-comments-toolbar">
+                          <div class="v3a-searchbox v3a-searchbox-full">
+                            <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                            <input class="v3a-input" v-model="commentsFilters.keywords" @keyup.enter="applyCommentsFilters()" placeholder="搜索作者 / 邮箱 / 内容..." />
+                          </div>
+                          <button class="v3a-btn" type="button" @click="applyCommentsFilters()" :disabled="commentsLoading">搜索</button>
                         </div>
 
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                          <button class="v3a-btn" type="button" @click="markComment(commentForm.coid, 'approved')" :disabled="commentEditorSaving">通过</button>
-                          <button class="v3a-btn" type="button" @click="markComment(commentForm.coid, 'waiting')" :disabled="commentEditorSaving">待审核</button>
-                          <button class="v3a-btn" type="button" @click="markComment(commentForm.coid, 'spam')" :disabled="commentEditorSaving">垃圾</button>
-                          <button class="v3a-btn primary" type="button" @click="saveCommentEdit()" :disabled="commentEditorSaving">保存</button>
+                        <div v-if="commentsError" class="v3a-alert v3a-comments-alert">{{ commentsError }}</div>
+
+                        <div class="v3a-comments-list">
+                          <div v-if="commentsLoading" class="v3a-comments-empty">
+                            <div class="v3a-muted">正在加载…</div>
+                          </div>
+                          <div v-else-if="!commentsItems.length" class="v3a-comments-empty">
+                            <span class="v3a-icon v3a-comments-empty-icon" v-html="ICONS.comments"></span>
+                            <div class="v3a-muted">暂无评论</div>
+                          </div>
+                          <div v-else>
+                            <div
+                              v-for="c in commentsItems"
+                              :key="c.coid"
+                              class="v3a-comment-item"
+                              :class="{ active: commentEditorOpen && Number(commentForm.coid) === Number(c.coid) }"
+                              role="button"
+                              tabindex="0"
+                              @click="openCommentEditor(c.coid)"
+                              @keyup.enter="openCommentEditor(c.coid)"
+                            >
+                              <div class="v3a-comment-avatar">
+                                {{ (String(c.author || '?').trim() || '?').slice(0, 1).toUpperCase() }}
+                              </div>
+                              <div class="v3a-comment-body">
+                                <div class="v3a-comment-top">
+                                  <div class="v3a-comment-author">
+                                    {{ c.author || '—' }}
+                                    <span v-if="c.ip" class="v3a-comment-ip v3a-muted">· {{ c.ip }}</span>
+                                  </div>
+                                  <div class="v3a-comment-time v3a-muted">{{ formatTime(c.created) }}</div>
+                                </div>
+                                <div class="v3a-comment-excerpt">{{ c.excerpt || '—' }}</div>
+                                <div class="v3a-comment-meta">
+                                  <span class="v3a-pill">{{ (c.post && c.post.title) ? c.post.title : ('#' + c.cid) }}</span>
+                                  <span class="v3a-pill" :class="getCommentBadge(c).tone">{{ getCommentBadge(c).text }}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
-                        <div class="v3a-divider"></div>
-                        <div class="v3a-muted" style="margin-bottom: 8px;">回复（管理员）</div>
-                        <textarea class="v3a-textarea" v-model="commentReplyText" placeholder="输入回复内容…"></textarea>
-                        <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 12px;">
-                          <button class="v3a-btn primary" type="button" @click="submitCommentReply()" :disabled="commentEditorSaving || !commentReplyText.trim()">回复</button>
+                        <div class="v3a-comments-footer">
+                          <button class="v3a-pagebtn" type="button" @click="commentsGoPage(commentsPagination.page - 1)" :disabled="commentsPagination.page <= 1">
+                            <span class="v3a-icon" v-html="ICONS.collapse"></span>
+                          </button>
+                          <div class="v3a-pagecurrent">{{ commentsPagination.page }}</div>
+                          <button class="v3a-pagebtn" type="button" @click="commentsGoPage(commentsPagination.page + 1)" :disabled="commentsPagination.page >= commentsPagination.pageCount">
+                            <span class="v3a-icon" v-html="ICONS.expand"></span>
+                          </button>
+                          <div class="v3a-muted v3a-comments-pagehint">共 {{ commentsPagination.pageCount }} 页 · {{ formatNumber(commentsPagination.total) }} 条</div>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div class="v3a-card">
-                    <div class="bd" style="padding: 0;">
-                      <div v-if="commentsLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
-                      <table v-else class="v3a-table">
-                        <thead>
-                          <tr>
-                            <th>作者</th>
-                            <th>内容</th>
-                            <th>关联</th>
-                            <th>状态</th>
-                            <th>日期</th>
-                            <th>操作</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="c in commentsItems" :key="c.coid">
-                            <td style="white-space: nowrap;">
-                              <div>{{ c.author || '—' }}</div>
-                              <div class="v3a-muted" style="font-size: 12px;">{{ c.ip || '' }}</div>
-                            </td>
-                            <td style="min-width: 240px;">
-                              <div>{{ c.excerpt || '—' }}</div>
-                              <div class="v3a-muted" style="font-size: 12px;" v-if="c.mail">{{ c.mail }}</div>
-                            </td>
-                            <td>
-                              <span class="v3a-pill">{{ (c.post && c.post.title) ? c.post.title : ('#' + c.cid) }}</span>
-                            </td>
-                            <td>
-                              <span class="v3a-pill" :class="getCommentBadge(c).tone">{{ getCommentBadge(c).text }}</span>
-                            </td>
-                            <td>{{ formatTime(c.created) }}</td>
-                            <td style="white-space: nowrap;">
-                              <button class="v3a-mini-btn" type="button" @click="openCommentEditor(c.coid)">编辑</button>
-                              <button class="v3a-mini-btn" type="button" @click="markComment(c.coid, 'approved')">通过</button>
-                              <button class="v3a-mini-btn" type="button" @click="markComment(c.coid, 'waiting')">待审</button>
-                              <button class="v3a-mini-btn" type="button" @click="markComment(c.coid, 'spam')">垃圾</button>
-                              <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deleteComment(c.coid)">删除</button>
-                            </td>
-                          </tr>
-                          <tr v-if="!commentsItems.length">
-                            <td colspan="6" class="v3a-muted">暂无评论</td>
-                          </tr>
-                        </tbody>
-                      </table>
+                  <div class="v3a-comments-resizer" @pointerdown="startCommentsSplitResize"></div>
+
+                  <div class="v3a-comments-right">
+                    <div class="v3a-card v3a-comments-panel">
+                      <div class="hd">
+                          <div class="title" style="display:flex; align-items:center; gap: 10px;">
+                            <span>{{ commentEditorOpen ? '评论详情' : '详情' }}</span>
+                          <template v-if="commentEditorOpen && !commentEditorLoading">
+                            <span class="v3a-pill" :class="getCommentBadge(commentForm).tone">{{ getCommentBadge(commentForm).text }}</span>
+                          </template>
+                        </div>
+                        <div class="v3a-comments-detail-actions" v-if="commentEditorOpen">
+                          <button class="v3a-mini-btn" type="button" @click="markComment(commentForm.coid, 'approved')" :disabled="commentEditorSaving || commentEditorLoading">通过</button>
+                          <button class="v3a-mini-btn" type="button" @click="markComment(commentForm.coid, 'waiting')" :disabled="commentEditorSaving || commentEditorLoading">待审核</button>
+                          <button class="v3a-mini-btn" type="button" @click="markComment(commentForm.coid, 'spam')" :disabled="commentEditorSaving || commentEditorLoading">垃圾</button>
+                          <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deleteComment(commentForm.coid)" :disabled="commentEditorSaving || commentEditorLoading">删除</button>
+                          <button class="v3a-mini-btn primary" type="button" @click="saveCommentEdit()" :disabled="commentEditorSaving || commentEditorLoading">保存</button>
+                          <button class="v3a-mini-btn" type="button" @click="closeCommentEditor()">关闭</button>
+                        </div>
+                      </div>
+
+                      <div class="bd v3a-comments-detail-body">
+                        <div v-if="!commentEditorOpen" class="v3a-comments-empty">
+                          <span class="v3a-icon v3a-comments-empty-icon" v-html="ICONS.comments"></span>
+                          <div class="v3a-muted">选择一条评论查看详情</div>
+                        </div>
+
+                        <template v-else>
+                          <div v-if="commentEditorLoading" class="v3a-comments-empty">
+                            <div class="v3a-muted">正在加载…</div>
+                          </div>
+
+                          <div v-else>
+                            <div v-if="commentEditorError" class="v3a-alert">{{ commentEditorError }}</div>
+
+                            <div v-if="commentEditorPost" class="v3a-comments-ref">
+                              <div class="v3a-muted">关联</div>
+                              <div class="v3a-comments-ref-title">{{ commentEditorPost.title || ('#' + commentForm.cid) }}</div>
+                            </div>
+
+                            <div class="v3a-divider" v-if="commentEditorPost"></div>
+
+                            <div class="v3a-kv v3a-comments-kv">
+                              <div class="v3a-muted">作者</div>
+                              <input class="v3a-input" v-model="commentForm.author" />
+                              <div class="v3a-muted">邮箱</div>
+                              <input class="v3a-input" v-model="commentForm.mail" />
+                              <div class="v3a-muted">网址</div>
+                              <input class="v3a-input" v-model="commentForm.url" />
+                              <div class="v3a-muted">时间戳</div>
+                              <input class="v3a-input" type="number" v-model.number="commentForm.created" />
+                            </div>
+
+                            <div class="v3a-comments-section">
+                              <div class="v3a-muted v3a-comments-section-title">内容</div>
+                              <textarea class="v3a-textarea v3a-comments-text" v-model="commentForm.text"></textarea>
+                            </div>
+
+                            <div class="v3a-divider"></div>
+
+                            <div class="v3a-comments-section">
+                              <div class="v3a-muted v3a-comments-section-title">回复（管理员）</div>
+                              <textarea class="v3a-textarea v3a-comments-text" v-model="commentReplyText" placeholder="输入回复内容…"></textarea>
+                              <div class="v3a-comments-reply-actions">
+                                <button class="v3a-btn primary" type="button" @click="submitCommentReply()" :disabled="commentEditorSaving || !commentReplyText.trim()">回复</button>
+                              </div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
                     </div>
                   </div>
-                </div>
-
-                <div class="v3a-pagination">
-                  <button class="v3a-btn" type="button" @click="commentsGoPage(commentsPagination.page - 1)" :disabled="commentsPagination.page <= 1">上一页</button>
-                  <div class="v3a-muted">第 {{ commentsPagination.page }} / {{ commentsPagination.pageCount }} 页 · 共 {{ formatNumber(commentsPagination.total) }} 条</div>
-                  <button class="v3a-btn" type="button" @click="commentsGoPage(commentsPagination.page + 1)" :disabled="commentsPagination.page >= commentsPagination.pageCount">下一页</button>
                 </div>
               </div>
             </template>
