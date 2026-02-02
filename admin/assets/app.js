@@ -2034,17 +2034,18 @@
       });
 
       const themeConfigIframe = ref(null);
-      const themeConfigSrcDoc = computed(() => {
-        const html = String(themeConfigHtml.value || "");
-        if (!html) return "";
-        const baseStyle = `
-          body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;font-size:14px;color:#111;line-height:1.6;}
-          a{color:#2563eb;text-decoration:none;}
-          a:hover{text-decoration:underline;}
-          img{max-width:100%;height:auto;}
-          code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
-        `.trim();
-        return `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>${baseStyle}</style></head><body>${html}</body></html>`;
+      const themeConfigLegacyUrl = computed(() => {
+        const theme = String(themeCurrent.value || themeSelected.value || "");
+        if (!theme) return "";
+        try {
+          const url = new URL("theme-config.php", location.href);
+          url.searchParams.set("theme", theme);
+          return url.toString();
+        } catch (e) {
+          const base = String(location.href || "").split("#")[0];
+          const dir = base.replace(/[^/]*$/, "");
+          return dir + "theme-config.php?theme=" + encodeURIComponent(theme);
+        }
       });
 
       function resizeThemeConfigIframe() {
@@ -2059,7 +2060,7 @@
       }
 
       watch(
-        () => themeConfigSrcDoc.value,
+        () => themeConfigLegacyUrl.value,
         async () => {
           await nextTick();
           setTimeout(resizeThemeConfigIframe, 30);
@@ -4318,12 +4319,6 @@
             }
             return;
           }
-
-          if (activeKey === "theme.config") {
-            if (themeConfigTheme.value !== theme) {
-              await fetchThemeConfig();
-            }
-          }
         }
 
         if (activeKey === "plugins") {
@@ -4559,7 +4554,6 @@
           notify: notifyDirty,
           permalink: permalinkDirty,
           themeFile: themeFileDirty.value,
-          themeConfig: themeConfigDirty.value,
         };
       });
 
@@ -4582,7 +4576,6 @@
         if (dirty.notify) tasks.push(saveSettingsNotify);
         if (dirty.permalink) tasks.push(saveSettingsPermalink);
         if (dirty.themeFile) tasks.push(saveThemeFile);
-        if (dirty.themeConfig) tasks.push(saveThemeConfig);
         if (!tasks.length) return;
 
         settingsBatchSaving.value = true;
@@ -5559,7 +5552,7 @@
         themeConfigDirty,
         themeConfigSaving,
         themeConfigHtml,
-        themeConfigSrcDoc,
+        themeConfigLegacyUrl,
         themeConfigIframe,
         resizeThemeConfigIframe,
         v3aSimpleLinkHtml,
@@ -8261,85 +8254,29 @@
                         </div>
                       </div>
 
-                      <div v-if="settingsData.isAdmin && themeConfigHtml" class="v3a-theme-config-extra">
-                        <iframe
-                          ref="themeConfigIframe"
-                          class="v3a-theme-config-frame"
-                          sandbox="allow-same-origin"
-                          :srcdoc="themeConfigSrcDoc"
-                          @load="resizeThemeConfigIframe"
-                        ></iframe>
-                      </div>
-
-                      <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
-                        <div class="v3a-settings-row">
-                          <div class="v3a-settings-row-label">
-                            <label>提示</label>
+                      <template v-if="!settingsData.isAdmin">
+                        <div class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
                             </div>
                             <div class="v3a-settings-row-control">
                               <div class="v3a-muted">需要管理员权限才能配置主题设置。</div>
                             </div>
                           </div>
                         </div>
+                      </template>
 
-                        <template v-else>
-                          <div v-if="themeConfigLoading" class="v3a-muted" style="padding: 14px 16px;">正在加载…</div>
-                          <div v-else class="v3a-settings-fields">
-                            <div v-if="!themeConfigExists" class="v3a-settings-row">
-                              <div class="v3a-settings-row-label">
-                                <label>提示</label>
-                              </div>
-                              <div class="v3a-settings-row-control">
-                                <div class="v3a-muted">当前主题没有可配置项。</div>
-                              </div>
-                            </div>
-
-                            <template v-else>
-                              <template v-for="(f, idx) in themeConfigFields" :key="(f && f.name) || idx">
-                                <div v-if="f && f.type !== 'hidden'" class="v3a-settings-row">
-                                  <div class="v3a-settings-row-label">
-                                    <label>{{ f.label || f.name }}</label>
-                                    <div v-if="f.description" class="v3a-settings-row-help">{{ f.description }}</div>
-                                  </div>
-                                  <div class="v3a-settings-row-control">
-                                    <template v-if="f.type === 'textarea'">
-                                      <textarea class="v3a-textarea" v-model="themeConfigForm[f.name]"></textarea>
-                                    </template>
-                                    <template v-else-if="f.type === 'select'">
-                                      <select class="v3a-select" v-model="themeConfigForm[f.name]">
-                                        <option v-for="opt in f.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                                      </select>
-                                    </template>
-                                    <template v-else-if="f.type === 'radio'">
-                                      <div class="v3a-optionlist">
-                                        <label v-for="opt in f.options" :key="opt.value" class="v3a-option-item">
-                                          <input class="v3a-check" type="radio" :name="'v3a-theme-' + f.name" :value="opt.value" v-model="themeConfigForm[f.name]" />
-                                          <span>{{ opt.label }}</span>
-                                        </label>
-                                      </div>
-                                    </template>
-                                    <template v-else-if="f.type === 'checkbox'">
-                                      <div class="v3a-optionlist">
-                                        <label v-for="opt in f.options" :key="opt.value" class="v3a-option-item">
-                                          <input class="v3a-check" type="checkbox" :value="opt.value" v-model="themeConfigForm[f.name]" />
-                                          <span>{{ opt.label }}</span>
-                                        </label>
-                                      </div>
-                                    </template>
-                                    <template v-else>
-                                      <input
-                                        class="v3a-input"
-                                        :type="f.type === 'password' ? 'password' : f.type === 'url' ? 'url' : f.type === 'number' ? 'number' : 'text'"
-                                        v-model="themeConfigForm[f.name]"
-                                      />
-                                    </template>
-                                  </div>
-                                </div>
-                              </template>
-                            </template>
-                          </div>
-                        </template>
-                      </div>
+                      <template v-else>
+                        <div class="v3a-theme-config-extra">
+                          <iframe
+                            ref="themeConfigIframe"
+                            class="v3a-theme-config-frame v3a-theme-config-frame-legacy"
+                            :src="themeConfigLegacyUrl"
+                            @load="resizeThemeConfigIframe"
+                          ></iframe>
+                        </div>
+                      </template>
                     </div>
                   </template>
 

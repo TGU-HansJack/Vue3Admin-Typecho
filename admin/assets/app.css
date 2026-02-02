@@ -3090,9 +3090,10 @@ a {
 .v3a-theme-config-frame {
   width: 100%;
   display: block;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: var(--radius-lg);
-  background: #fff;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  min-height: 560px;
 }
 
 .v3a-mini-btn.v3a-mini-btn-link {
