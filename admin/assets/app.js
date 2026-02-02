@@ -8107,7 +8107,7 @@
                   </template>
 
                   <template v-else-if="isThemeSettingsActive">
-                    <div class="v3a-settings-user">
+                    <div class="v3a-settings-user" :class="{ 'v3a-settings-user-wide': settingsActiveKey === 'theme.config' }">
                       <div v-if="settingsActiveKey === 'theme.activate'" class="v3a-settings-section">
                         <div class="v3a-settings-section-hd">
                           <div class="v3a-settings-section-hd-left">
