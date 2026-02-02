@@ -12,7 +12,10 @@ try {
     $sitePort = (int) (parse_url($configuredSiteUrl, PHP_URL_PORT) ?? 0);
     $siteHostPort = $siteHost !== '' ? ($sitePort > 0 ? ($siteHost . ':' . $sitePort) : $siteHost) : '';
 
-    if ($currentHost !== '' && ($configuredSiteUrl === '' || $siteHostPort === '' || strcasecmp($currentHost, $siteHostPort) !== 0)) {
+    if (
+        $currentHost !== '' &&
+        ($configuredSiteUrl === '' || $siteHostPort === '' || strcasecmp($currentHost, $siteHostPort) !== 0)
+    ) {
         $prefix = (string) ($request->getUrlPrefix() ?? '');
         $rootUrl = (string) ($options->rootUrl ?? '/');
         if ($prefix !== '') {
@@ -28,7 +31,7 @@ try {
 } catch (\Throwable $e) {
 }
 
-$title = '主题设置';
+$title = 'Theme Settings';
 if ($theme !== '') {
     $title .= ' - ' . $theme;
 }
@@ -42,51 +45,38 @@ if ($theme !== '') {
     <base target="_blank">
     <title><?php echo htmlspecialchars($title, ENT_QUOTES); ?></title>
 
-    <link rel="stylesheet" href="../admin/css/normalize.css">
-    <link rel="stylesheet" href="../admin/css/grid.css">
-    <link rel="stylesheet" href="../admin/css/style.css">
-
     <style>
         html, body { margin: 0; padding: 0; background: transparent; }
-        body { padding: 16px; }
-        .container { max-width: none; }
-        .typecho-page-main { margin: 0; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="row typecho-page-main" role="main">
-            <div class="col-mb-12" role="form">
-                <?php
-                try {
-                    if (\Widget\Themes\Config::isExists()) {
-                        \Widget\Themes\Config::alloc()->config()->render();
-                    } else {
-                        echo '<div class="message notice"><ul><li>当前主题没有提供可配置项。</li></ul></div>';
-                    }
-                } catch (\Throwable $e) {
-                    http_response_code(500);
-                    echo '<div class="message error"><ul><li>'
-                        . htmlspecialchars($e->getMessage(), ENT_QUOTES)
-                        . '</li></ul></div>';
-                }
-                ?>
-            </div>
-        </div>
-    </div>
+<?php
+try {
+    if (\Widget\Themes\Config::isExists()) {
+        \Widget\Themes\Config::alloc()->config()->render();
+    } else {
+        echo '<div style="padding:12px 0;color:#737373;">This theme does not provide configurable options.</div>';
+    }
+} catch (\Throwable $e) {
+    http_response_code(500);
+    echo '<div style="padding:12px 0;color:#d03050;">'
+        . htmlspecialchars($e->getMessage(), ENT_QUOTES)
+        . '</div>';
+}
+?>
 
-    <script>
-        // Ensure form submits stay in this iframe even when <base target="_blank"> is set.
-        (function () {
-            try {
-                var forms = document.getElementsByTagName('form');
-                for (var i = 0; i < forms.length; i++) {
-                    if (!forms[i].getAttribute('target')) {
-                        forms[i].setAttribute('target', '_self');
-                    }
+<script>
+    // Ensure form submits stay in this iframe even when <base target="_blank"> is set.
+    (function () {
+        try {
+            var forms = document.getElementsByTagName('form');
+            for (var i = 0; i < forms.length; i++) {
+                if (!forms[i].getAttribute('target')) {
+                    forms[i].setAttribute('target', '_self');
                 }
-            } catch (e) {}
-        })();
-    </script>
+            }
+        } catch (e) {}
+    })();
+</script>
 </body>
 </html>

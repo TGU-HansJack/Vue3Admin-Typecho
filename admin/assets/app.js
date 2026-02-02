@@ -7,6 +7,47 @@
 
   const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
   const V3A = window.V3A || {};
+
+  const v3aAssetBase = (() => {
+    try {
+      const src =
+        document.currentScript && document.currentScript.src
+          ? document.currentScript.src
+          : "";
+      if (src) return new URL(".", src).toString();
+    } catch (e) {}
+
+    try {
+      const base = String(V3A.adminUrl || "").trim();
+      if (base) return new URL("assets/", new URL(base, location.href)).toString();
+    } catch (e) {}
+
+    return "";
+  })();
+
+  const v3aAssetVer = (() => {
+    try {
+      const src =
+        document.currentScript && document.currentScript.src
+          ? document.currentScript.src
+          : "";
+      if (!src) return "";
+      return new URL(src, location.href).searchParams.get("v") || "";
+    } catch (e) {}
+    return "";
+  })();
+
+  function v3aAssetUrl(relPath) {
+    const p = String(relPath || "");
+    if (!p) return "";
+    try {
+      const u = v3aAssetBase ? new URL(p, v3aAssetBase) : new URL(p, location.href);
+      if (v3aAssetVer) u.searchParams.set("v", v3aAssetVer);
+      return u.toString();
+    } catch (e) {
+      return p;
+    }
+  }
   const STORAGE_KEYS = {
     sidebarCollapsed: "v3a_sidebar_collapsed",
     sidebarExpanded: "v3a_sidebar_expanded",
@@ -1870,6 +1911,241 @@
       const themeFileBase = ref(null);
       const themeFileWriteable = ref(0);
       const themeFileSaving = ref(false);
+
+      // Theme editor UI (split + tree)
+      const themeEditSearch = ref("");
+      const themeEditTreeOpen = ref("");
+      const themeEditLeftWidth = ref(260);
+      const themeEditPendingFile = ref("");
+
+      const themeEditFilesFiltered = computed(() => {
+        const q = String(themeEditSearch.value || "").trim().toLowerCase();
+        const files = Array.isArray(themeFiles.value) ? themeFiles.value : [];
+        if (!q) return files;
+        return files.filter((f) => String(f || "").toLowerCase().includes(q));
+      });
+
+      function toggleThemeEditTree(themeName) {
+        const name = String(themeName || "");
+        if (!name) return;
+        if (themeEditTreeOpen.value === name) {
+          themeEditTreeOpen.value = "";
+          return;
+        }
+        if (themeSelected.value !== name && themeFileDirty.value) {
+          if (!confirm("当前文件有未保存的修改，确定要切换主题吗？")) return;
+        }
+        themeEditTreeOpen.value = name;
+        if (themeSelected.value !== name) themeSelected.value = name;
+      }
+
+      function openThemeEditFile(themeName, fileName) {
+        const theme = String(themeName || "");
+        const file = String(fileName || "");
+        if (!theme || !file) return;
+        const switchingTheme = themeSelected.value !== theme;
+        const switchingFile = !switchingTheme && String(themeFile.value || "") !== file;
+        if ((switchingTheme || switchingFile) && themeFileDirty.value) {
+          if (!confirm("当前文件有未保存的修改，确定要切换吗？")) return;
+        }
+        themeEditTreeOpen.value = theme;
+        themeEditPendingFile.value = file;
+        if (switchingTheme) {
+          themeSelected.value = theme;
+          return;
+        }
+        themeFile.value = file;
+      }
+
+      function clampThemeEditLeftWidth(w) {
+        const n = Number(w);
+        if (!Number.isFinite(n)) return 260;
+        return Math.max(200, Math.min(460, n));
+      }
+
+      function startThemeEditResize(event) {
+        const e = event;
+        if (!e || typeof e.clientX !== "number") return;
+        try {
+          e.preventDefault();
+        } catch (err) {}
+        const startX = e.clientX;
+        const startW = clampThemeEditLeftWidth(themeEditLeftWidth.value);
+
+        const onMove = (ev) => {
+          if (!ev || typeof ev.clientX !== "number") return;
+          themeEditLeftWidth.value = clampThemeEditLeftWidth(
+            startW + (ev.clientX - startX)
+          );
+        };
+
+        const onUp = () => {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+        };
+
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+      }
+
+      // Theme editor: CodeMirror 6 (bundled locally, loaded on demand)
+      const themeEditEditorEl = ref(null);
+      const themeEditEditorFailed = ref(0);
+      let themeEditEditorView = null;
+      let themeEditEditorApplying = false;
+      let themeEditEditorLangCompartment = null;
+      let themeEditEditorEditableCompartment = null;
+      let themeEditEditorCm = null;
+
+      let cm6Cache = null;
+      let cm6Promise = null;
+
+      async function ensureCodeMirror6() {
+        if (cm6Cache) return cm6Cache;
+        if (cm6Promise) return cm6Promise;
+        const localUrl = v3aAssetUrl("vendor/codemirror6.bundle.js");
+        cm6Promise = import(localUrl)
+          .then((cm) => {
+            cm6Cache = cm;
+            return cm6Cache;
+          })
+          .catch((e) => {
+            cm6Promise = null;
+            throw e;
+          });
+        return cm6Promise;
+      }
+
+      function themeEditEditorLanguageForFile(fileName) {
+        const cm = themeEditEditorCm;
+        if (!cm) return [];
+        const file = String(fileName || "").toLowerCase();
+        if (file.endsWith(".php")) return cm.php();
+        if (file.endsWith(".js")) return cm.javascript();
+        if (file.endsWith(".ts")) return cm.javascript({ typescript: true });
+        if (file.endsWith(".css")) return cm.css();
+        if (file.endsWith(".json")) return cm.json();
+        if (file.endsWith(".md")) return cm.markdown();
+        if (file.endsWith(".html") || file.endsWith(".htm")) return cm.html();
+        if (file.endsWith(".xml")) return cm.html();
+        return [];
+      }
+
+      function destroyThemeEditEditor() {
+        try {
+          if (themeEditEditorView) themeEditEditorView.destroy();
+        } catch (e) {}
+        themeEditEditorView = null;
+        themeEditEditorLangCompartment = null;
+        themeEditEditorEditableCompartment = null;
+        themeEditEditorCm = null;
+      }
+
+      async function initThemeEditEditor() {
+        if (themeEditEditorFailed.value) return;
+        if (themeEditEditorView) return;
+        const el = themeEditEditorEl.value;
+        if (!el) return;
+
+        try {
+          const cm = await ensureCodeMirror6();
+          themeEditEditorCm = cm;
+
+          const { EditorView, EditorState, Compartment } = cm;
+          const languageCompartment = new Compartment();
+          const editableCompartment = new Compartment();
+          themeEditEditorLangCompartment = languageCompartment;
+          themeEditEditorEditableCompartment = editableCompartment;
+
+          const updateListener = EditorView.updateListener.of((update) => {
+            if (!update || !update.docChanged) return;
+            if (themeEditEditorApplying) return;
+            themeEditEditorApplying = true;
+            try {
+              themeFileContent.value = update.state.doc.toString();
+            } finally {
+              themeEditEditorApplying = false;
+            }
+          });
+
+          const editorTheme = EditorView.theme({
+            "&": { height: "100%" },
+            ".cm-scroller": { overflow: "auto" },
+          });
+
+           const state = EditorState.create({
+             doc: String(themeFileContent.value ?? ""),
+             extensions: [
+               cm.basicSetup,
+               EditorView.lineWrapping,
+               cm.syntaxHighlighting(cm.defaultHighlightStyle, { fallback: true }),
+               languageCompartment.of(themeEditEditorLanguageForFile(themeFile.value)),
+               editableCompartment.of(EditorView.editable.of(!!themeFileWriteable.value)),
+               cm.keymap.of([
+                 {
+                  key: "Mod-s",
+                  preventDefault: true,
+                  run: () => {
+                    saveThemeFile();
+                    return true;
+                  },
+                },
+              ]),
+              updateListener,
+              editorTheme,
+            ],
+          });
+
+          themeEditEditorView = new EditorView({
+            state,
+            parent: el,
+          });
+        } catch (e) {
+          console.error(e);
+          themeEditEditorFailed.value = 1;
+          destroyThemeEditEditor();
+        }
+      }
+
+      function updateThemeEditEditorContent() {
+        const view = themeEditEditorView;
+        if (!view) return;
+        if (themeEditEditorApplying) return;
+        const next = String(themeFileContent.value ?? "");
+        const current = view.state.doc.toString();
+        if (next === current) return;
+        themeEditEditorApplying = true;
+        try {
+          view.dispatch({
+            changes: { from: 0, to: current.length, insert: next },
+          });
+        } finally {
+          themeEditEditorApplying = false;
+        }
+      }
+
+      function updateThemeEditEditorLanguage() {
+        const view = themeEditEditorView;
+        const c = themeEditEditorLangCompartment;
+        if (!view || !c) return;
+        try {
+          view.dispatch({
+            effects: c.reconfigure(themeEditEditorLanguageForFile(themeFile.value)),
+          });
+        } catch (e) {}
+      }
+
+      function updateThemeEditEditorEditable() {
+        const view = themeEditEditorView;
+        const c = themeEditEditorEditableCompartment;
+        const cm = themeEditEditorCm;
+        if (!view || !c || !cm) return;
+        try {
+          view.dispatch({
+            effects: c.reconfigure(cm.EditorView.editable.of(!!themeFileWriteable.value)),
+          });
+        } catch (e) {}
+      }
 
       const themeConfigLoading = ref(false);
       const themeConfigTheme = ref("");
@@ -3972,13 +4248,18 @@
           themeFilesTheme.value = theme;
           themeFiles.value = Array.isArray(data.files) ? data.files : [];
 
+          themeEditTreeOpen.value = theme;
           const current = String(themeFile.value || "");
+          const pending = String(themeEditPendingFile.value || "");
           const next =
-            current && themeFiles.value.includes(current)
-              ? current
-              : themeFiles.value.includes("index.php")
-                ? "index.php"
-                : String(themeFiles.value?.[0] || "");
+            pending && themeFiles.value.includes(pending)
+              ? pending
+              : current && themeFiles.value.includes(current)
+                ? current
+                : themeFiles.value.includes("index.php")
+                  ? "index.php"
+                  : String(themeFiles.value?.[0] || "");
+          themeEditPendingFile.value = "";
           themeFile.value = next;
         } catch (e) {
           toastError(e && e.message ? e.message : "加载失败");
@@ -4310,6 +4591,7 @@
           if (!theme) return;
 
           if (activeKey === "theme.edit") {
+            themeEditTreeOpen.value = themeEditTreeOpen.value || theme;
             if (themeFilesTheme.value !== theme) {
               await fetchThemeFiles();
               return;
@@ -4553,7 +4835,6 @@
           discussion: discussionDirty,
           notify: notifyDirty,
           permalink: permalinkDirty,
-          themeFile: themeFileDirty.value,
         };
       });
 
@@ -4575,7 +4856,6 @@
         if (dirty.discussion) tasks.push(saveSettingsDiscussion);
         if (dirty.notify) tasks.push(saveSettingsNotify);
         if (dirty.permalink) tasks.push(saveSettingsPermalink);
-        if (dirty.themeFile) tasks.push(saveThemeFile);
         if (!tasks.length) return;
 
         settingsBatchSaving.value = true;
@@ -5165,7 +5445,48 @@
           const next = String(v || "");
           const before = String(prev || "");
           if (!next || next === before) return;
+          await initThemeEditEditor();
+          updateThemeEditEditorLanguage();
           await fetchThemeFile();
+          updateThemeEditEditorEditable();
+          updateThemeEditEditorContent();
+        }
+      );
+
+      watch(
+        () => themeFileContent.value,
+        () => {
+          if (routePath.value !== "/settings") return;
+          if (settingsActiveKey.value !== "theme.edit") return;
+          updateThemeEditEditorContent();
+        }
+      );
+
+      watch(
+        () => themeFileWriteable.value,
+        () => {
+          if (routePath.value !== "/settings") return;
+          if (settingsActiveKey.value !== "theme.edit") return;
+          updateThemeEditEditorEditable();
+        }
+      );
+
+      watch(
+        () => settingsActiveKey.value,
+        async (v, prev) => {
+          if (routePath.value !== "/settings") return;
+          const next = String(v || "");
+          const before = String(prev || "");
+          if (next === before) return;
+          if (next === "theme.edit") {
+            await nextTick();
+            await initThemeEditEditor();
+            updateThemeEditEditorLanguage();
+            updateThemeEditEditorEditable();
+            updateThemeEditEditorContent();
+          } else if (before === "theme.edit") {
+            destroyThemeEditEditor();
+          }
         }
       );
 
@@ -5539,12 +5860,24 @@
         themeSelected,
         themeActivating,
         themeFilesLoading,
+        themeFilesTheme,
         themeFiles,
+        themeEditSearch,
+        themeEditTreeOpen,
+        themeEditLeftWidth,
+        themeEditFilesFiltered,
         themeFile,
         themeFileLoading,
         themeFileContent,
         themeFileWriteable,
         themeFileSaving,
+        themeFileDirty,
+        saveThemeFile,
+        themeEditEditorEl,
+        themeEditEditorFailed,
+        toggleThemeEditTree,
+        openThemeEditFile,
+        startThemeEditResize,
         themeConfigLoading,
         themeConfigExists,
         themeConfigFields,
@@ -7171,7 +7504,7 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
-                    <div class="v3a-settings-savebar">
+                    <div v-if="!String(settingsActiveKey || '').startsWith('theme.')" class="v3a-settings-savebar">
                       <span v-if="settingsDirtyCount" class="v3a-settings-savehint">
                         你有 {{ settingsDirtyCount }} 项未保存的修改
                       </span>
@@ -8100,7 +8433,7 @@
                   </template>
 
                   <template v-else-if="isThemeSettingsActive">
-                    <div class="v3a-settings-user" :class="{ 'v3a-settings-user-wide': settingsActiveKey === 'theme.config' }">
+                    <div class="v3a-settings-user" :class="{ 'v3a-settings-user-wide': settingsActiveKey === 'theme.config' || settingsActiveKey === 'theme.edit' }">
                       <div v-if="settingsActiveKey === 'theme.activate'" class="v3a-settings-section">
                         <div class="v3a-settings-section-hd">
                           <div class="v3a-settings-section-hd-left">
@@ -8180,61 +8513,82 @@
                         </template>
                       </div>
 
-                      <div v-if="settingsActiveKey === 'theme.edit'" class="v3a-settings-section">
-                        <div class="v3a-settings-section-hd">
-                          <div class="v3a-settings-section-hd-left">
-                            <div class="v3a-settings-section-icon">
-                              <span class="v3a-icon" v-html="ICONS.edit"></span>
-                            </div>
-                            <div class="v3a-settings-section-titles">
-                              <div class="v3a-settings-section-title">主题编辑</div>
-                              <div class="v3a-settings-section-subtitle">文件编辑（{{ themeSelected || themeCurrent || '—' }}）</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
-                          <div class="v3a-settings-row">
-                            <div class="v3a-settings-row-label">
-                              <label>提示</label>
-                            </div>
-                            <div class="v3a-settings-row-control">
-                              <div class="v3a-muted">需要管理员权限才能编辑主题文件。</div>
-                            </div>
-                          </div>
-                        </div>
+                      <div v-if="settingsActiveKey === 'theme.edit'" class="v3a-theme-edit">
+                        <template v-if="!settingsData.isAdmin">
+                          <div class="v3a-muted" style="padding: 14px 16px;">需要管理员权限才能编辑主题文件。</div>
+                        </template>
 
                         <template v-else>
-                          <div class="v3a-settings-fields">
-                            <div class="v3a-settings-row">
-                              <div class="v3a-settings-row-label">
-                                <label>主题</label>
+                          <div class="v3a-theme-edit-split" :style="{ '--v3a-theme-edit-left': themeEditLeftWidth + 'px' }">
+                            <div class="v3a-theme-edit-left">
+                              <div class="v3a-theme-edit-left-head">
+                                <div class="v3a-searchbox v3a-theme-edit-searchbox">
+                                  <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                                  <input class="v3a-input v3a-theme-edit-search-input" type="text" v-model="themeEditSearch" placeholder="搜索文件…" />
+                                </div>
                               </div>
-                              <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model="themeSelected" :disabled="themesLoading || !themesItems.length">
-                                  <option v-for="t in themesItems" :key="t.name" :value="t.name">{{ t.title || t.name }}</option>
-                                </select>
+
+                              <div class="v3a-theme-edit-tree">
+                                <div v-if="themesLoading" class="v3a-muted" style="padding: 10px 12px;">正在加载…</div>
+                                <template v-else>
+                                  <div v-for="t in themesItems" :key="t.name" class="v3a-theme-edit-tree-group">
+                                    <button class="v3a-theme-edit-tree-folder" type="button" :class="{ open: themeEditTreeOpen === t.name }" @click="toggleThemeEditTree(t.name)">
+                                      <span class="v3a-theme-edit-tree-chev" :class="{ open: themeEditTreeOpen === t.name }">
+                                        <span class="v3a-icon" v-html="ICONS.chevron"></span>
+                                      </span>
+                                      <span class="v3a-theme-edit-tree-ico folder">
+                                        <span class="v3a-icon" v-html="ICONS.files"></span>
+                                      </span>
+                                      <span class="v3a-theme-edit-tree-label">{{ t.title || t.name }}</span>
+                                      <span v-if="t.activated" class="v3a-pill success">当前</span>
+                                    </button>
+
+                                    <div v-if="themeEditTreeOpen === t.name" class="v3a-theme-edit-tree-files">
+                                      <div v-if="themeFilesLoading || themeFilesTheme !== t.name" class="v3a-muted" style="padding: 6px 12px;">正在加载…</div>
+                                      <template v-else>
+                                        <button v-for="f in themeEditFilesFiltered" :key="f" class="v3a-theme-edit-tree-file" type="button" :class="{ active: themeSelected === t.name && themeFile === f }" @click="openThemeEditFile(t.name, f)">
+                                          <span class="v3a-theme-edit-tree-ico file">
+                                            <span class="v3a-icon" v-html="ICONS.fileText"></span>
+                                          </span>
+                                          <span class="v3a-theme-edit-tree-label">{{ f }}</span>
+                                        </button>
+                                        <div v-if="!themeEditFilesFiltered.length" class="v3a-muted" style="padding: 6px 12px;">未找到文件。</div>
+                                      </template>
+                                    </div>
+                                  </div>
+                                </template>
                               </div>
                             </div>
 
-                            <div class="v3a-settings-row">
-                              <div class="v3a-settings-row-label">
-                                <label>文件</label>
-                              </div>
-                              <div class="v3a-settings-row-control">
-                                <select class="v3a-select" v-model="themeFile" :disabled="themeFilesLoading || !themeFiles.length">
-                                  <option v-for="f in themeFiles" :key="f" :value="f">{{ f }}</option>
-                                </select>
-                                <div v-if="themeFile && !themeFileWriteable" class="v3a-settings-row-help">该文件不可写（或已被系统禁用编辑）。</div>
-                              </div>
-                            </div>
+                            <div class="v3a-theme-edit-resizer" @pointerdown="startThemeEditResize"></div>
 
-                            <div class="v3a-settings-row">
-                              <div class="v3a-settings-row-label">
-                                <label>内容</label>
+                            <div class="v3a-theme-edit-right">
+                              <div class="v3a-theme-edit-right-head">
+                                <div class="v3a-theme-edit-right-head-row">
+                                  <div class="v3a-theme-edit-right-title">
+                                    {{ themeSelected || themeCurrent || '—' }}
+                                    <span v-if="themeFile" class="v3a-muted">/ {{ themeFile }}</span>
+                                    <span v-if="themeFileDirty" class="v3a-theme-edit-dirty" title="未保存"></span>
+                                  </div>
+                                  <div class="v3a-theme-edit-right-actions">
+                                    <button class="v3a-btn primary" type="button" @click="saveThemeFile()" :disabled="themeFileSaving || themeFileLoading || !themeFileWriteable || !themeFileDirty">
+                                      <span class="v3a-icon" v-html="ICONS.save"></span>
+                                      保存
+                                    </button>
+                                  </div>
+                                </div>
+                                <div v-if="themeFile && !themeFileWriteable" class="v3a-theme-edit-right-note v3a-muted">该文件不可写（或已被系统禁用编辑）。</div>
                               </div>
-                              <div class="v3a-settings-row-control">
-                                <textarea class="v3a-textarea v3a-code-editor v3a-theme-editor" v-model="themeFileContent" :disabled="themeFileLoading || !themeFileWriteable"></textarea>
+
+                              <div class="v3a-theme-edit-editor">
+                                <textarea v-if="themeEditEditorFailed" class="v3a-textarea v3a-code-editor v3a-theme-editor" v-model="themeFileContent" :disabled="themeFileLoading || !themeFileWriteable"></textarea>
+                                <div v-else ref="themeEditEditorEl" class="v3a-theme-edit-cm"></div>
+                                <div v-if="!themeEditEditorFailed && (themeFilesLoading || themeFileLoading)" class="v3a-theme-edit-overlay">
+                                  <div class="v3a-muted">正在加载…</div>
+                                </div>
+                                <div v-else-if="!themeEditEditorFailed && !themeFile" class="v3a-theme-edit-overlay">
+                                  <div class="v3a-muted">请选择一个文件进行编辑。</div>
+                                </div>
                               </div>
                             </div>
                           </div>
