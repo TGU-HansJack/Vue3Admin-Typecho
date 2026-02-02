@@ -71,7 +71,17 @@
     { key: "site", label: "网站", icon: "globe", subtitle: "站点地址、SEO" },
     { key: "content", label: "内容", icon: "fileText", subtitle: "阅读、评论、文本" },
     { key: "notify", label: "通知", icon: "bell", subtitle: "邮件、Bark 推送" },
-    { key: "theme", label: "主题", icon: "palette", subtitle: "主题、外观" },
+    {
+      key: "theme",
+      label: "主题",
+      icon: "palette",
+      subtitle: "主题、外观",
+      children: [
+        { key: "theme.activate", label: "主题启用" },
+        { key: "theme.edit", label: "主题编辑" },
+        { key: "theme.config", label: "主题设置" },
+      ],
+    },
     { key: "plugins", label: "插件", icon: "blocks", subtitle: "扩展、插件" },
     { key: "storage", label: "存储", icon: "data", subtitle: "附件、备份、图床" },
     { key: "system", label: "永久链接", icon: "settings", subtitle: "URL 规则、重写" },
@@ -317,7 +327,13 @@
   function findRouteTitle(path, settingsOpen, settingsActiveKey) {
     if (path === "/settings") {
       const item = SETTINGS.find((s) => s.key === settingsActiveKey);
-      return item ? `设定 / ${item.label}` : "设定";
+      if (item) return `设定 / ${item.label}`;
+      for (const top of SETTINGS) {
+        const children = Array.isArray(top?.children) ? top.children : [];
+        const child = children.find((c) => c && c.key === settingsActiveKey);
+        if (child) return `设定 / ${top.label} / ${child.label}`;
+      }
+      return "设定";
     }
 
     for (const top of MENU) {
@@ -336,7 +352,31 @@
       const sidebarCollapsed = ref(false);
       const settingsOpen = ref(false);
       const settingsActiveKey = ref("user");
+      const settingsThemeOpen = ref(false);
+      const lastThemeSettingsKey = ref("theme.activate");
       const writeSidebarOpen = ref(false);
+
+      const isThemeSettingsActive = computed(() =>
+        String(settingsActiveKey.value || "").startsWith("theme.")
+      );
+
+      function normalizeSettingsKey(key) {
+        const k = String(key || "");
+        if (!k) return "";
+        if (k === "theme") return "theme.activate";
+        return k;
+      }
+
+      function settingsKeyExists(key) {
+        const k = normalizeSettingsKey(key);
+        if (!k) return false;
+        for (const top of SETTINGS) {
+          if (top && top.key === k) return true;
+          const children = Array.isArray(top?.children) ? top.children : [];
+          if (children.some((c) => c && c.key === k)) return true;
+        }
+        return false;
+      }
 
       const expanded = ref({
         posts: true,
@@ -454,8 +494,9 @@
       } catch (e) {}
 
       try {
-        const key = localStorage.getItem(STORAGE_KEYS.settingsKey);
-        if (key && SETTINGS.some((s) => s.key === key)) {
+        const raw = localStorage.getItem(STORAGE_KEYS.settingsKey);
+        const key = normalizeSettingsKey(raw);
+        if (key && settingsKeyExists(key)) {
           settingsActiveKey.value = key;
         }
       } catch (e) {}
@@ -469,6 +510,24 @@
           expanded.value.maintenance = !!obj.maintenance;
         }
       } catch (e) {}
+
+      settingsThemeOpen.value = isThemeSettingsActive.value;
+      if (isThemeSettingsActive.value) {
+        lastThemeSettingsKey.value = String(settingsActiveKey.value || "theme.activate");
+      }
+
+      watch(
+        () => settingsActiveKey.value,
+        (v) => {
+          const key = String(v || "");
+          if (key.startsWith("theme.")) {
+            settingsThemeOpen.value = true;
+            lastThemeSettingsKey.value = key;
+          } else {
+            settingsThemeOpen.value = false;
+          }
+        }
+      );
 
       function persistExpanded() {
         try {
@@ -2086,11 +2145,22 @@
       }
 
       function selectSettings(key) {
-        settingsActiveKey.value = key;
+        const nextKey = normalizeSettingsKey(key);
+        if (!settingsKeyExists(nextKey)) return;
+        settingsActiveKey.value = nextKey;
         try {
-          localStorage.setItem(STORAGE_KEYS.settingsKey, key);
+          localStorage.setItem(STORAGE_KEYS.settingsKey, nextKey);
         } catch (e) {}
         navTo("/settings");
+      }
+
+      function toggleThemeSettings() {
+        if (!isThemeSettingsActive.value) {
+          settingsThemeOpen.value = true;
+          selectSettings(lastThemeSettingsKey.value || "theme.activate");
+          return;
+        }
+        settingsThemeOpen.value = !settingsThemeOpen.value;
       }
 
       function navTo(path) {
@@ -4229,24 +4299,34 @@
       async function maybeFetchSettingsExtras() {
         if (routePath.value !== "/settings") return;
 
-        if (settingsActiveKey.value === "theme") {
+        const activeKey = String(settingsActiveKey.value || "");
+        if (activeKey.startsWith("theme.")) {
           if (!themesItems.value.length && !themesLoading.value) {
             await fetchThemes();
           }
-          if (themeSelected.value) {
-            if (themeFilesTheme.value !== themeSelected.value) {
+
+          const theme = String(themeSelected.value || "");
+          if (!theme) return;
+
+          if (activeKey === "theme.edit") {
+            if (themeFilesTheme.value !== theme) {
               await fetchThemeFiles();
+              return;
             }
-            if (themeFile.value) {
+            if (themeFile.value && themeFileBase.value === null && !themeFileLoading.value) {
               await fetchThemeFile();
             }
-            if (themeConfigTheme.value !== themeSelected.value) {
+            return;
+          }
+
+          if (activeKey === "theme.config") {
+            if (themeConfigTheme.value !== theme) {
               await fetchThemeConfig();
             }
           }
         }
 
-        if (settingsActiveKey.value === "plugins") {
+        if (activeKey === "plugins") {
           if (
             !pluginsLoading.value &&
             !pluginsActivated.value.length &&
@@ -5059,7 +5139,7 @@
         () => themeSelected.value,
         async (v, prev) => {
           if (routePath.value !== "/settings") return;
-          if (settingsActiveKey.value !== "theme") return;
+          if (!isThemeSettingsActive.value) return;
           const next = String(v || "");
           const before = String(prev || "");
           if (next === before) return;
@@ -5088,7 +5168,7 @@
         () => themeFile.value,
         async (v, prev) => {
           if (routePath.value !== "/settings") return;
-          if (settingsActiveKey.value !== "theme") return;
+          if (settingsActiveKey.value !== "theme.edit") return;
           const next = String(v || "");
           const before = String(prev || "");
           if (!next || next === before) return;
@@ -5239,6 +5319,8 @@
         sidebarCollapsed,
         settingsOpen,
         settingsActiveKey,
+        isThemeSettingsActive,
+        settingsThemeOpen,
         writeSidebarOpen,
         expanded,
         summary,
@@ -5522,6 +5604,7 @@
         navTo,
         openSettings,
         selectSettings,
+        toggleThemeSettings,
         badgeValue,
         fetchDashboard,
       };
@@ -5565,22 +5648,56 @@
 
         <aside class="v3a-subsidebar" v-show="settingsOpen && !sidebarCollapsed">
           <div class="v3a-subsidebar-bd">
-            <button
-              class="v3a-subsidebar-item"
-              v-for="s in SETTINGS"
-              :key="s.key"
-              :class="{ active: settingsActiveKey === s.key }"
-              type="button"
-              @click="selectSettings(s.key)"
-            >
-              <div class="v3a-subsidebar-item-icon" :class="{ active: settingsActiveKey === s.key }">
-                <span class="v3a-icon" v-html="ICONS[s.icon] || ICONS.settings"></span>
-              </div>
-              <div class="v3a-subsidebar-item-text">
-                <div class="v3a-subsidebar-item-title">{{ s.label }}</div>
-                <div class="v3a-subsidebar-item-subtitle">{{ s.subtitle }}</div>
-              </div>
-            </button>
+            <template v-for="s in SETTINGS" :key="s.key">
+              <template v-if="s.key === 'theme'">
+                <button
+                  class="v3a-subsidebar-item"
+                  :class="{ active: isThemeSettingsActive }"
+                  type="button"
+                  @click="toggleThemeSettings"
+                >
+                  <div class="v3a-subsidebar-item-icon" :class="{ active: isThemeSettingsActive }">
+                    <span class="v3a-icon" v-html="ICONS[s.icon] || ICONS.settings"></span>
+                  </div>
+                  <div class="v3a-subsidebar-item-text">
+                    <div class="v3a-subsidebar-item-title">{{ s.label }}</div>
+                    <div class="v3a-subsidebar-item-subtitle">{{ s.subtitle }}</div>
+                  </div>
+                  <span class="v3a-chev" :class="{ open: settingsThemeOpen }">
+                    <span class="v3a-icon" v-html="ICONS.chevron"></span>
+                  </span>
+                </button>
+
+                <div class="v3a-subsidebar-sub" v-show="settingsThemeOpen">
+                  <button
+                    class="v3a-subsidebar-subitem"
+                    v-for="child in s.children"
+                    :key="child.key"
+                    :class="{ active: settingsActiveKey === child.key }"
+                    type="button"
+                    @click="selectSettings(child.key)"
+                  >
+                    {{ child.label }}
+                  </button>
+                </div>
+              </template>
+
+              <button
+                v-else
+                class="v3a-subsidebar-item"
+                :class="{ active: settingsActiveKey === s.key }"
+                type="button"
+                @click="selectSettings(s.key)"
+              >
+                <div class="v3a-subsidebar-item-icon" :class="{ active: settingsActiveKey === s.key }">
+                  <span class="v3a-icon" v-html="ICONS[s.icon] || ICONS.settings"></span>
+                </div>
+                <div class="v3a-subsidebar-item-text">
+                  <div class="v3a-subsidebar-item-title">{{ s.label }}</div>
+                  <div class="v3a-subsidebar-item-subtitle">{{ s.subtitle }}</div>
+                </div>
+              </button>
+            </template>
           </div>
         </aside>
 
@@ -7989,16 +8106,16 @@
                     </div>
                   </template>
 
-                  <template v-else-if="settingsActiveKey === 'theme'">
+                  <template v-else-if="isThemeSettingsActive">
                     <div class="v3a-settings-user">
-                      <div class="v3a-settings-section">
+                      <div v-if="settingsActiveKey === 'theme.activate'" class="v3a-settings-section">
                         <div class="v3a-settings-section-hd">
                           <div class="v3a-settings-section-hd-left">
                             <div class="v3a-settings-section-icon">
                               <span class="v3a-icon" v-html="ICONS.palette"></span>
                             </div>
                             <div class="v3a-settings-section-titles">
-                              <div class="v3a-settings-section-title">主题</div>
+                              <div class="v3a-settings-section-title">主题启用</div>
                               <div class="v3a-settings-section-subtitle">主题、外观</div>
                             </div>
                           </div>
@@ -8070,7 +8187,7 @@
                         </template>
                       </div>
 
-                      <div class="v3a-settings-section">
+                      <div v-if="settingsActiveKey === 'theme.edit'" class="v3a-settings-section">
                         <div class="v3a-settings-section-hd">
                           <div class="v3a-settings-section-hd-left">
                             <div class="v3a-settings-section-icon">
@@ -8131,7 +8248,7 @@
                         </template>
                       </div>
 
-                      <div class="v3a-settings-section">
+                      <div v-if="settingsActiveKey === 'theme.config'" class="v3a-settings-section">
                         <div class="v3a-settings-section-hd">
                           <div class="v3a-settings-section-hd-left">
                             <div class="v3a-settings-section-icon">

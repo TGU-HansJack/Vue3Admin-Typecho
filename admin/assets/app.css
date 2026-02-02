@@ -664,6 +664,47 @@ a {
   white-space: nowrap;
 }
 
+.v3a-subsidebar-item .v3a-chev {
+  margin-left: auto;
+}
+
+.v3a-subsidebar-sub {
+  padding: 8px 16px 12px 64px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.v3a-subsidebar-subitem {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  position: relative;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.72);
+}
+
+.v3a-subsidebar-subitem:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.v3a-subsidebar-subitem.active {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.82);
+}
+
+.v3a-subsidebar-subitem:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(23, 23, 23, 0.2);
+}
+
 .v3a-main {
   flex: 1;
   min-width: 0;
