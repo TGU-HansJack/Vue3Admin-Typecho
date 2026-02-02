@@ -1218,6 +1218,11 @@ a {
   gap: 16px;
 }
 
+.v3a-modal-card .v3a-input,
+.v3a-modal-card .v3a-select {
+  width: 100%;
+}
+
 .v3a-modal-item {
   display: flex;
   flex-direction: column;
@@ -3030,6 +3035,18 @@ a {
 
 .v3a-theme-row-item.active {
   background: rgba(0, 0, 0, 0.02);
+}
+
+.v3a-theme-config-extra {
+  padding: 0 16px 14px;
+}
+
+.v3a-theme-config-frame {
+  width: 100%;
+  display: block;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-lg);
+  background: #fff;
 }
 
 .v3a-mini-btn.v3a-mini-btn-link {

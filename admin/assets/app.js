@@ -1819,6 +1819,7 @@
       const themeConfigForm = reactive({});
       const themeConfigBase = ref(null);
       const themeConfigSaving = ref(false);
+      const themeConfigHtml = ref("");
 
       const pluginsLoading = ref(false);
       const pluginsError = ref("");
@@ -1835,6 +1836,7 @@
       const pluginConfigFields = ref([]);
       const pluginConfigForm = reactive({});
       const pluginConfigBase = ref(null);
+      let pluginConfigAutoSaveTimer = null;
 
       function v3aStableStringify(value) {
         if (value === undefined) return "null";
@@ -1847,6 +1849,111 @@
         return `{${keys
           .map((k) => `${JSON.stringify(k)}:${v3aStableStringify(value[k])}`)
           .join(",")}}`;
+      }
+
+      function v3aEscapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (ch) => {
+          switch (ch) {
+            case "&":
+              return "&amp;";
+            case "<":
+              return "&lt;";
+            case ">":
+              return "&gt;";
+            case '"':
+              return "&quot;";
+            case "'":
+              return "&#39;";
+            default:
+              return ch;
+          }
+        });
+      }
+
+      function v3aEscapeAttr(value) {
+        return v3aEscapeHtml(value).replace(/`/g, "&#96;");
+      }
+
+      function v3aSanitizeHref(href) {
+        const raw = String(href ?? "").trim();
+        if (!raw) return "";
+        const lower = raw.toLowerCase();
+        if (
+          lower.startsWith("javascript:") ||
+          lower.startsWith("data:") ||
+          lower.startsWith("vbscript:")
+        ) {
+          return "";
+        }
+        if (raw.startsWith("#") || raw.startsWith("/")) return raw;
+        try {
+          const url = new URL(raw, window.location.origin);
+          const proto = String(url.protocol || "").toLowerCase();
+          if (proto === "http:" || proto === "https:" || proto === "mailto:") {
+            return url.href;
+          }
+          return raw;
+        } catch (e) {
+          return raw;
+        }
+      }
+
+      function v3aSimpleLinkHtml(inputHtml) {
+        const html = String(inputHtml ?? "");
+        if (!html) return "";
+
+        let doc = null;
+        try {
+          doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
+        } catch (e) {
+          return v3aEscapeHtml(html);
+        }
+
+        const root = doc.body && doc.body.firstChild ? doc.body.firstChild : doc.body;
+        const out = [];
+
+        function walk(node) {
+          if (!node) return;
+          if (node.nodeType === 3) {
+            out.push(v3aEscapeHtml(node.textContent || ""));
+            return;
+          }
+          if (node.nodeType !== 1) return;
+
+          const tag = String(node.tagName || "").toLowerCase();
+          if (tag === "a") {
+            const href = v3aSanitizeHref(node.getAttribute("href") || "");
+            const text = node.textContent || href;
+            if (href) {
+              out.push(
+                `<a class="v3a-link" href="${v3aEscapeAttr(
+                  href
+                )}" target="_blank" rel="noreferrer noopener">${v3aEscapeHtml(
+                  text
+                )}</a>`
+              );
+            } else {
+              out.push(v3aEscapeHtml(text));
+            }
+            return;
+          }
+
+          if (tag === "br") {
+            out.push("<br>");
+            return;
+          }
+
+          const children = Array.from(node.childNodes || []);
+          for (const child of children) walk(child);
+          if (tag === "p" || tag === "div") out.push("<br>");
+        }
+
+        const children = Array.from((root && root.childNodes) || []);
+        for (const child of children) walk(child);
+
+        let result = out.join("");
+        result = result.replace(/(<br>)+$/g, "");
+        return result;
       }
 
       const themeFileDirty = computed(() => {
@@ -1866,6 +1973,41 @@
         if (pluginConfigBase.value === null) return false;
         return v3aStableStringify(pluginConfigForm) !== pluginConfigBase.value;
       });
+
+      const themeConfigIframe = ref(null);
+      const themeConfigSrcDoc = computed(() => {
+        const html = String(themeConfigHtml.value || "");
+        if (!html) return "";
+        const baseStyle = `
+          body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;font-size:14px;color:#111;line-height:1.6;}
+          a{color:#2563eb;text-decoration:none;}
+          a:hover{text-decoration:underline;}
+          img{max-width:100%;height:auto;}
+          code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
+        `.trim();
+        return `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>${baseStyle}</style></head><body>${html}</body></html>`;
+      });
+
+      function resizeThemeConfigIframe() {
+        const el = themeConfigIframe.value;
+        if (!el) return;
+        try {
+          const doc = el.contentDocument;
+          if (!doc || !doc.body) return;
+          const h = Math.max(100, doc.body.scrollHeight || 0);
+          el.style.height = `${h}px`;
+        } catch (e) {}
+      }
+
+      watch(
+        () => themeConfigSrcDoc.value,
+        async () => {
+          await nextTick();
+          setTimeout(resizeThemeConfigIframe, 30);
+          setTimeout(resizeThemeConfigIframe, 300);
+          setTimeout(resizeThemeConfigIframe, 1000);
+        }
+      );
 
       let chartVisitWeek = null;
       let chartPublish = null;
@@ -3720,6 +3862,18 @@
         }
       }
 
+      function handleThemeRowClick(themeName, event) {
+        const name = String(themeName || "");
+        if (!name) return;
+        try {
+          const target = event && event.target ? event.target : null;
+          if (target && typeof target.closest === "function") {
+            if (target.closest("a")) return;
+          }
+        } catch (e) {}
+        themeSelected.value = name;
+      }
+
       async function activateTheme(themeName) {
         const theme = String(themeName || "").trim();
         if (!theme || themeActivating.value) return;
@@ -3818,12 +3972,14 @@
         if (!theme) return;
         if (themeConfigLoading.value) return;
 
+        themeConfigHtml.value = "";
         themeConfigLoading.value = true;
         try {
           const data = await apiGet("themes.config.get", { theme });
           themeConfigTheme.value = theme;
           themeConfigExists.value = Number(data.exists || 0) ? 1 : 0;
           themeConfigFields.value = Array.isArray(data.fields) ? data.fields : [];
+          themeConfigHtml.value = String(data.html || "");
 
           for (const k of Object.keys(themeConfigForm)) {
             delete themeConfigForm[k];
@@ -3900,7 +4056,19 @@
         }
       }
 
-      function closePluginConfig() {
+      async function closePluginConfig() {
+        if (pluginConfigSaving.value) return;
+
+        if (pluginConfigAutoSaveTimer) {
+          clearTimeout(pluginConfigAutoSaveTimer);
+          pluginConfigAutoSaveTimer = null;
+        }
+
+        if (pluginConfigDirty.value) {
+          const ok = await savePluginConfig({ silent: true, refresh: false });
+          if (!ok) return;
+        }
+
         pluginConfigOpen.value = false;
       }
 
@@ -3969,7 +4137,9 @@
         await fetchPluginConfig();
       }
 
-      async function savePluginConfig() {
+      async function savePluginConfig(options = {}) {
+        const silent = !!options.silent;
+        const refresh = options.refresh !== false;
         const plugin = String(pluginConfigName.value || "");
         if (
           !plugin ||
@@ -3977,7 +4147,7 @@
           pluginConfigSaving.value ||
           !pluginConfigDirty.value
         ) {
-          return;
+          return false;
         }
 
         pluginConfigSaving.value = true;
@@ -3986,18 +4156,44 @@
             plugin,
             values: Object.assign({}, pluginConfigForm),
           });
-          if (!settingsBatchSaving.value) toastSuccess("插件设置已保存");
-          await fetchPluginConfig();
+          pluginConfigBase.value = v3aStableStringify(pluginConfigForm);
+          if (!silent && !settingsBatchSaving.value) toastSuccess("插件设置已保存");
+          if (refresh) await fetchPluginConfig();
+          return true;
         } catch (e) {
           if (settingsBatchSaving.value) {
             settingsError.value = e && e.message ? e.message : "保存失败";
           } else {
             toastError(e && e.message ? e.message : "保存失败");
           }
+          return false;
         } finally {
           pluginConfigSaving.value = false;
         }
       }
+
+      function schedulePluginConfigAutoSave() {
+        if (!pluginConfigOpen.value) return;
+        if (pluginConfigLoading.value || pluginConfigSaving.value) return;
+        if (!pluginConfigDirty.value) return;
+
+        if (pluginConfigAutoSaveTimer) clearTimeout(pluginConfigAutoSaveTimer);
+        pluginConfigAutoSaveTimer = setTimeout(async () => {
+          pluginConfigAutoSaveTimer = null;
+          await savePluginConfig({ silent: true, refresh: false });
+        }, 800);
+      }
+
+      watch(
+        () => v3aStableStringify(pluginConfigForm),
+        () => {
+          if (!pluginConfigOpen.value) return;
+          if (pluginConfigLoading.value) return;
+          if (pluginConfigBase.value === null) return;
+          if (!pluginConfigDirty.value) return;
+          schedulePluginConfigAutoSave();
+        }
+      );
 
       async function activatePlugin(p) {
         const name = String(p?.name || "");
@@ -4284,7 +4480,6 @@
           permalink: permalinkDirty,
           themeFile: themeFileDirty.value,
           themeConfig: themeConfigDirty.value,
-          pluginConfig: pluginConfigDirty.value,
         };
       });
 
@@ -4308,7 +4503,6 @@
         if (dirty.permalink) tasks.push(saveSettingsPermalink);
         if (dirty.themeFile) tasks.push(saveThemeFile);
         if (dirty.themeConfig) tasks.push(saveThemeConfig);
-        if (dirty.pluginConfig) tasks.push(savePluginConfig);
         if (!tasks.length) return;
 
         settingsBatchSaving.value = true;
@@ -4884,6 +5078,7 @@
             delete themeConfigForm[k];
           }
           themeConfigBase.value = null;
+          themeConfigHtml.value = "";
 
           await maybeFetchSettingsExtras();
         }
@@ -5281,6 +5476,11 @@
         themeConfigForm,
         themeConfigDirty,
         themeConfigSaving,
+        themeConfigHtml,
+        themeConfigSrcDoc,
+        themeConfigIframe,
+        resizeThemeConfigIframe,
+        v3aSimpleLinkHtml,
         pluginsLoading,
         pluginsError,
         pluginsActivated,
@@ -5296,6 +5496,7 @@
         pluginConfigForm,
         pluginConfigDirty,
         fetchThemes,
+        handleThemeRowClick,
         activateTheme,
         fetchThemeFiles,
         fetchThemeFile,
@@ -7837,7 +8038,7 @@
                               </div>
 
                               <template v-else>
-                                <div v-for="t in themesItems" :key="t.name" class="v3a-settings-row v3a-theme-row-item" :class="{ active: themeSelected === t.name }" @click="themeSelected = t.name">
+                                <div v-for="t in themesItems" :key="t.name" class="v3a-settings-row v3a-theme-row-item" :class="{ active: themeSelected === t.name }" @click="handleThemeRowClick(t.name, $event)">
                                   <div class="v3a-settings-row-label">
                                     <div class="v3a-theme-shot">
                                       <img :src="t.screen" alt="" loading="lazy" />
@@ -7855,7 +8056,7 @@
                                           <span v-if="t.author"> · {{ t.author }}</span>
                                           <a v-if="t.homepage" class="v3a-link" :href="t.homepage" target="_blank" rel="noreferrer">官网</a>
                                         </div>
-                                        <div v-if="t.description" class="v3a-theme-desc v3a-muted">{{ t.description }}</div>
+                                        <div v-if="t.description" class="v3a-theme-desc v3a-muted" v-html="v3aSimpleLinkHtml(t.description)"></div>
                                       </div>
                                       <div v-if="!t.activated" class="v3a-theme-actions">
                                         <button class="v3a-mini-btn v3a-mini-btn-link" type="button" style="color: var(--color-primary);" @click.stop="activateTheme(t.name)" :disabled="themeActivating">启用</button>
@@ -7936,17 +8137,27 @@
                             <div class="v3a-settings-section-icon">
                               <span class="v3a-icon" v-html="ICONS.settings"></span>
                             </div>
-                            <div class="v3a-settings-section-titles">
-                              <div class="v3a-settings-section-title">主题设置</div>
-                              <div class="v3a-settings-section-subtitle">配置项（{{ themeSelected || themeCurrent || '—' }}）</div>
-                            </div>
+                          <div class="v3a-settings-section-titles">
+                            <div class="v3a-settings-section-title">主题设置</div>
+                            <div class="v3a-settings-section-subtitle">配置项（{{ themeSelected || themeCurrent || '—' }}）</div>
                           </div>
                         </div>
+                      </div>
 
-                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
-                          <div class="v3a-settings-row">
-                            <div class="v3a-settings-row-label">
-                              <label>提示</label>
+                      <div v-if="settingsData.isAdmin && themeConfigHtml" class="v3a-theme-config-extra">
+                        <iframe
+                          ref="themeConfigIframe"
+                          class="v3a-theme-config-frame"
+                          sandbox="allow-same-origin"
+                          :srcdoc="themeConfigSrcDoc"
+                          @load="resizeThemeConfigIframe"
+                        ></iframe>
+                      </div>
+
+                      <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                        <div class="v3a-settings-row">
+                          <div class="v3a-settings-row-label">
+                            <label>提示</label>
                             </div>
                             <div class="v3a-settings-row-control">
                               <div class="v3a-muted">需要管理员权限才能配置主题设置。</div>

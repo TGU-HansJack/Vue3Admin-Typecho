@@ -4099,7 +4099,9 @@ try {
         }
 
         $form = new \Typecho\Widget\Helper\Form();
+        ob_start();
         themeConfig($form);
+        $configHtml = (string) ob_get_clean();
         $inputs = $form->getInputs();
 
         $fields = [];
@@ -4212,6 +4214,7 @@ try {
             'theme' => $theme,
             'exists' => 1,
             'fields' => $fields,
+            'html' => $configHtml,
         ]);
     }
 
