@@ -1253,6 +1253,194 @@ a {
   padding: 20px 24px 24px;
 }
 
+.v3a-modal-card.v3a-plugin-config-modal {
+  width: min(980px, 96vw);
+  max-width: 96vw;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+
+.v3a-modal-card.v3a-plugin-config-modal .v3a-modal-head {
+  flex: 0 0 auto;
+}
+
+.v3a-modal-card.v3a-plugin-config-modal .v3a-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 16px 14px;
+}
+
+.v3a-plugin-config-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.v3a-plugin-config-legacy {
+  padding: 0 2px 2px;
+}
+
+.v3a-plugin-config-legacy form {
+  margin: 0;
+}
+
+.v3a-plugin-config-legacy ul.typecho-option {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.v3a-plugin-config-legacy ul.typecho-option > li {
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+  gap: 10px 16px;
+  align-items: start;
+}
+
+.v3a-plugin-config-legacy ul.typecho-option > li > .typecho-label {
+  grid-column: 1;
+  margin: 0;
+  padding-top: 6px;
+}
+
+.v3a-plugin-config-legacy ul.typecho-option > li > :not(.typecho-label) {
+  grid-column: 2;
+}
+
+.v3a-plugin-config-legacy ul.typecho-option > li > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.v3a-plugin-config-legacy .typecho-label {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--v3a-text);
+}
+
+.v3a-plugin-config-legacy .description {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--v3a-muted);
+}
+
+.v3a-plugin-config-legacy input[type="text"],
+.v3a-plugin-config-legacy input[type="url"],
+.v3a-plugin-config-legacy input[type="password"],
+.v3a-plugin-config-legacy input[type="email"],
+.v3a-plugin-config-legacy input[type="number"],
+.v3a-plugin-config-legacy select {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: #fff;
+  color: rgba(0, 0, 0, 0.82);
+  font-size: 13px;
+}
+
+.v3a-plugin-config-legacy textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: #fff;
+  color: rgba(0, 0, 0, 0.82);
+  font-size: 13px;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.v3a-plugin-config-legacy input[type="text"]:focus,
+.v3a-plugin-config-legacy input[type="url"]:focus,
+.v3a-plugin-config-legacy input[type="password"]:focus,
+.v3a-plugin-config-legacy input[type="email"]:focus,
+.v3a-plugin-config-legacy input[type="number"]:focus,
+.v3a-plugin-config-legacy select:focus,
+.v3a-plugin-config-legacy textarea:focus {
+  border-color: rgba(0, 0, 0, 0.25);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.06);
+}
+
+.v3a-plugin-config-legacy input[type="checkbox"],
+.v3a-plugin-config-legacy input[type="radio"] {
+  margin-right: 6px;
+}
+
+.v3a-plugin-config-legacy .btn,
+.v3a-plugin-config-legacy button,
+.v3a-plugin-config-legacy input[type="button"],
+.v3a-plugin-config-legacy input[type="submit"] {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--v3a-text);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.v3a-plugin-config-legacy .btn:hover,
+.v3a-plugin-config-legacy button:hover,
+.v3a-plugin-config-legacy input[type="button"]:hover,
+.v3a-plugin-config-legacy input[type="submit"]:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.v3a-plugin-config-legacy .btn:active,
+.v3a-plugin-config-legacy button:active,
+.v3a-plugin-config-legacy input[type="button"]:active,
+.v3a-plugin-config-legacy input[type="submit"]:active {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.v3a-plugin-config-legacy .primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.v3a-plugin-config-legacy .primary:hover {
+  border-color: var(--color-primary-shallow);
+  background: var(--color-primary-shallow);
+}
+
+.v3a-plugin-config-legacy .btn-warn {
+  border-color: var(--v3a-danger);
+  background: var(--v3a-danger);
+  color: #fff;
+}
+
+.v3a-plugin-config-legacy .btn-warn:hover {
+  border-color: #b72844;
+  background: #b72844;
+}
+
+.v3a-plugin-config-legacy ul.typecho-option.typecho-option-submit,
+.v3a-plugin-config-legacy ul.typecho-option-submit {
+  display: none;
+}
+
 .v3a-modal-form {
   display: flex;
   flex-direction: column;
@@ -1337,6 +1525,10 @@ a {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.v3a-modal-card.v3a-plugin-config-modal .v3a-modal-actions {
+  margin-top: 12px;
 }
 
 .v3a-modal-actions .v3a-modal-btn {

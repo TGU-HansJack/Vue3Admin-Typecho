@@ -2168,10 +2168,10 @@
       const pluginConfigName = ref("");
       const pluginConfigTitle = ref("");
       const pluginConfigExists = ref(0);
-      const pluginConfigFields = ref([]);
-      const pluginConfigForm = reactive({});
-      const pluginConfigBase = ref(null);
-      let pluginConfigAutoSaveTimer = null;
+      const pluginConfigHtml = ref("");
+      const pluginConfigLegacyEl = ref(null);
+      const pluginConfigLoadedScripts = new Set();
+      let pluginConfigRenderToken = 0;
 
       function v3aStableStringify(value) {
         if (value === undefined) return "null";
@@ -2303,12 +2303,6 @@
         return v3aStableStringify(themeConfigForm) !== themeConfigBase.value;
       });
 
-      const pluginConfigDirty = computed(() => {
-        if (pluginConfigLoading.value) return false;
-        if (pluginConfigBase.value === null) return false;
-        return v3aStableStringify(pluginConfigForm) !== pluginConfigBase.value;
-      });
-
       const themeConfigIframe = ref(null);
       const themeConfigLegacyUrl = computed(() => {
         const theme = String(themeCurrent.value || themeSelected.value || "");
@@ -2344,6 +2338,131 @@
           setTimeout(resizeThemeConfigIframe, 1000);
         }
       );
+
+      function v3aAssetUrl(pathname) {
+        const p = String(pathname || "").replace(/^\/+/, "");
+        if (!p) return "";
+        try {
+          return new URL(p, location.href).toString();
+        } catch (e) {
+          const base = String(location.href || "").split("#")[0];
+          const dir = base.replace(/[^/]*$/, "");
+          return dir + p;
+        }
+      }
+
+      function v3aScriptCacheKey(src, type) {
+        const raw = String(src || "");
+        let key = raw;
+        try {
+          const u = new URL(raw, location.href);
+          u.searchParams.delete("v");
+          key = u.toString();
+        } catch (e) {}
+        return type ? `${type}:${key}` : key;
+      }
+
+      function v3aLoadScriptOnce(src, attrs = {}) {
+        const raw = String(src || "");
+        if (!raw) return Promise.resolve(false);
+
+        const type = attrs && attrs.type ? String(attrs.type) : "";
+        const key = v3aScriptCacheKey(raw, type);
+        if (pluginConfigLoadedScripts.has(key)) return Promise.resolve(true);
+        pluginConfigLoadedScripts.add(key);
+
+        return new Promise((resolve) => {
+          const s = document.createElement("script");
+          s.src = raw;
+          if (type) s.type = type;
+          if (attrs && attrs.noModule) s.noModule = true;
+          if (attrs && attrs.crossorigin) s.crossOrigin = String(attrs.crossorigin);
+          if (attrs && attrs.referrerpolicy)
+            s.referrerPolicy = String(attrs.referrerpolicy);
+          if (attrs && attrs.integrity) s.integrity = String(attrs.integrity);
+          s.async = false;
+          s.onload = () => resolve(true);
+          s.onerror = () => resolve(false);
+          document.head.appendChild(s);
+        });
+      }
+
+      async function v3aEnsureAdminDepsLoaded() {
+        await v3aLoadScriptOnce(v3aAssetUrl("js/jquery.js"));
+        await v3aLoadScriptOnce(v3aAssetUrl("js/jquery-ui.js"));
+        await v3aLoadScriptOnce(v3aAssetUrl("js/typecho.js"));
+      }
+
+      async function v3aExecuteScriptsIn(root) {
+        if (!root) return;
+
+        // Ensure base deps for most legacy plugins.
+        await v3aEnsureAdminDepsLoaded();
+
+        const scripts = Array.from(root.querySelectorAll("script"));
+        for (const oldScript of scripts) {
+          const parent = oldScript.parentNode;
+          if (parent) parent.removeChild(oldScript);
+
+          const src = oldScript.getAttribute("src");
+          const type = oldScript.getAttribute("type");
+          const attrs = {
+            type: type ? String(type) : "",
+            noModule: oldScript.hasAttribute("nomodule"),
+            crossorigin: oldScript.getAttribute("crossorigin") || "",
+            referrerpolicy: oldScript.getAttribute("referrerpolicy") || "",
+            integrity: oldScript.getAttribute("integrity") || "",
+          };
+
+          if (src) {
+            let abs = "";
+            try {
+              abs = new URL(src, location.href).toString();
+            } catch (e) {
+              abs = src;
+            }
+            const absLower = String(abs).toLowerCase();
+            const isAdminCore =
+              absLower.includes("/js/jquery.js") ||
+              absLower.includes("/js/jquery-ui.js") ||
+              absLower.includes("/js/typecho.js");
+
+            if (isAdminCore) {
+              await v3aLoadScriptOnce(abs, attrs);
+            } else {
+              await new Promise((resolve) => {
+                try {
+                  const s = document.createElement("script");
+                  s.src = abs;
+                  if (attrs.type) s.type = attrs.type;
+                  if (attrs.noModule) s.noModule = true;
+                  if (attrs.crossorigin) s.crossOrigin = String(attrs.crossorigin);
+                  if (attrs.referrerpolicy)
+                    s.referrerPolicy = String(attrs.referrerpolicy);
+                  if (attrs.integrity) s.integrity = String(attrs.integrity);
+                  s.async = false;
+                  s.onload = () => resolve(true);
+                  s.onerror = () => resolve(false);
+                  root.appendChild(s);
+                } catch (e) {
+                  resolve(false);
+                }
+              });
+            }
+            continue;
+          }
+
+          const code = oldScript.textContent || "";
+          if (!code.trim()) continue;
+
+          try {
+            const s = document.createElement("script");
+            if (attrs.type) s.type = attrs.type;
+            s.textContent = code;
+            root.appendChild(s);
+          } catch (e) {}
+        }
+      }
 
       let chartVisitWeek = null;
       let chartPublish = null;
@@ -4408,67 +4527,143 @@
         }
       }
 
-      async function closePluginConfig() {
-        if (pluginConfigSaving.value) return;
-
-        if (pluginConfigAutoSaveTimer) {
-          clearTimeout(pluginConfigAutoSaveTimer);
-          pluginConfigAutoSaveTimer = null;
-        }
-
-        if (pluginConfigDirty.value) {
-          const ok = await savePluginConfig({ silent: true, refresh: false });
-          if (!ok) return;
-        }
-
+      function closePluginConfig() {
         pluginConfigOpen.value = false;
+        pluginConfigLoading.value = false;
+        pluginConfigSaving.value = false;
+        pluginConfigName.value = "";
+        pluginConfigTitle.value = "";
+        pluginConfigExists.value = 0;
+        pluginConfigHtml.value = "";
+        pluginConfigRenderToken++;
       }
 
-      async function fetchPluginConfig() {
+      async function initPluginConfigLegacyDom(token) {
+        if (!pluginConfigOpen.value) return;
+        if (token !== pluginConfigRenderToken) return;
+        if (!pluginConfigExists.value) return;
+
+        await nextTick();
+        if (token !== pluginConfigRenderToken) return;
+
+        const root = pluginConfigLegacyEl.value;
+        if (!root) return;
+
+        try {
+          root
+            .querySelectorAll(
+              "ul.typecho-option.typecho-option-submit, ul.typecho-option-submit"
+            )
+            .forEach((n) => n && n.remove && n.remove());
+        } catch (e) {}
+
+        try {
+          const form = root.querySelector("form");
+          if (form && !form.__v3aBound) {
+            form.__v3aBound = true;
+            form.addEventListener("submit", (e) => {
+              e.preventDefault();
+              savePluginConfig();
+            });
+          }
+        } catch (e) {}
+
+        await v3aExecuteScriptsIn(root);
+      }
+
+      async function fetchPluginConfigHtml() {
         const plugin = String(pluginConfigName.value || "");
         if (!plugin) return;
 
+        const token = ++pluginConfigRenderToken;
         pluginConfigLoading.value = true;
+        pluginConfigExists.value = 0;
+        pluginConfigHtml.value = "";
+
         try {
-          const data = await apiGet("plugins.config.get", { plugin });
+          const data = await apiGet("plugins.config.html", { plugin });
+          if (token !== pluginConfigRenderToken) return;
           pluginConfigExists.value = Number(data.exists || 0) ? 1 : 0;
-          pluginConfigFields.value = Array.isArray(data.fields) ? data.fields : [];
-
-          for (const k of Object.keys(pluginConfigForm)) {
-            delete pluginConfigForm[k];
-          }
-          for (const f of pluginConfigFields.value) {
-            const name = String(f?.name || "");
-            if (!name) continue;
-            const type = String(f?.type || "text");
-            let v = f?.value;
-            if (type === "checkbox") {
-              if (Array.isArray(v)) {
-                v = v.map(String);
-              } else if (v === null || v === undefined || v === "") {
-                v = [];
-              } else {
-                v = [String(v)];
-              }
-            } else if (type === "number") {
-              v = v === null || v === undefined ? "" : String(v);
-            } else {
-              v = v === null || v === undefined ? "" : String(v);
-            }
-            pluginConfigForm[name] = v;
-          }
-
-          pluginConfigBase.value = v3aStableStringify(pluginConfigForm);
+          pluginConfigHtml.value = String(data.html || "");
         } catch (e) {
+          if (token !== pluginConfigRenderToken) return;
           pluginConfigExists.value = 0;
-          pluginConfigFields.value = [];
-          for (const k of Object.keys(pluginConfigForm)) {
-            delete pluginConfigForm[k];
-          }
-          pluginConfigBase.value = null;
+          pluginConfigHtml.value = "";
           toastError(e && e.message ? e.message : "加载失败");
         } finally {
-          pluginConfigLoading.value = false;
+          if (token === pluginConfigRenderToken) {
+            pluginConfigLoading.value = false;
+            await initPluginConfigLegacyDom(token);
+          }
+        }
+      }
+
+      async function savePluginConfig() {
+        const plugin = String(pluginConfigName.value || "");
+        if (!plugin || !pluginConfigExists.value || pluginConfigSaving.value) return;
+
+        const root = pluginConfigLegacyEl.value;
+        const form = root ? root.querySelector("form") : null;
+        if (!form) {
+          toastError("找不到插件设置表单");
+          return;
+        }
+
+        const values = {};
+        const checkboxKeys = new Set();
+
+        try {
+          const elements = Array.from(form.elements || []);
+          for (const el of elements) {
+            if (!el || !el.name) continue;
+            if (el.disabled) continue;
+
+            const rawName = String(el.name || "");
+            if (!rawName) continue;
+
+            // Skip internal/irrelevant fields.
+            if (rawName === "_" || rawName === "csrfRef" || rawName === "do") continue;
+
+            const name = rawName.endsWith("[]") ? rawName.slice(0, -2) : rawName;
+            const tag = String(el.tagName || "").toLowerCase();
+            const type = String(el.type || "").toLowerCase();
+
+            if (type === "checkbox") {
+              checkboxKeys.add(name);
+              if (!Array.isArray(values[name])) values[name] = [];
+              if (el.checked) values[name].push(String(el.value ?? "1"));
+              continue;
+            }
+
+            if (type === "radio") {
+              if (el.checked) values[name] = String(el.value ?? "");
+              continue;
+            }
+
+            if (tag === "select" && el.multiple) {
+              values[name] = Array.from(el.selectedOptions || []).map((o) =>
+                String(o && o.value !== undefined ? o.value : "")
+              );
+              continue;
+            }
+
+            values[name] = String(el.value ?? "");
+          }
+        } catch (e) {}
+
+        for (const k of checkboxKeys) {
+          if (!Array.isArray(values[k])) values[k] = [];
+        }
+
+        pluginConfigSaving.value = true;
+        try {
+          await apiPost("plugins.config.save", { plugin, values });
+          toastSuccess("插件设置已保存");
+          await fetchPluginConfigHtml();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "保存失败");
+        } finally {
+          pluginConfigSaving.value = false;
         }
       }
 
@@ -4479,73 +4674,9 @@
         pluginConfigTitle.value = String(p?.title || p?.name || "");
         pluginConfigName.value = name;
         pluginConfigOpen.value = true;
-        pluginConfigExists.value = 0;
-        pluginConfigFields.value = [];
-        for (const k of Object.keys(pluginConfigForm)) {
-          delete pluginConfigForm[k];
-        }
-        pluginConfigBase.value = null;
-
-        await fetchPluginConfig();
+        pluginConfigSaving.value = false;
+        await fetchPluginConfigHtml();
       }
-
-      async function savePluginConfig(options = {}) {
-        const silent = !!options.silent;
-        const refresh = options.refresh !== false;
-        const plugin = String(pluginConfigName.value || "");
-        if (
-          !plugin ||
-          !pluginConfigExists.value ||
-          pluginConfigSaving.value ||
-          !pluginConfigDirty.value
-        ) {
-          return false;
-        }
-
-        pluginConfigSaving.value = true;
-        try {
-          await apiPost("plugins.config.save", {
-            plugin,
-            values: Object.assign({}, pluginConfigForm),
-          });
-          pluginConfigBase.value = v3aStableStringify(pluginConfigForm);
-          if (!silent && !settingsBatchSaving.value) toastSuccess("插件设置已保存");
-          if (refresh) await fetchPluginConfig();
-          return true;
-        } catch (e) {
-          if (settingsBatchSaving.value) {
-            settingsError.value = e && e.message ? e.message : "保存失败";
-          } else {
-            toastError(e && e.message ? e.message : "保存失败");
-          }
-          return false;
-        } finally {
-          pluginConfigSaving.value = false;
-        }
-      }
-
-      function schedulePluginConfigAutoSave() {
-        if (!pluginConfigOpen.value) return;
-        if (pluginConfigLoading.value || pluginConfigSaving.value) return;
-        if (!pluginConfigDirty.value) return;
-
-        if (pluginConfigAutoSaveTimer) clearTimeout(pluginConfigAutoSaveTimer);
-        pluginConfigAutoSaveTimer = setTimeout(async () => {
-          pluginConfigAutoSaveTimer = null;
-          await savePluginConfig({ silent: true, refresh: false });
-        }, 800);
-      }
-
-      watch(
-        () => v3aStableStringify(pluginConfigForm),
-        () => {
-          if (!pluginConfigOpen.value) return;
-          if (pluginConfigLoading.value) return;
-          if (pluginConfigBase.value === null) return;
-          if (!pluginConfigDirty.value) return;
-          schedulePluginConfigAutoSave();
-        }
-      );
 
       async function activatePlugin(p) {
         const name = String(p?.name || "");
@@ -5900,9 +6031,9 @@
         pluginConfigName,
         pluginConfigTitle,
         pluginConfigExists,
-        pluginConfigFields,
-        pluginConfigForm,
-        pluginConfigDirty,
+        pluginConfigHtml,
+        pluginConfigLegacyEl,
+        savePluginConfig,
         fetchThemes,
         handleThemeRowClick,
         activateTheme,
@@ -5914,7 +6045,6 @@
         fetchPlugins,
         openPluginConfig,
         closePluginConfig,
-        savePluginConfig,
         activatePlugin,
         deactivatePlugin,
         username,
@@ -8765,7 +8895,7 @@
                     </div>
 
                     <div v-if="pluginConfigOpen" class="v3a-modal-mask" @click.self="closePluginConfig()">
-                      <div class="v3a-modal-card" role="dialog" aria-modal="true">
+                      <div class="v3a-modal-card v3a-plugin-config-modal" role="dialog" aria-modal="true">
                         <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closePluginConfig()">
                           <span class="v3a-icon" v-html="ICONS.close"></span>
                         </button>
@@ -8773,60 +8903,21 @@
                           <div class="v3a-modal-title">插件设置：{{ pluginConfigTitle || pluginConfigName }}</div>
                         </div>
                         <div class="v3a-modal-body">
-                          <div class="v3a-modal-form">
+                          <div class="v3a-plugin-config-body">
                             <template v-if="pluginConfigLoading">
                               <div class="v3a-muted">正在加载…</div>
                             </template>
-
                             <template v-else-if="!pluginConfigExists">
                               <div class="v3a-muted">该插件暂无可配置项。</div>
                             </template>
-
                             <template v-else>
-                              <template v-for="(f, idx) in pluginConfigFields" :key="(f && f.name) || idx">
-                                <div v-if="f && f.type !== 'hidden'" class="v3a-modal-item">
-                                  <label class="v3a-modal-label">{{ f.label || f.name }}</label>
-                                  <div v-if="f.description" class="v3a-muted" style="margin-top: 6px; font-size: 12px; line-height: 1.6;">{{ f.description }}</div>
-                                  <div style="margin-top: 10px;">
-                                    <template v-if="f.type === 'textarea'">
-                                      <textarea class="v3a-textarea v3a-modal-textarea" v-model="pluginConfigForm[f.name]"></textarea>
-                                    </template>
-                                    <template v-else-if="f.type === 'select'">
-                                      <select class="v3a-select" v-model="pluginConfigForm[f.name]">
-                                        <option v-for="opt in f.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                                      </select>
-                                    </template>
-                                    <template v-else-if="f.type === 'radio'">
-                                      <div class="v3a-optionlist">
-                                        <label v-for="opt in f.options" :key="opt.value" class="v3a-option-item">
-                                          <input class="v3a-check" type="radio" :name="'v3a-plugin-' + f.name" :value="opt.value" v-model="pluginConfigForm[f.name]" />
-                                          <span>{{ opt.label }}</span>
-                                        </label>
-                                      </div>
-                                    </template>
-                                    <template v-else-if="f.type === 'checkbox'">
-                                      <div class="v3a-optionlist">
-                                        <label v-for="opt in f.options" :key="opt.value" class="v3a-option-item">
-                                          <input class="v3a-check" type="checkbox" :value="opt.value" v-model="pluginConfigForm[f.name]" />
-                                          <span>{{ opt.label }}</span>
-                                        </label>
-                                      </div>
-                                    </template>
-                                    <template v-else>
-                                      <input
-                                        class="v3a-input"
-                                        :type="f.type === 'password' ? 'password' : f.type === 'url' ? 'url' : f.type === 'number' ? 'number' : 'text'"
-                                        v-model="pluginConfigForm[f.name]"
-                                      />
-                                    </template>
-                                  </div>
-                                </div>
-                              </template>
+                              <div ref="pluginConfigLegacyEl" class="v3a-plugin-config-legacy" v-html="pluginConfigHtml"></div>
                             </template>
                           </div>
 
                           <div class="v3a-modal-actions">
                             <button class="v3a-btn v3a-modal-btn" type="button" @click="closePluginConfig()">关闭</button>
+                            <button class="v3a-btn primary v3a-modal-btn" type="button" @click="savePluginConfig()" :disabled="pluginConfigLoading || pluginConfigSaving || !pluginConfigExists">{{ pluginConfigSaving ? "保存中…" : "保存设置" }}</button>
                           </div>
                         </div>
                       </div>

@@ -4664,6 +4664,60 @@ try {
         ]);
     }
 
+    if ($do === 'plugins.config.html') {
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $pluginName = v3a_string($request->get('plugin', ''), '');
+        if ($pluginName === '' || !preg_match("/^([_0-9a-z-. ])+$/i", $pluginName)) {
+            v3a_exit_json(400, null, 'Invalid plugin');
+        }
+
+        $plugins = \Typecho\Plugin::export();
+        $activatedPlugins = (array) ($plugins['activated'] ?? []);
+        if (!isset($activatedPlugins[$pluginName])) {
+            v3a_exit_json(400, null, 'Plugin not activated');
+        }
+
+        [$pluginFileName, $className] = \Typecho\Plugin::portal(
+            $pluginName,
+            (string) ($options->pluginDir ?? '')
+        );
+        if (!file_exists($pluginFileName)) {
+            v3a_exit_json(404, null, 'Plugin not found');
+        }
+
+        require_once $pluginFileName;
+        if (!class_exists($className) || !method_exists($className, 'config')) {
+            v3a_exit_json(0, ['plugin' => $pluginName, 'exists' => 0, 'html' => '']);
+        }
+
+        $origGet = $_GET;
+        $html = '';
+        try {
+            $_GET['config'] = $pluginName;
+            ob_start();
+            \Widget\Plugins\Config::alloc()->config()->render();
+            $html = (string) ob_get_clean();
+        } catch (\Throwable $e) {
+            if (ob_get_level()) {
+                ob_end_clean();
+            }
+            $html = '<div class="message error"><ul><li>'
+                . htmlspecialchars($e->getMessage(), ENT_QUOTES)
+                . '</li></ul></div>';
+        } finally {
+            $_GET = $origGet;
+        }
+
+        v3a_exit_json(0, [
+            'plugin' => $pluginName,
+            'exists' => 1,
+            'html' => $html,
+        ]);
+    }
+
     if ($do === 'plugins.config.save') {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
