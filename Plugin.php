@@ -31,6 +31,7 @@ class Plugin implements PluginInterface
         $paths = [
             __DIR__ . '/admin/index.php',
             __DIR__ . '/admin/login.php',
+            __DIR__ . '/admin/register.php',
             __DIR__ . '/admin/api.php',
             __DIR__ . '/admin/assets/app.js',
             __DIR__ . '/admin/assets/app.css',
@@ -464,6 +465,7 @@ HTML;
             $required = [
                 'index.php',
                 'login.php',
+                'register.php',
                 'api.php',
                 'bootstrap.php',
                 'common.php',

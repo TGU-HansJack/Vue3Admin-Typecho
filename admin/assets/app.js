@@ -162,6 +162,7 @@
     { key: "friends", label: "朋友们", icon: "friends", to: "/friends" },
     { key: "data", label: "数据", icon: "data", to: "/data" },
     { key: "subscribe", label: "订阅", icon: "subscribe", to: "/subscribe" },
+    { key: "users", label: "用户", icon: "user", to: "/users" },
     { key: "settings", label: "设定", icon: "settings", action: "openSettings" },
     {
       key: "maintenance",
@@ -1552,6 +1553,152 @@
         if (!files || !files.length) return;
         uploadFilesFromModal(files);
       }
+
+      // Users
+      const usersLoading = ref(false);
+      const usersError = ref("");
+      const usersItems = ref([]);
+      const usersFilters = reactive({
+        keywords: "",
+        group: "all", // all|administrator|editor|contributor|subscriber|visitor
+      });
+      const usersPagination = reactive({
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        pageCount: 1,
+      });
+      const usersSelectedUids = ref([]);
+      const usersSelectAllEl = ref(null);
+      const usersPageJump = ref(1);
+
+      const usersSelectedAll = computed(() => {
+        const items = usersItems.value || [];
+        return items.length > 0 && usersSelectedUids.value.length === items.length;
+      });
+
+      const usersSelectedIndeterminate = computed(() => {
+        const items = usersItems.value || [];
+        const n = usersSelectedUids.value.length;
+        return n > 0 && n < items.length;
+      });
+
+      function userGroupLabel(group) {
+        const g = String(group || "");
+        if (g === "administrator") return "管理员";
+        if (g === "editor") return "编辑";
+        if (g === "contributor") return "贡献者";
+        if (g === "subscriber") return "关注者";
+        if (g === "visitor") return "访问者";
+        return g || "—";
+      }
+
+      function userGroupTone(group) {
+        const g = String(group || "");
+        if (g === "administrator") return "danger";
+        if (g === "editor") return "warn";
+        return "";
+      }
+
+      function isUserSelected(uid) {
+        const id = Number(uid || 0);
+        return id > 0 && usersSelectedUids.value.includes(id);
+      }
+
+      function toggleUserSelection(uid, checked) {
+        const id = Number(uid || 0);
+        if (!id) return;
+        const set = new Set(usersSelectedUids.value);
+        if (checked) {
+          set.add(id);
+        } else {
+          set.delete(id);
+        }
+        usersSelectedUids.value = Array.from(set);
+      }
+
+      function toggleUsersSelectAll(checked) {
+        if (checked) {
+          usersSelectedUids.value = (usersItems.value || [])
+            .map((u) => Number(u.uid || 0))
+            .filter((v) => v > 0);
+        } else {
+          usersSelectedUids.value = [];
+        }
+      }
+
+      async function fetchUsers() {
+        usersLoading.value = true;
+        usersError.value = "";
+        try {
+          const data = await apiGet("users.list", {
+            page: usersPagination.page,
+            pageSize: usersPagination.pageSize,
+            keywords: usersFilters.keywords,
+            group: usersFilters.group,
+          });
+          usersItems.value = data.items || [];
+          const p = data.pagination || {};
+          usersPagination.page = Number(p.page || usersPagination.page) || 1;
+          usersPagination.pageSize =
+            Number(p.pageSize || usersPagination.pageSize) || 20;
+          usersPagination.total = Number(p.total || 0) || 0;
+          usersPagination.pageCount = Number(p.pageCount || 1) || 1;
+        } catch (e) {
+          usersError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          usersLoading.value = false;
+        }
+      }
+
+      function applyUsersFilters() {
+        usersPagination.page = 1;
+        fetchUsers();
+      }
+
+      function usersGoPage(p) {
+        const next = Math.max(1, Math.min(usersPagination.pageCount || 1, p));
+        if (next === usersPagination.page) return;
+        usersPagination.page = next;
+        fetchUsers();
+      }
+
+      async function deleteSelectedUsers() {
+        const ids = (usersSelectedUids.value || []).slice();
+        if (!ids.length) return;
+        if (!confirm(`确认删除选中的 ${ids.length} 个用户吗？`)) return;
+
+        usersError.value = "";
+        try {
+          await apiPost("users.delete", { uids: ids });
+          usersSelectedUids.value = [];
+          fetchUsers();
+        } catch (e) {
+          usersError.value = e && e.message ? e.message : "删除失败";
+        }
+      }
+
+      watch(usersItems, () => {
+        usersSelectedUids.value = [];
+      });
+
+      watch(
+        () => usersPagination.page,
+        (p) => {
+          usersPageJump.value = Number(p || 1) || 1;
+        },
+        { immediate: true }
+      );
+
+      watch(
+        [usersSelectedIndeterminate, usersSelectAllEl],
+        ([indeterminate, el]) => {
+          if (el) {
+            el.indeterminate = !!indeterminate;
+          }
+        },
+        { immediate: true }
+      );
 
       // Taxonomy (categories/tags)
       const taxonomyLoading = ref(false);
@@ -5649,6 +5796,9 @@
           if (p === "/files") {
             await fetchFiles();
           }
+          if (p === "/users") {
+            await fetchUsers();
+          }
           if (p === "/posts/taxonomy") {
             await fetchTaxonomy();
           }
@@ -5793,6 +5943,9 @@
         }
         if (routePath.value === "/files") {
           await fetchFiles();
+        }
+        if (routePath.value === "/users") {
+          await fetchUsers();
         }
         if (routePath.value === "/posts/taxonomy") {
           await fetchTaxonomy();
@@ -6006,6 +6159,23 @@
         onFileItemActivate,
         deleteSelectedFiles,
         refreshFiles,
+        usersLoading,
+        usersError,
+        usersItems,
+        usersFilters,
+        usersPagination,
+        usersSelectedUids,
+        usersSelectedAll,
+        usersSelectAllEl,
+        usersPageJump,
+        userGroupLabel,
+        userGroupTone,
+        applyUsersFilters,
+        usersGoPage,
+        deleteSelectedUsers,
+        isUserSelected,
+        toggleUserSelection,
+        toggleUsersSelectAll,
         filesUploadModalOpen,
         filesUploadDragging,
         filesUploadInputEl,
@@ -7798,6 +7968,101 @@
                     </table>
                     <div class="v3a-muted" style="margin-top: 10px;">该模块后续将对接 <code>v3a_subscribe</code> 数据表。</div>
                   </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/users'">
+              <div class="v3a-container">
+                <div class="v3a-pagehead">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
+                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    </button>
+                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="usersLoading" @click="applyUsersFilters()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                    <button class="v3a-actionbtn danger" type="button" title="删除" :disabled="!usersSelectedUids.length" @click="deleteSelectedUsers()">
+                      <span class="v3a-icon" v-html="ICONS.trash"></span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="v3a-posts-search">
+                  <div class="v3a-searchbox">
+                    <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                    <input class="v3a-input" v-model="usersFilters.keywords" @keyup.enter="applyUsersFilters()" placeholder="搜索用户名 / 昵称 / 邮箱..." />
+                  </div>
+                  <select class="v3a-select" v-model="usersFilters.group" @change="applyUsersFilters()" style="width: 140px;">
+                    <option value="all">全部用户组</option>
+                    <option value="administrator">管理员</option>
+                    <option value="editor">编辑</option>
+                    <option value="contributor">贡献者</option>
+                    <option value="subscriber">关注者</option>
+                    <option value="visitor">访问者</option>
+                  </select>
+                  <button class="v3a-btn" type="button" @click="applyUsersFilters()" :disabled="usersLoading">搜索</button>
+                  <div class="v3a-muted">{{ formatNumber(usersPagination.total) }} 个</div>
+                </div>
+
+                <div v-if="usersError" class="v3a-alert">{{ usersError }}</div>
+
+                <div class="v3a-card">
+                  <div class="bd" style="padding: 0;">
+                    <div v-if="usersLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+
+                    <table v-else class="v3a-table v3a-users-table">
+                      <thead>
+                        <tr>
+                          <th>
+                            <input ref="usersSelectAllEl" class="v3a-check" type="checkbox" :checked="usersSelectedAll" @change="toggleUsersSelectAll($event.target.checked)" />
+                          </th>
+                          <th style="text-align:center;">文章</th>
+                          <th>用户名</th>
+                          <th>昵称</th>
+                          <th>邮箱</th>
+                          <th>用户组</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="u in usersItems" :key="u.uid">
+                          <td>
+                            <input class="v3a-check" type="checkbox" :checked="isUserSelected(u.uid)" @change="toggleUserSelection(u.uid, $event.target.checked)" />
+                          </td>
+                          <td style="text-align:center;">{{ formatNumber(u.postsNum || 0) }}</td>
+                          <td>{{ u.name || '—' }}</td>
+                          <td class="v3a-muted">{{ u.screenName || '—' }}</td>
+                          <td>
+                            <template v-if="u.mail">
+                              <a :href="'mailto:' + u.mail">{{ u.mail }}</a>
+                            </template>
+                            <span v-else class="v3a-muted">暂无</span>
+                          </td>
+                          <td>
+                            <span class="v3a-pill" :class="userGroupTone(u.group)">{{ userGroupLabel(u.group) }}</span>
+                          </td>
+                        </tr>
+                        <tr v-if="!usersItems.length">
+                          <td colspan="6" class="v3a-muted" style="padding: 16px;">暂无用户</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="v3a-pagination">
+                  <button class="v3a-pagebtn" type="button" @click="usersGoPage(usersPagination.page - 1)" :disabled="usersPagination.page <= 1">
+                    <span class="v3a-icon" v-html="ICONS.collapse"></span>
+                  </button>
+                  <div class="v3a-pagecurrent">{{ usersPagination.page }}</div>
+                  <button class="v3a-pagebtn" type="button" @click="usersGoPage(usersPagination.page + 1)" :disabled="usersPagination.page >= usersPagination.pageCount">
+                    <span class="v3a-icon" v-html="ICONS.expand"></span>
+                  </button>
+                  <span class="v3a-muted">跳至</span>
+                  <input class="v3a-pagejump" type="number" min="1" :max="usersPagination.pageCount" v-model.number="usersPageJump" @keyup.enter="usersGoPage(usersPageJump)" @blur="usersGoPage(usersPageJump)" />
                 </div>
               </div>
             </template>

@@ -6,8 +6,14 @@ if ($user->hasLogin()) {
     $response->redirect(\Typecho\Common::url('index.php', $options->adminUrl));
 }
 
+if (empty($options->allowRegister)) {
+    $response->redirect($options->siteUrl);
+}
+
 $rememberName = htmlspecialchars(\Typecho\Cookie::get('__typecho_remember_name', ''), ENT_QUOTES);
+$rememberMail = htmlspecialchars(\Typecho\Cookie::get('__typecho_remember_mail', ''), ENT_QUOTES);
 \Typecho\Cookie::delete('__typecho_remember_name');
+\Typecho\Cookie::delete('__typecho_remember_mail');
 
 $pluginOptions = null;
 try {
@@ -58,7 +64,7 @@ if ($assetCssVer === false) {
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>登录 - Vue3Admin</title>
+    <title>注册 - Vue3Admin</title>
     <link rel="stylesheet" href="<?php echo $options->adminUrl('assets/app.css'); ?>?v=<?php echo htmlspecialchars((string) $assetCssVer, ENT_QUOTES); ?>" />
 </head>
 <body class="v3a-login-body">
@@ -69,29 +75,22 @@ if ($assetCssVer === false) {
         <div class="v3a-login-subtitle"><?php echo htmlspecialchars($options->title ?? 'Typecho', ENT_QUOTES); ?></div>
     </div>
 
-    <form class="v3a-login-form" action="<?php echo $options->loginAction; ?>" method="post" name="login" role="form">
+    <form class="v3a-login-form" action="<?php echo $options->registerAction; ?>" method="post" name="register" role="form">
         <label class="v3a-field">
-            <span>用户名或邮箱</span>
-            <input type="text" name="name" value="<?php echo $rememberName; ?>" placeholder="用户名或邮箱" autofocus />
+            <span>用户名</span>
+            <input type="text" name="name" value="<?php echo $rememberName; ?>" placeholder="用户名" autofocus required />
         </label>
         <label class="v3a-field">
-            <span>密码</span>
-            <input type="password" name="password" placeholder="密码" required />
+            <span>Email</span>
+            <input type="email" name="mail" value="<?php echo $rememberMail; ?>" placeholder="Email" required />
         </label>
-        <label class="v3a-remember">
-            <input type="checkbox" name="remember" value="1" />
-            <span>下次自动登录</span>
-        </label>
-        <input type="hidden" name="referer" value="<?php echo $request->filter('html')->get('referer'); ?>" />
-        <button class="v3a-login-btn" type="submit">登录</button>
+        <button class="v3a-login-btn" type="submit">注册</button>
     </form>
 
     <div class="v3a-login-footer">
         <a href="<?php echo $options->siteUrl; ?>">返回首页</a>
-        <?php if (!empty($options->allowRegister)): ?>
-            &bull;
-            <a href="<?php echo $options->registerUrl; ?>">用户注册</a>
-        <?php endif; ?>
+        &bull;
+        <a href="<?php echo $options->loginUrl; ?>">用户登录</a>
     </div>
 </div>
 </body>

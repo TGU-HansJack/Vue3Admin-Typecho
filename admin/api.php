@@ -2749,6 +2749,200 @@ try {
         }
     }
 
+    if ($do === 'users.list') {
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $page = max(1, (int) $request->get('page', 1));
+        $pageSize = (int) $request->get('pageSize', 20);
+        $pageSize = max(1, min(50, $pageSize));
+
+        $keywords = v3a_string($request->get('keywords', ''), '');
+        $group = v3a_string($request->get('group', 'all'), 'all');
+
+        $select = $db->select(
+            'table.users.uid',
+            'table.users.name',
+            'table.users.screenName',
+            'table.users.mail',
+            'table.users.group',
+            'table.users.created'
+        )->from('table.users');
+
+        if ($group !== '' && $group !== 'all') {
+            $select->where('table.users.group = ?', $group);
+        }
+
+        if ($keywords !== '') {
+            $words = preg_split('/\\s+/u', $keywords);
+            $whereParts = [];
+            $bind = [];
+            foreach ((array) $words as $w) {
+                $w = trim((string) $w);
+                if ($w === '') {
+                    continue;
+                }
+                try {
+                    $w = \Typecho\Common::filterSearchQuery($w);
+                } catch (\Throwable $e) {
+                }
+
+                $whereParts[] = '(table.users.name LIKE ? OR table.users.screenName LIKE ? OR table.users.mail LIKE ?)';
+                $bind[] = '%' . $w . '%';
+                $bind[] = '%' . $w . '%';
+                $bind[] = '%' . $w . '%';
+            }
+            if (!empty($whereParts)) {
+                $select->where(implode(' AND ', $whereParts), ...$bind);
+            }
+        }
+
+        $countSelect = clone $select;
+        $countSelect->cleanAttribute('fields');
+        $countSelect->cleanAttribute('order');
+        $countSelect->cleanAttribute('limit');
+        $countSelect->cleanAttribute('offset');
+        $countSelect->select(['COUNT(DISTINCT table.users.uid)' => 'num']);
+
+        $total = 0;
+        try {
+            $total = (int) ($db->fetchObject($countSelect)->num ?? 0);
+        } catch (\Throwable $e) {
+        }
+
+        $select->order('table.users.uid', \Typecho\Db::SORT_ASC)
+            ->page($page, $pageSize);
+
+        $rows = [];
+        try {
+            $rows = $db->fetchAll($select);
+        } catch (\Throwable $e) {
+        }
+
+        $uids = [];
+        foreach ($rows as $r) {
+            $uid = (int) ($r['uid'] ?? 0);
+            if ($uid > 0) {
+                $uids[] = $uid;
+            }
+        }
+        $uids = array_values(array_unique($uids));
+
+        $postsNumByUid = [];
+        if (!empty($uids)) {
+            try {
+                $pRows = $db->fetchAll(
+                    $db->select('authorId', ['COUNT(cid)' => 'num'])
+                        ->from('table.contents')
+                        ->where('type = ?', 'post')
+                        ->where('status = ?', 'publish')
+                        ->where('authorId IN ?', $uids)
+                        ->group('authorId')
+                );
+                foreach ($pRows as $pr) {
+                    $aid = (int) ($pr['authorId'] ?? 0);
+                    if ($aid > 0) {
+                        $postsNumByUid[$aid] = (int) ($pr['num'] ?? 0);
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $items = [];
+        foreach ($rows as $r) {
+            $uid = (int) ($r['uid'] ?? 0);
+            $items[] = [
+                'uid' => $uid,
+                'name' => (string) ($r['name'] ?? ''),
+                'screenName' => (string) ($r['screenName'] ?? ''),
+                'mail' => (string) ($r['mail'] ?? ''),
+                'group' => (string) ($r['group'] ?? ''),
+                'created' => (int) ($r['created'] ?? 0),
+                'postsNum' => $postsNumByUid[$uid] ?? 0,
+            ];
+        }
+
+        $pageCount = $pageSize > 0 ? (int) ceil($total / $pageSize) : 1;
+
+        v3a_exit_json(0, [
+            'items' => $items,
+            'pagination' => [
+                'page' => $page,
+                'pageSize' => $pageSize,
+                'total' => $total,
+                'pageCount' => $pageCount,
+            ],
+        ]);
+    }
+
+    if ($do === 'users.delete') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        v3a_security_protect($security, $request);
+
+        $payload = v3a_payload();
+        $uids = $payload['uids'] ?? $payload['uid'] ?? $payload['ids'] ?? [];
+        if (is_numeric($uids)) {
+            $uids = [(int) $uids];
+        }
+        if (!is_array($uids)) {
+            $uids = [];
+        }
+        $uids = array_values(array_unique(array_filter(array_map('intval', $uids), fn($v) => $v > 0)));
+        if (empty($uids)) {
+            v3a_exit_json(400, null, 'Missing uid');
+        }
+
+        $currentUid = (int) ($user->uid ?? 0);
+        $masterUid = 0;
+        try {
+            $masterUid = (int) ($db->fetchObject(
+                $db->select(['MIN(uid)' => 'num'])->from('table.users')
+            )->num ?? 0);
+        } catch (\Throwable $e) {
+        }
+
+        $deleteUids = [];
+        foreach ($uids as $uid) {
+            if ($uid === $currentUid) {
+                continue;
+            }
+            if ($masterUid > 0 && $uid === $masterUid) {
+                continue;
+            }
+            $deleteUids[] = $uid;
+        }
+
+        $deleted = 0;
+        if (!empty($deleteUids)) {
+            try {
+                foreach ($deleteUids as $uid) {
+                    $affected = $db->query(
+                        $db->delete('table.users')->where('uid = ?', $uid),
+                        \Typecho\Db::WRITE
+                    );
+                    if (is_numeric($affected)) {
+                        $deleted += (int) $affected;
+                    } elseif ($affected) {
+                        $deleted++;
+                    }
+                }
+            } catch (\Throwable $e) {
+                v3a_exit_json(500, null, $e->getMessage());
+            }
+        }
+
+        v3a_exit_json(0, ['deleted' => (int) $deleted]);
+    }
+
     if ($do === 'metas.categories') {
         try {
             $rows = \Widget\Metas\Category\Rows::alloc()->to($categories);
