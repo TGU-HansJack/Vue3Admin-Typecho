@@ -2090,6 +2090,11 @@ a {
   cursor: pointer;
 }
 
+.v3a-mini-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .v3a-mini-btn:hover {
   background: rgba(23, 23, 23, 0.09);
 }
@@ -3019,8 +3024,34 @@ a {
   flex: 0 0 auto;
 }
 
+.v3a-theme-row-item {
+  cursor: pointer;
+}
+
 .v3a-theme-row-item.active {
   background: rgba(0, 0, 0, 0.02);
+}
+
+.v3a-mini-btn.v3a-mini-btn-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  height: auto;
+  line-height: 1.6;
+  border-radius: 0;
+}
+
+.v3a-mini-btn.v3a-mini-btn-link:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.v3a-mini-btn.v3a-mini-btn-link:active {
+  background: transparent;
+}
+
+.v3a-mini-btn.v3a-mini-btn-link:disabled {
+  text-decoration: none;
 }
 
 .v3a-theme-editor {
@@ -3034,6 +3065,10 @@ a {
 .v3a-settings-table th,
 .v3a-settings-table td {
   padding: 14px 16px;
+}
+
+.v3a-settings-tablecard .v3a-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .v3a-plugin-title {

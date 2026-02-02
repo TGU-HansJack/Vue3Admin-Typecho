@@ -1808,6 +1808,7 @@
       const themeFile = ref("");
       const themeFileLoading = ref(false);
       const themeFileContent = ref("");
+      const themeFileBase = ref(null);
       const themeFileWriteable = ref(0);
       const themeFileSaving = ref(false);
 
@@ -1816,7 +1817,7 @@
       const themeConfigExists = ref(0);
       const themeConfigFields = ref([]);
       const themeConfigForm = reactive({});
-      const themeConfigBase = ref("");
+      const themeConfigBase = ref(null);
       const themeConfigSaving = ref(false);
 
       const pluginsLoading = ref(false);
@@ -1833,7 +1834,7 @@
       const pluginConfigExists = ref(0);
       const pluginConfigFields = ref([]);
       const pluginConfigForm = reactive({});
-      const pluginConfigBase = ref("");
+      const pluginConfigBase = ref(null);
 
       function v3aStableStringify(value) {
         if (value === undefined) return "null";
@@ -1848,13 +1849,21 @@
           .join(",")}}`;
       }
 
+      const themeFileDirty = computed(() => {
+        if (themeFileLoading.value) return false;
+        if (themeFileBase.value === null) return false;
+        return String(themeFileContent.value ?? "") !== String(themeFileBase.value ?? "");
+      });
+
       const themeConfigDirty = computed(() => {
         if (themeConfigLoading.value) return false;
+        if (themeConfigBase.value === null) return false;
         return v3aStableStringify(themeConfigForm) !== themeConfigBase.value;
       });
 
       const pluginConfigDirty = computed(() => {
         if (pluginConfigLoading.value) return false;
+        if (pluginConfigBase.value === null) return false;
         return v3aStableStringify(pluginConfigForm) !== pluginConfigBase.value;
       });
 
@@ -3762,6 +3771,7 @@
         try {
           const data = await apiGet("themes.file.get", { theme, file });
           themeFileContent.value = String(data.content ?? "");
+          themeFileBase.value = themeFileContent.value;
           themeFileWriteable.value = Number(data.writeable || 0) ? 1 : 0;
         } catch (e) {
           toastError(e && e.message ? e.message : "加载失败");
@@ -3773,7 +3783,15 @@
       async function saveThemeFile() {
         const theme = String(themeSelected.value || "");
         const file = String(themeFile.value || "");
-        if (!theme || !file || themeFileSaving.value) return;
+        if (
+          !theme ||
+          !file ||
+          themeFileSaving.value ||
+          !themeFileWriteable.value ||
+          !themeFileDirty.value
+        ) {
+          return;
+        }
 
         themeFileSaving.value = true;
         try {
@@ -3782,9 +3800,14 @@
             file,
             content: String(themeFileContent.value ?? ""),
           });
-          toastSuccess("文件已保存");
+          themeFileBase.value = String(themeFileContent.value ?? "");
+          if (!settingsBatchSaving.value) toastSuccess("文件已保存");
         } catch (e) {
-          toastError(e && e.message ? e.message : "保存失败");
+          if (settingsBatchSaving.value) {
+            settingsError.value = e && e.message ? e.message : "保存失败";
+          } else {
+            toastError(e && e.message ? e.message : "保存失败");
+          }
         } finally {
           themeFileSaving.value = false;
         }
@@ -3835,7 +3858,14 @@
 
       async function saveThemeConfig() {
         const theme = String(themeSelected.value || "");
-        if (!theme || !themeConfigExists.value || themeConfigSaving.value) return;
+        if (
+          !theme ||
+          !themeConfigExists.value ||
+          themeConfigSaving.value ||
+          !themeConfigDirty.value
+        ) {
+          return;
+        }
 
         themeConfigSaving.value = true;
         try {
@@ -3843,10 +3873,14 @@
             theme,
             values: Object.assign({}, themeConfigForm),
           });
-          toastSuccess("主题设置已保存");
+          if (!settingsBatchSaving.value) toastSuccess("主题设置已保存");
           await fetchThemeConfig();
         } catch (e) {
-          toastError(e && e.message ? e.message : "保存失败");
+          if (settingsBatchSaving.value) {
+            settingsError.value = e && e.message ? e.message : "保存失败";
+          } else {
+            toastError(e && e.message ? e.message : "保存失败");
+          }
         } finally {
           themeConfigSaving.value = false;
         }
@@ -3911,7 +3945,7 @@
           for (const k of Object.keys(pluginConfigForm)) {
             delete pluginConfigForm[k];
           }
-          pluginConfigBase.value = "";
+          pluginConfigBase.value = null;
           toastError(e && e.message ? e.message : "加载失败");
         } finally {
           pluginConfigLoading.value = false;
@@ -3930,7 +3964,7 @@
         for (const k of Object.keys(pluginConfigForm)) {
           delete pluginConfigForm[k];
         }
-        pluginConfigBase.value = "";
+        pluginConfigBase.value = null;
 
         await fetchPluginConfig();
       }
@@ -3952,10 +3986,14 @@
             plugin,
             values: Object.assign({}, pluginConfigForm),
           });
-          toastSuccess("插件设置已保存");
+          if (!settingsBatchSaving.value) toastSuccess("插件设置已保存");
           await fetchPluginConfig();
         } catch (e) {
-          toastError(e && e.message ? e.message : "保存失败");
+          if (settingsBatchSaving.value) {
+            settingsError.value = e && e.message ? e.message : "保存失败";
+          } else {
+            toastError(e && e.message ? e.message : "保存失败");
+          }
         } finally {
           pluginConfigSaving.value = false;
         }
@@ -4244,6 +4282,9 @@
           discussion: discussionDirty,
           notify: notifyDirty,
           permalink: permalinkDirty,
+          themeFile: themeFileDirty.value,
+          themeConfig: themeConfigDirty.value,
+          pluginConfig: pluginConfigDirty.value,
         };
       });
 
@@ -4253,7 +4294,7 @@
       });
 
       async function saveSettingsAll() {
-        if (settingsLoading.value || settingsSaving.value) return;
+        if (settingsLoading.value || settingsSaving.value || settingsBatchSaving.value) return;
 
         const dirty = settingsDirtyState.value || {};
         const tasks = [];
@@ -4265,6 +4306,9 @@
         if (dirty.discussion) tasks.push(saveSettingsDiscussion);
         if (dirty.notify) tasks.push(saveSettingsNotify);
         if (dirty.permalink) tasks.push(saveSettingsPermalink);
+        if (dirty.themeFile) tasks.push(saveThemeFile);
+        if (dirty.themeConfig) tasks.push(saveThemeConfig);
+        if (dirty.pluginConfig) tasks.push(savePluginConfig);
         if (!tasks.length) return;
 
         settingsBatchSaving.value = true;
@@ -4830,6 +4874,7 @@
           themeFiles.value = [];
           themeFile.value = "";
           themeFileContent.value = "";
+          themeFileBase.value = null;
           themeFileWriteable.value = 0;
 
           themeConfigTheme.value = "";
@@ -4838,7 +4883,7 @@
           for (const k of Object.keys(themeConfigForm)) {
             delete themeConfigForm[k];
           }
-          themeConfigBase.value = "";
+          themeConfigBase.value = null;
 
           await maybeFetchSettingsExtras();
         }
@@ -5182,6 +5227,7 @@
         submitPage,
         settingsLoading,
         settingsSaving,
+        settingsBatchSaving,
         settingsError,
         settingsMessage,
         settingsDirtyCount,
@@ -6818,7 +6864,7 @@
                       <span v-if="settingsDirtyCount" class="v3a-settings-savehint">
                         你有 {{ settingsDirtyCount }} 项未保存的修改
                       </span>
-                      <button class="v3a-btn primary" type="button" @click="saveSettingsAll()" :disabled="settingsLoading || settingsSaving || !settingsDirtyCount">
+                      <button class="v3a-btn primary" type="button" @click="saveSettingsAll()" :disabled="settingsLoading || settingsSaving || settingsBatchSaving || !settingsDirtyCount">
                         <span class="v3a-icon" v-html="ICONS.save"></span>
                         保存全部
                       </button>
@@ -7755,9 +7801,6 @@
                               <div class="v3a-settings-section-subtitle">主题、外观</div>
                             </div>
                           </div>
-                          <div class="v3a-settings-section-hd-right">
-                            <button class="v3a-btn" type="button" @click="fetchThemes()" :disabled="themesLoading">刷新</button>
-                          </div>
                         </div>
 
                         <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
@@ -7773,54 +7816,54 @@
 
                         <template v-else>
                           <div v-if="themesLoading" class="v3a-muted" style="padding: 14px 16px;">正在加载…</div>
-                          <div v-else class="v3a-settings-fields">
-                            <div v-if="themesError" class="v3a-settings-row">
-                              <div class="v3a-settings-row-label">
-                                <label>错误</label>
-                              </div>
-                              <div class="v3a-settings-row-control">
-                                <div class="v3a-muted">{{ themesError }}</div>
-                              </div>
-                            </div>
-
-                            <div v-if="!themesItems.length" class="v3a-settings-row">
-                              <div class="v3a-settings-row-label">
-                                <label>主题列表</label>
-                              </div>
-                              <div class="v3a-settings-row-control">
-                                <div class="v3a-muted">未找到主题。</div>
-                              </div>
-                            </div>
-
-                            <div v-for="t in themesItems" :key="t.name" class="v3a-settings-row v3a-theme-row-item" :class="{ active: themeSelected === t.name }">
-                              <div class="v3a-settings-row-label">
-                                <div class="v3a-theme-shot">
-                                  <img :src="t.screen" alt="" loading="lazy" />
+                          <div v-else class="v3a-card v3a-settings-tablecard">
+                            <div class="bd" style="padding: 0px;">
+                              <div v-if="themesError" class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>错误</label>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <div class="v3a-muted">{{ themesError }}</div>
                                 </div>
                               </div>
-                              <div class="v3a-settings-row-control">
-                                <div class="v3a-theme-row">
-                                  <div class="v3a-theme-info">
-                                    <div class="v3a-theme-name">
-                                      {{ t.title || t.name }}
-                                      <span v-if="t.activated" class="v3a-pill success">
-                                        <span class="v3a-icon" v-html="ICONS.checkCheck"></span>
-                                        当前
-                                      </span>
-                                    </div>
-                                    <div class="v3a-theme-meta v3a-muted">
-                                      <span v-if="t.version">v{{ t.version }}</span>
-                                      <span v-if="t.author"> · {{ t.author }}</span>
-                                      <a v-if="t.homepage" class="v3a-link" :href="t.homepage" target="_blank" rel="noreferrer">官网</a>
-                                    </div>
-                                    <div v-if="t.description" class="v3a-theme-desc v3a-muted">{{ t.description }}</div>
-                                  </div>
-                                  <div class="v3a-theme-actions">
-                                    <button class="v3a-btn" type="button" @click="themeSelected = t.name" :disabled="themeSelected === t.name">编辑/设置</button>
-                                    <button class="v3a-btn primary" type="button" @click="activateTheme(t.name)" :disabled="themeActivating || t.activated">启用</button>
-                                  </div>
+
+                              <div v-else-if="!themesItems.length" class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>主题列表</label>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <div class="v3a-muted">未找到主题。</div>
                                 </div>
                               </div>
+
+                              <template v-else>
+                                <div v-for="t in themesItems" :key="t.name" class="v3a-settings-row v3a-theme-row-item" :class="{ active: themeSelected === t.name }" @click="themeSelected = t.name">
+                                  <div class="v3a-settings-row-label">
+                                    <div class="v3a-theme-shot">
+                                      <img :src="t.screen" alt="" loading="lazy" />
+                                    </div>
+                                  </div>
+                                  <div class="v3a-settings-row-control">
+                                    <div class="v3a-theme-row">
+                                      <div class="v3a-theme-info">
+                                        <div class="v3a-theme-name">
+                                          {{ t.title || t.name }}
+                                          <span v-if="t.activated" class="v3a-pill success">当前</span>
+                                        </div>
+                                        <div class="v3a-theme-meta v3a-muted">
+                                          <span v-if="t.version">v{{ t.version }}</span>
+                                          <span v-if="t.author"> · {{ t.author }}</span>
+                                          <a v-if="t.homepage" class="v3a-link" :href="t.homepage" target="_blank" rel="noreferrer">官网</a>
+                                        </div>
+                                        <div v-if="t.description" class="v3a-theme-desc v3a-muted">{{ t.description }}</div>
+                                      </div>
+                                      <div v-if="!t.activated" class="v3a-theme-actions">
+                                        <button class="v3a-mini-btn v3a-mini-btn-link" type="button" style="color: var(--color-primary);" @click.stop="activateTheme(t.name)" :disabled="themeActivating">启用</button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </template>
                             </div>
                           </div>
                         </template>
@@ -7836,10 +7879,6 @@
                               <div class="v3a-settings-section-title">主题编辑</div>
                               <div class="v3a-settings-section-subtitle">文件编辑（{{ themeSelected || themeCurrent || '—' }}）</div>
                             </div>
-                          </div>
-                          <div class="v3a-settings-section-hd-right">
-                            <button class="v3a-btn" type="button" @click="fetchThemeFiles()" :disabled="themeFilesLoading || !themeSelected">刷新</button>
-                            <button class="v3a-btn primary" type="button" @click="saveThemeFile()" :disabled="!themeFileWriteable || themeFileSaving || !themeSelected || !themeFile">保存文件</button>
                           </div>
                         </div>
 
@@ -7884,7 +7923,7 @@
                                 <label>内容</label>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <textarea class="v3a-textarea v3a-code-editor v3a-theme-editor" v-model="themeFileContent" :disabled="themeFileLoading"></textarea>
+                                <textarea class="v3a-textarea v3a-code-editor v3a-theme-editor" v-model="themeFileContent" :disabled="themeFileLoading || !themeFileWriteable"></textarea>
                               </div>
                             </div>
                           </div>
@@ -7901,11 +7940,6 @@
                               <div class="v3a-settings-section-title">主题设置</div>
                               <div class="v3a-settings-section-subtitle">配置项（{{ themeSelected || themeCurrent || '—' }}）</div>
                             </div>
-                          </div>
-                          <div class="v3a-settings-section-hd-right">
-                            <span v-if="themeConfigDirty" class="v3a-settings-savehint">有未保存的修改</span>
-                            <button class="v3a-btn" type="button" @click="fetchThemeConfig()" :disabled="themeConfigLoading || !themeSelected">刷新</button>
-                            <button class="v3a-btn primary" type="button" @click="saveThemeConfig()" :disabled="themeConfigSaving || !themeConfigDirty || !themeConfigExists">保存设置</button>
                           </div>
                         </div>
 
@@ -7994,9 +8028,6 @@
                               <div class="v3a-settings-section-subtitle">扩展、插件</div>
                             </div>
                           </div>
-                          <div class="v3a-settings-section-hd-right">
-                            <button class="v3a-btn" type="button" @click="fetchPlugins()" :disabled="pluginsLoading">刷新</button>
-                          </div>
                         </div>
 
                         <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
@@ -8012,7 +8043,8 @@
 
                         <template v-else>
                           <div v-if="pluginsLoading" class="v3a-muted" style="padding: 14px 16px;">正在加载…</div>
-                          <div v-else class="v3a-settings-fields v3a-settings-fields-table">
+                          <div v-else class="v3a-card v3a-settings-tablecard">
+                            <div class="bd" style="padding: 0px;">
                             <table class="v3a-table v3a-settings-table">
                               <thead>
                                 <tr>
@@ -8038,13 +8070,14 @@
                                   <td>{{ p.version || "—" }}</td>
                                   <td>{{ p.author || "—" }}</td>
                                   <td style="text-align: right; white-space: nowrap;">
-                                    <button v-if="p.config && !p.missing" class="v3a-btn" type="button" @click="openPluginConfig(p)">设置</button>
-                                    <button v-if="p.manageable" class="v3a-btn" type="button" @click="deactivatePlugin(p)" :disabled="pluginsActing">移除</button>
+                                    <button v-if="p.config && !p.missing" class="v3a-mini-btn" type="button" @click="openPluginConfig(p)">设置</button>
+                                    <button v-if="p.manageable" class="v3a-mini-btn" type="button" @click="deactivatePlugin(p)" :disabled="pluginsActing" style="color: var(--v3a-danger);">移除</button>
                                     <span v-else class="v3a-muted">内置</span>
                                   </td>
                                 </tr>
                               </tbody>
                             </table>
+                            </div>
                           </div>
                         </template>
                       </div>
@@ -8074,7 +8107,8 @@
                         </div>
 
                         <template v-else>
-                          <div class="v3a-settings-fields v3a-settings-fields-table">
+                          <div class="v3a-card v3a-settings-tablecard">
+                            <div class="bd" style="padding: 0px;">
                             <table class="v3a-table v3a-settings-table">
                               <thead>
                                 <tr>
@@ -8100,11 +8134,12 @@
                                   <td>{{ p.version || "—" }}</td>
                                   <td>{{ p.author || "—" }}</td>
                                   <td style="text-align: right; white-space: nowrap;">
-                                    <button class="v3a-btn primary" type="button" @click="activatePlugin(p)" :disabled="pluginsActing || !p.dependence">启动</button>
+                                    <button class="v3a-mini-btn" type="button" @click="activatePlugin(p)" :disabled="pluginsActing || !p.dependence" style="color: var(--color-primary);">启动</button>
                                   </td>
                                 </tr>
                               </tbody>
                             </table>
+                            </div>
                           </div>
                         </template>
                       </div>
@@ -8173,9 +8208,6 @@
 
                           <div class="v3a-modal-actions">
                             <button class="v3a-btn v3a-modal-btn" type="button" @click="closePluginConfig()">关闭</button>
-                            <button class="v3a-btn primary v3a-modal-btn" type="button" @click="savePluginConfig()" :disabled="pluginConfigSaving || !pluginConfigDirty">
-                              保存
-                            </button>
                           </div>
                         </div>
                       </div>
