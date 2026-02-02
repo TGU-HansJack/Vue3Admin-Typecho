@@ -7061,7 +7061,7 @@
             </template>
 
             <template v-else-if="routePath === '/comments'">
-              <div class="v3a-container">
+              <div class="v3a-container v3a-container-comments">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
