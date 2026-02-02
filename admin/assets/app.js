@@ -105,6 +105,13 @@
     toastWarn: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l6.518 11.586c.75 1.334-.214 2.99-1.742 2.99H3.48c-1.528 0-2.492-1.656-1.742-2.99L8.257 3.1zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-.25-2.75a.75.75 0 01-1.5 0V7a.75.75 0 011.5 0v4.25z\" clip-rule=\"evenodd\"/></svg>`,
     toastError: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm2.53-10.47a.75.75 0 10-1.06-1.06L10 8.94 8.53 7.47a.75.75 0 10-1.06 1.06L8.94 10l-1.47 1.47a.75.75 0 101.06 1.06L10 11.06l1.47 1.47a.75.75 0 101.06-1.06L11.06 10l1.47-1.47z\" clip-rule=\"evenodd\"/></svg>`,
     thumbsUp: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/><path d="M7 10v12"/></svg>`,
+    check: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>`,
+    clock: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>`,
+    shieldAlert: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>`,
+    mapPin: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg>`,
+    monitor: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>`,
+    smartphone: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" x2="12.01" y1="18" y2="18"></line></svg>`,
+    smilePlus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11v1a10 10 0 1 1-9-10"></path><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" x2="9.01" y1="9" y2="9"></line><line x1="15" x2="15.01" y1="9" y2="9"></line><path d="M16 5h6"></path><path d="M19 2v6"></path></svg>`,
   };
 
   const SETTINGS = [
@@ -1635,8 +1642,98 @@
         created: 0,
         text: "",
         status: "",
+        ip: "",
+        agent: "",
+        parent: 0,
       });
       const commentReplyText = ref("");
+      const commentReplyEl = ref(null);
+      const commentReplyEmojiOpen = ref(false);
+      const commentReplyEmojis = [
+        "😀",
+        "😁",
+        "😂",
+        "🤣",
+        "😊",
+        "😍",
+        "🤠",
+        "👍",
+        "🙏",
+        "🎉",
+        "❤️",
+      ];
+
+      const commentDetailPostUrl = computed(() => {
+        const cid = Number(commentForm.cid || 0);
+        if (!cid) return "";
+        let base = String(V3A.indexUrl || V3A.siteUrl || "").trim();
+        if (!base) return "";
+        base = base.replace(/\/+$/, "");
+        if (!base) return "";
+        return `${base}/archives/${cid}/`;
+      });
+
+      const commentDetailAuthorUrl = computed(() => {
+        const raw = String(commentForm.url || "").trim();
+        if (!raw) return "";
+        const href = v3aSanitizeHref(raw);
+        return href || "";
+      });
+
+      const commentDetailDeviceLabel = computed(() => {
+        const ua = String(commentForm.agent || "").trim();
+        if (!ua) return "";
+        const head = ua.split(" ")[0] || ua;
+        return head;
+      });
+
+      const commentDetailDeviceIcon = computed(() => {
+        const ua = String(commentForm.agent || "").toLowerCase();
+        const isMobile =
+          ua.includes("mobile") ||
+          ua.includes("android") ||
+          ua.includes("iphone") ||
+          ua.includes("ipad");
+        return isMobile ? ICONS.smartphone : ICONS.monitor;
+      });
+
+      function toggleCommentReplyEmoji() {
+        commentReplyEmojiOpen.value = !commentReplyEmojiOpen.value;
+      }
+
+      function insertCommentReplyEmoji(emoji) {
+        const em = String(emoji || "");
+        if (!em) return;
+        const el = commentReplyEl.value;
+        const text = String(commentReplyText.value || "");
+        if (el && typeof el.selectionStart === "number") {
+          const start = el.selectionStart || 0;
+          const end =
+            typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+          commentReplyText.value = text.slice(0, start) + em + text.slice(end);
+          nextTick(() => {
+            try {
+              el.focus();
+              const pos = start + em.length;
+              el.setSelectionRange(pos, pos);
+            } catch (e) {}
+          });
+        } else {
+          commentReplyText.value = text + em;
+        }
+        commentReplyEmojiOpen.value = false;
+      }
+
+      function onCommentReplyKeyDown(e) {
+        const ev = e;
+        if (!ev || ev.key !== "Enter") return;
+        if (ev.ctrlKey || ev.metaKey) {
+          try {
+            ev.preventDefault();
+          } catch (err) {}
+          submitCommentReply();
+        }
+      }
 
       // Pages (manage/edit)
       const pagesLoading = ref(false);
@@ -3478,7 +3575,11 @@
         commentForm.created = 0;
         commentForm.text = "";
         commentForm.status = "";
+        commentForm.ip = "";
+        commentForm.agent = "";
+        commentForm.parent = 0;
         commentReplyText.value = "";
+        commentReplyEmojiOpen.value = false;
         commentEditorPost.value = null;
         commentEditorError.value = "";
       }
@@ -3502,6 +3603,9 @@
           commentForm.created = Number(c.created || 0) || 0;
           commentForm.text = String(c.text || "");
           commentForm.status = String(c.status || "");
+          commentForm.ip = String(c.ip || "");
+          commentForm.agent = String(c.agent || "");
+          commentForm.parent = Number(c.parent || 0) || 0;
           commentEditorPost.value = data.post || null;
         } catch (e) {
           commentEditorError.value = e && e.message ? e.message : "加载失败";
@@ -5956,6 +6060,16 @@
         commentEditorPost,
         commentForm,
         commentReplyText,
+        commentReplyEl,
+        commentReplyEmojiOpen,
+        commentReplyEmojis,
+        toggleCommentReplyEmoji,
+        insertCommentReplyEmoji,
+        onCommentReplyKeyDown,
+        commentDetailPostUrl,
+        commentDetailAuthorUrl,
+        commentDetailDeviceLabel,
+        commentDetailDeviceIcon,
         openCommentEditor,
         closeCommentEditor,
         saveCommentEdit,
@@ -6964,13 +7078,15 @@
 
                 <div class="v3a-comments-split" :style="{ '--v3a-comments-left': commentsSplitLeftWidth + 'px' }">
                   <div class="v3a-comments-left">
-                    <div class="v3a-card v3a-comments-panel">
+                      <div class="v3a-card v3a-comments-panel">
                       <div class="hd">
-                        <div class="v3a-comments-tabs" role="tablist" aria-label="评论状态">
-                          <button class="v3a-comments-tab" :class="{ active: commentsFilters.status === 'waiting' }" type="button" @click="quickSetCommentsStatus('waiting')">待审核</button>
-                          <button class="v3a-comments-tab" :class="{ active: commentsFilters.status === 'approved' }" type="button" @click="quickSetCommentsStatus('approved')">已通过</button>
-                          <button class="v3a-comments-tab" :class="{ active: commentsFilters.status === 'spam' }" type="button" @click="quickSetCommentsStatus('spam')">垃圾</button>
-                          <button class="v3a-comments-tab" :class="{ active: commentsFilters.status === 'all' }" type="button" @click="quickSetCommentsStatus('all')">全部</button>
+                        <div class="v3a-comments-tabs" aria-label="评论状态">
+                          <select class="v3a-select v3a-comments-filter" :value="commentsFilters.status" @change="quickSetCommentsStatus($event.target.value)" aria-label="评论状态">
+                            <option value="waiting">待审核</option>
+                            <option value="approved">已通过</option>
+                            <option value="spam">垃圾</option>
+                            <option value="all">全部</option>
+                          </select>
                         </div>
                         <div class="v3a-comments-count v3a-muted">{{ formatNumber(commentsPagination.total) }} 条</div>
                       </div>
@@ -7010,17 +7126,11 @@
                               </div>
                               <div class="v3a-comment-body">
                                 <div class="v3a-comment-top">
-                                  <div class="v3a-comment-author">
-                                    {{ c.author || '—' }}
-                                    <span v-if="c.ip" class="v3a-comment-ip v3a-muted">· {{ c.ip }}</span>
-                                  </div>
-                                  <div class="v3a-comment-time v3a-muted">{{ formatTime(c.created) }}</div>
+                                  <span class="v3a-comment-author">{{ c.author || '—' }}</span>
+                                  <span v-if="Number(c.parent || 0) > 0" class="v3a-comment-reply v3a-muted">回复</span>
+                                  <span class="v3a-comment-time v3a-muted">{{ formatTimeAgo(c.created) }}</span>
                                 </div>
                                 <div class="v3a-comment-excerpt">{{ c.excerpt || '—' }}</div>
-                                <div class="v3a-comment-meta">
-                                  <span class="v3a-pill">{{ (c.post && c.post.title) ? c.post.title : ('#' + c.cid) }}</span>
-                                  <span class="v3a-pill" :class="getCommentBadge(c).tone">{{ getCommentBadge(c).text }}</span>
-                                </div>
                               </div>
                             </div>
                           </div>
@@ -7045,23 +7155,27 @@
                   <div class="v3a-comments-right">
                     <div class="v3a-card v3a-comments-panel">
                       <div class="hd">
-                          <div class="title" style="display:flex; align-items:center; gap: 10px;">
-                            <span>{{ commentEditorOpen ? '评论详情' : '详情' }}</span>
-                          <template v-if="commentEditorOpen && !commentEditorLoading">
-                            <span class="v3a-pill" :class="getCommentBadge(commentForm).tone">{{ getCommentBadge(commentForm).text }}</span>
-                          </template>
-                        </div>
+                        <div class="title">评论详情</div>
                         <div class="v3a-comments-detail-actions" v-if="commentEditorOpen">
-                          <button class="v3a-mini-btn" type="button" @click="markComment(commentForm.coid, 'approved')" :disabled="commentEditorSaving || commentEditorLoading">通过</button>
-                          <button class="v3a-mini-btn" type="button" @click="markComment(commentForm.coid, 'waiting')" :disabled="commentEditorSaving || commentEditorLoading">待审核</button>
-                          <button class="v3a-mini-btn" type="button" @click="markComment(commentForm.coid, 'spam')" :disabled="commentEditorSaving || commentEditorLoading">垃圾</button>
-                          <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deleteComment(commentForm.coid)" :disabled="commentEditorSaving || commentEditorLoading">删除</button>
-                          <button class="v3a-mini-btn primary" type="button" @click="saveCommentEdit()" :disabled="commentEditorSaving || commentEditorLoading">保存</button>
-                          <button class="v3a-mini-btn" type="button" @click="closeCommentEditor()">关闭</button>
+                          <button v-if="commentForm.status !== 'approved'" class="v3a-comments-iconbtn" type="button" aria-label="通过" data-tooltip="通过" @click="markComment(commentForm.coid, 'approved')" :disabled="commentEditorSaving || commentEditorLoading">
+                            <span class="v3a-icon" v-html="ICONS.check"></span>
+                          </button>
+                          <button v-if="commentForm.status !== 'waiting'" class="v3a-comments-iconbtn" type="button" aria-label="待审核" data-tooltip="待审核" @click="markComment(commentForm.coid, 'waiting')" :disabled="commentEditorSaving || commentEditorLoading">
+                            <span class="v3a-icon" v-html="ICONS.clock"></span>
+                          </button>
+                          <button v-if="commentForm.status !== 'spam'" class="v3a-comments-iconbtn" type="button" aria-label="垃圾" data-tooltip="垃圾" @click="markComment(commentForm.coid, 'spam')" :disabled="commentEditorSaving || commentEditorLoading">
+                            <span class="v3a-icon" v-html="ICONS.shieldAlert"></span>
+                          </button>
+                          <button class="v3a-comments-iconbtn danger" type="button" aria-label="删除" data-tooltip="删除" @click="deleteComment(commentForm.coid)" :disabled="commentEditorSaving || commentEditorLoading">
+                            <span class="v3a-icon" v-html="ICONS.trash"></span>
+                          </button>
+                          <button class="v3a-comments-iconbtn" type="button" aria-label="关闭" data-tooltip="关闭" @click="closeCommentEditor()">
+                            <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                          </button>
                         </div>
                       </div>
 
-                      <div class="bd v3a-comments-detail-body">
+                      <div class="bd v3a-comments-detail-shell">
                         <div v-if="!commentEditorOpen" class="v3a-comments-empty">
                           <span class="v3a-icon v3a-comments-empty-icon" v-html="ICONS.comments"></span>
                           <div class="v3a-muted">选择一条评论查看详情</div>
@@ -7072,42 +7186,95 @@
                             <div class="v3a-muted">正在加载…</div>
                           </div>
 
-                          <div v-else>
-                            <div v-if="commentEditorError" class="v3a-alert">{{ commentEditorError }}</div>
+                          <template v-else>
+                            <div class="v3a-comments-detail-scroll">
+                              <div class="v3a-comments-detail-inner">
+                                <div v-if="commentEditorError" class="v3a-alert">{{ commentEditorError }}</div>
 
-                            <div v-if="commentEditorPost" class="v3a-comments-ref">
-                              <div class="v3a-muted">关联</div>
-                              <div class="v3a-comments-ref-title">{{ commentEditorPost.title || ('#' + commentForm.cid) }}</div>
-                            </div>
+                                <div class="v3a-comments-main">
+                                  <div class="v3a-comments-main-head">
+                                    <div class="v3a-comments-avatar">
+                                      {{ (String(commentForm.author || '?').trim() || '?').slice(0, 1).toUpperCase() }}
+                                    </div>
+                                    <div class="v3a-comments-main-meta">
+                                      <div class="v3a-comments-main-author">
+                                        <span class="v3a-comments-main-name">{{ commentForm.author || '—' }}</span>
+                                        <span v-if="Number(commentForm.parent || 0) > 0" class="v3a-comments-main-reply">回复</span>
+                                      </div>
+                                      <div class="v3a-comments-main-time">{{ formatTimeAgo(commentForm.created) }}</div>
+                                    </div>
+                                  </div>
 
-                            <div class="v3a-divider" v-if="commentEditorPost"></div>
+                                  <div class="v3a-comments-content" v-html="v3aSimpleLinkHtml(commentForm.text)"></div>
 
-                            <div class="v3a-kv v3a-comments-kv">
-                              <div class="v3a-muted">作者</div>
-                              <input class="v3a-input" v-model="commentForm.author" />
-                              <div class="v3a-muted">邮箱</div>
-                              <input class="v3a-input" v-model="commentForm.mail" />
-                              <div class="v3a-muted">网址</div>
-                              <input class="v3a-input" v-model="commentForm.url" />
-                              <div class="v3a-muted">时间戳</div>
-                              <input class="v3a-input" type="number" v-model.number="commentForm.created" />
-                            </div>
+                                  <a v-if="commentEditorPost && commentDetailPostUrl" class="v3a-comments-source" :href="commentDetailPostUrl" target="_blank" rel="noreferrer">
+                                    <span class="v3a-comments-source-label">来源:</span>
+                                    <span class="v3a-comments-source-title">{{ commentEditorPost.title || ('#' + commentForm.cid) }}</span>
+                                    <span class="v3a-icon v3a-comments-source-arrow" v-html="ICONS.expand"></span>
+                                  </a>
+                                  <div v-else-if="commentEditorPost" class="v3a-comments-source">
+                                    <span class="v3a-comments-source-label">来源:</span>
+                                    <span class="v3a-comments-source-title">{{ commentEditorPost.title || ('#' + commentForm.cid) }}</span>
+                                  </div>
+                                </div>
 
-                            <div class="v3a-comments-section">
-                              <div class="v3a-muted v3a-comments-section-title">内容</div>
-                              <textarea class="v3a-textarea v3a-comments-text" v-model="commentForm.text"></textarea>
-                            </div>
+                                <div class="v3a-divider"></div>
 
-                            <div class="v3a-divider"></div>
-
-                            <div class="v3a-comments-section">
-                              <div class="v3a-muted v3a-comments-section-title">回复（管理员）</div>
-                              <textarea class="v3a-textarea v3a-comments-text" v-model="commentReplyText" placeholder="输入回复内容…"></textarea>
-                              <div class="v3a-comments-reply-actions">
-                                <button class="v3a-btn primary" type="button" @click="submitCommentReply()" :disabled="commentEditorSaving || !commentReplyText.trim()">回复</button>
+                                <div class="v3a-comments-info-grid">
+                                  <div v-if="commentForm.ip" class="v3a-comments-info-item">
+                                    <div class="v3a-comments-info-label">IP 地址</div>
+                                    <div class="v3a-comments-info-value">
+                                      <span class="v3a-icon v3a-comments-info-icon" v-html="ICONS.mapPin"></span>
+                                      <span class="v3a-comments-info-text">{{ commentForm.ip }}</span>
+                                    </div>
+                                  </div>
+                                  <div v-if="commentDetailDeviceLabel" class="v3a-comments-info-item">
+                                    <div class="v3a-comments-info-label">访问设备</div>
+                                    <div class="v3a-comments-info-value">
+                                      <span class="v3a-icon v3a-comments-info-icon" v-html="commentDetailDeviceIcon"></span>
+                                      <span class="v3a-comments-info-text">{{ commentDetailDeviceLabel }}</span>
+                                    </div>
+                                  </div>
+                                  <div v-if="commentForm.mail" class="v3a-comments-info-item">
+                                    <div class="v3a-comments-info-label">电子邮箱</div>
+                                    <a class="v3a-comments-info-link" :href="'mailto:' + commentForm.mail">
+                                      <span class="v3a-icon v3a-comments-info-icon" v-html="ICONS.subscribe"></span>
+                                      <span class="v3a-comments-info-text">{{ commentForm.mail }}</span>
+                                    </a>
+                                  </div>
+                                  <div v-if="commentDetailAuthorUrl" class="v3a-comments-info-item">
+                                    <div class="v3a-comments-info-label">站点地址</div>
+                                    <a class="v3a-comments-info-link" :href="commentDetailAuthorUrl" target="_blank" rel="noreferrer">
+                                      <span class="v3a-icon v3a-comments-info-icon" v-html="ICONS.globe"></span>
+                                      <span class="v3a-comments-info-text">{{ commentForm.url }}</span>
+                                    </a>
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
+
+                            <div class="v3a-comments-replybar">
+                              <div class="v3a-comments-replywrap">
+                                <div class="v3a-comments-replybox">
+                                  <textarea ref="commentReplyEl" class="v3a-comments-replytextarea" rows="3" v-model="commentReplyText" placeholder="写下你的回复..." @keydown="onCommentReplyKeyDown"></textarea>
+                                  <div class="v3a-comments-replycontrols">
+                                    <div class="v3a-comments-emoji">
+                                      <button class="v3a-comments-emoji-btn" type="button" aria-label="表情" data-tooltip="表情" @click="toggleCommentReplyEmoji()">
+                                        <span class="v3a-icon" v-html="ICONS.smilePlus"></span>
+                                      </button>
+                                      <div v-if="commentReplyEmojiOpen" class="v3a-comments-emoji-panel">
+                                        <button v-for="em in commentReplyEmojis" :key="em" class="v3a-comments-emoji-item" type="button" @click="insertCommentReplyEmoji(em)">{{ em }}</button>
+                                      </div>
+                                    </div>
+                                    <div class="v3a-comments-send">
+                                      <span class="v3a-comments-send-hint">Ctrl/⌘ + Enter 发送</span>
+                                      <button class="v3a-btn primary v3a-btn-sm" type="button" @click="submitCommentReply()" :disabled="commentEditorSaving || !commentReplyText.trim()">发送回复</button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </template>
                         </template>
                       </div>
                     </div>
