@@ -2,6 +2,13 @@
 
 require_once __DIR__ . '/common.php';
 
+// Theme config is admin-only.
+if (!$user->pass('administrator', true)) {
+    http_response_code(403);
+    echo 'Forbidden';
+    exit;
+}
+
 header('Content-Type: text/html; charset=UTF-8');
 
 // Make theme assets resolve to current host (port included) to avoid 404 when siteUrl is not the same as the panel URL.

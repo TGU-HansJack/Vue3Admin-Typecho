@@ -83,7 +83,12 @@ if ($assetCssVer === false) {
             <span>下次自动登录</span>
         </label>
         <input type="hidden" name="referer" value="<?php echo $request->filter('html')->get('referer'); ?>" />
-        <button class="v3a-login-btn" type="submit">登录</button>
+        <div class="v3a-login-actions">
+            <button class="v3a-login-btn" type="submit">登录</button>
+            <?php if (!empty($options->allowRegister)): ?>
+                <a class="v3a-login-btn secondary" href="<?php echo $options->registerUrl; ?>">注册</a>
+            <?php endif; ?>
+        </div>
     </form>
 
     <div class="v3a-login-footer">

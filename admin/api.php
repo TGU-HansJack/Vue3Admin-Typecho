@@ -247,6 +247,18 @@ function v3a_security_protect($security, $request): void
     v3a_exit_json(403, null, 'Forbidden');
 }
 
+function v3a_require_role($user, string $role): void
+{
+    try {
+        if ($user && method_exists($user, 'pass') && $user->pass($role, true)) {
+            return;
+        }
+    } catch (\Throwable $e) {
+    }
+
+    v3a_exit_json(403, null, 'Forbidden');
+}
+
 function v3a_int($value, int $default = 0): int
 {
     if (is_int($value)) {
@@ -823,6 +835,8 @@ try {
     $do = trim((string) $request->get('do'));
 
     if ($do === 'dashboard') {
+        v3a_require_role($user, 'subscriber');
+
         $stat = \Widget\Stat::alloc();
 
         $todayStart = strtotime(date('Y-m-d 00:00:00'));
@@ -1327,6 +1341,8 @@ try {
     }
 
     if ($do === 'posts.list') {
+        v3a_require_role($user, 'contributor');
+
         $page = max(1, (int) $request->get('page', 1));
         $pageSize = (int) $request->get('pageSize', 20);
         $pageSize = max(1, min(50, $pageSize));
@@ -1561,6 +1577,8 @@ try {
     }
 
     if ($do === 'posts.get') {
+        v3a_require_role($user, 'contributor');
+
         $cid = (int) $request->get('cid', 0);
         if ($cid <= 0) {
             v3a_exit_json(400, null, 'Missing cid');
@@ -1667,6 +1685,7 @@ try {
         }
 
         v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
 
         $payload = v3a_payload();
 
@@ -1779,6 +1798,7 @@ try {
         }
 
         v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
 
         $payload = v3a_payload();
         $cids = $payload['cids'] ?? $payload['cid'] ?? $payload['ids'] ?? [];
@@ -1807,11 +1827,16 @@ try {
         }
 
         v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
 
         $payload = v3a_payload();
         $status = v3a_string($payload['status'] ?? '', '');
         if (!in_array($status, ['publish', 'hidden', 'private', 'waiting'], true)) {
             v3a_exit_json(400, null, 'Invalid status');
+        }
+
+        if ($status === 'publish' && !$user->pass('editor', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
         }
 
         $cids = $payload['cids'] ?? $payload['cid'] ?? $payload['ids'] ?? [];
@@ -2242,6 +2267,8 @@ try {
     }
 
     if ($do === 'comments.list') {
+        v3a_require_role($user, 'contributor');
+
         $page = max(1, (int) $request->get('page', 1));
         $pageSize = (int) $request->get('pageSize', 20);
         $pageSize = max(1, min(50, $pageSize));
@@ -2376,6 +2403,8 @@ try {
     }
 
     if ($do === 'comments.get') {
+        v3a_require_role($user, 'contributor');
+
         $coid = (int) $request->get('coid', 0);
         if ($coid <= 0) {
             v3a_exit_json(400, null, 'Missing coid');
@@ -2458,6 +2487,7 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
         v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
 
         $payload = v3a_payload();
         $status = v3a_string($payload['status'] ?? '', '');
@@ -2490,6 +2520,7 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
         v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
 
         $payload = v3a_payload();
         $coid = v3a_int($payload['coid'] ?? 0, 0);
@@ -2521,6 +2552,7 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
         v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
 
         $payload = v3a_payload();
         $coid = v3a_int($payload['coid'] ?? 0, 0);
@@ -2548,6 +2580,7 @@ try {
         }
 
         v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
 
         $payload = v3a_payload();
         $coids = $payload['coids'] ?? $payload['coid'] ?? $payload['ids'] ?? [];
@@ -2571,6 +2604,8 @@ try {
     }
 
     if ($do === 'files.list') {
+        v3a_require_role($user, 'editor');
+
         $page = max(1, (int) $request->get('page', 1));
         $pageSize = (int) $request->get('pageSize', 20);
         $pageSize = max(1, min(60, $pageSize));
@@ -2727,6 +2762,7 @@ try {
         }
 
         v3a_security_protect($security, $request);
+        v3a_require_role($user, 'editor');
 
         $payload = v3a_payload();
         $cids = $payload['cids'] ?? $payload['cid'] ?? $payload['ids'] ?? [];
@@ -2944,6 +2980,8 @@ try {
     }
 
     if ($do === 'metas.categories') {
+        v3a_require_role($user, 'editor');
+
         try {
             $rows = \Widget\Metas\Category\Rows::alloc()->to($categories);
             $items = [];
@@ -2970,6 +3008,8 @@ try {
     }
 
     if ($do === 'metas.tags') {
+        v3a_require_role($user, 'editor');
+
         try {
             $rows = $db->fetchAll(
                 $db->select('mid', 'name', 'slug', 'count')

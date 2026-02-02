@@ -314,6 +314,17 @@ a {
   gap: calc(var(--spacing) * 3);
 }
 
+.v3a-login-actions {
+  margin-top: calc(var(--spacing) * 1);
+  display: flex;
+  gap: calc(var(--spacing) * 2);
+}
+
+.v3a-login-actions .v3a-login-btn {
+  flex: 1;
+  margin-top: 0;
+}
+
 .v3a-field {
   display: flex;
   flex-direction: column;
@@ -358,6 +369,21 @@ a {
 
 .v3a-login-btn:hover {
   filter: brightness(1.05);
+}
+
+.v3a-login-btn.secondary {
+  background: transparent;
+  border: 1px solid var(--sidebar-border);
+  color: var(--color-primary);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.v3a-login-btn.secondary:hover {
+  filter: none;
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .v3a-login-footer {

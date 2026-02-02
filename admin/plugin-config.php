@@ -3,9 +3,10 @@
 require_once __DIR__ . '/common.php';
 
 // Plugin config is admin-only.
-try {
-    $user->pass('administrator');
-} catch (\Throwable $e) {
+if (!$user->pass('administrator', true)) {
+    http_response_code(403);
+    echo 'Forbidden';
+    exit;
 }
 
 header('Content-Type: text/html; charset=UTF-8');

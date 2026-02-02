@@ -106,7 +106,8 @@ try {
             markdownEnabled: <?php echo !empty($options->markdown) ? 'true' : 'false'; ?>,
             user: {
                 uid: <?php echo (int) ($user->uid ?? 0); ?>,
-                name: <?php echo json_encode($user->screenName ?? ''); ?>
+                name: <?php echo json_encode($user->screenName ?? ''); ?>,
+                group: <?php echo json_encode((string) ($user->group ?? ''), JSON_UNESCAPED_SLASHES); ?>
             }
         };
     </script>

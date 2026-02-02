@@ -8,6 +8,27 @@
   const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
   const V3A = window.V3A || {};
 
+  const GROUP_LEVELS = {
+    administrator: 0,
+    editor: 1,
+    contributor: 2,
+    subscriber: 3,
+    visitor: 4,
+  };
+
+  function v3aGroupLevel(group) {
+    const g = String(group || "").trim();
+    return Object.prototype.hasOwnProperty.call(GROUP_LEVELS, g)
+      ? GROUP_LEVELS[g]
+      : GROUP_LEVELS.subscriber;
+  }
+
+  function v3aCan(access) {
+    const current = v3aGroupLevel(V3A.user && V3A.user.group ? V3A.user.group : "subscriber");
+    const required = v3aGroupLevel(access || "subscriber");
+    return current <= required;
+  }
+
   const v3aAssetBase = (() => {
     try {
       const src =
@@ -115,65 +136,138 @@
   };
 
   const SETTINGS = [
-    { key: "user", label: "用户", icon: "user", subtitle: "个人资料" },
-    { key: "site", label: "网站", icon: "globe", subtitle: "站点地址、SEO" },
-    { key: "content", label: "内容", icon: "fileText", subtitle: "阅读、评论、文本" },
-    { key: "notify", label: "通知", icon: "bell", subtitle: "邮件、Bark 推送" },
+    { key: "user", label: "用户", icon: "user", subtitle: "个人资料", access: "subscriber" },
+    { key: "site", label: "网站", icon: "globe", subtitle: "站点地址、SEO", access: "administrator" },
+    { key: "content", label: "内容", icon: "fileText", subtitle: "阅读、评论、文本", access: "administrator" },
+    { key: "notify", label: "通知", icon: "bell", subtitle: "邮件、Bark 推送", access: "administrator" },
     {
       key: "theme",
       label: "主题",
       icon: "palette",
       subtitle: "主题、外观",
+      access: "administrator",
       children: [
-        { key: "theme.activate", label: "主题启用" },
-        { key: "theme.edit", label: "主题编辑" },
-        { key: "theme.config", label: "主题设置" },
+        { key: "theme.activate", label: "主题启用", access: "administrator" },
+        { key: "theme.edit", label: "主题编辑", access: "administrator" },
+        { key: "theme.config", label: "主题设置", access: "administrator" },
       ],
     },
-    { key: "plugins", label: "插件", icon: "blocks", subtitle: "扩展、插件" },
-    { key: "storage", label: "存储", icon: "data", subtitle: "附件、备份、图床" },
-    { key: "system", label: "永久链接", icon: "settings", subtitle: "URL 规则、重写" },
-    { key: "security", label: "账号安全", icon: "shield", subtitle: "密码、凭证、安全" },
+    { key: "plugins", label: "插件", icon: "blocks", subtitle: "扩展、插件", access: "administrator" },
+    { key: "storage", label: "存储", icon: "data", subtitle: "附件、备份、图床", access: "administrator" },
+    { key: "system", label: "永久链接", icon: "settings", subtitle: "URL 规则、重写", access: "administrator" },
+    { key: "security", label: "账号安全", icon: "shield", subtitle: "密码、凭证、安全", access: "subscriber" },
   ];
 
   const MENU = [
-    { key: "dashboard", label: "仪表盘", icon: "dashboard", to: "/dashboard" },
+    { key: "dashboard", label: "仪表盘", icon: "dashboard", to: "/dashboard", access: "subscriber" },
     {
       key: "posts",
       label: "博文",
       icon: "posts",
+      access: "contributor",
       children: [
-        { key: "posts-manage", label: "管理", to: "/posts/manage" },
-        { key: "posts-write", label: "撰写", to: "/posts/write" },
-        { key: "posts-taxonomy", label: "分类/标签", to: "/posts/taxonomy" },
+        { key: "posts-manage", label: "管理", to: "/posts/manage", access: "contributor" },
+        { key: "posts-write", label: "撰写", to: "/posts/write", access: "contributor" },
+        { key: "posts-taxonomy", label: "分类/标签", to: "/posts/taxonomy", access: "editor" },
       ],
     },
-    { key: "comments", label: "评论", icon: "comments", to: "/comments", badgeKey: "commentsWaiting" },
+    { key: "comments", label: "评论", icon: "comments", to: "/comments", badgeKey: "commentsWaiting", access: "contributor" },
     {
       key: "pages",
       label: "页面",
       icon: "pages",
+      access: "editor",
       children: [
-        { key: "pages-manage", label: "管理", to: "/pages/manage" },
-        { key: "pages-edit", label: "编辑", to: "/pages/edit" },
+        { key: "pages-manage", label: "管理", to: "/pages/manage", access: "editor" },
+        { key: "pages-edit", label: "编辑", to: "/pages/edit", access: "editor" },
       ],
     },
-    { key: "files", label: "文件", icon: "files", to: "/files" },
-    { key: "friends", label: "朋友们", icon: "friends", to: "/friends" },
-    { key: "data", label: "数据", icon: "data", to: "/data" },
-    { key: "subscribe", label: "订阅", icon: "subscribe", to: "/subscribe" },
-    { key: "users", label: "用户", icon: "user", to: "/users" },
-    { key: "settings", label: "设定", icon: "settings", action: "openSettings" },
+    { key: "files", label: "文件", icon: "files", to: "/files", access: "editor" },
+    { key: "friends", label: "朋友们", icon: "friends", to: "/friends", access: "administrator" },
+    { key: "data", label: "数据", icon: "data", to: "/data", access: "administrator" },
+    { key: "subscribe", label: "订阅", icon: "subscribe", to: "/subscribe", access: "administrator" },
+    { key: "users", label: "用户", icon: "user", to: "/users", access: "administrator" },
+    { key: "settings", label: "设定", icon: "settings", action: "openSettings", access: "subscriber" },
     {
       key: "maintenance",
       label: "维护",
       icon: "maintenance",
+      access: "administrator",
       children: [
-        { key: "maintenance-tasks", label: "任务", to: "/maintenance/tasks" },
-        { key: "maintenance-backup", label: "备份", to: "/maintenance/backup" },
+        { key: "maintenance-tasks", label: "任务", to: "/maintenance/tasks", access: "administrator" },
+        { key: "maintenance-backup", label: "备份", to: "/maintenance/backup", access: "administrator" },
       ],
     },
   ];
+
+  function v3aMenuAccessForPath(path) {
+    const p = String(path || "/");
+    if (p === "/settings") return "subscriber";
+
+    for (const top of MENU) {
+      if (!top) continue;
+      if (top.to && top.to === p) return top.access || "subscriber";
+      const children = Array.isArray(top.children) ? top.children : [];
+      for (const child of children) {
+        if (child && child.to === p) {
+          return child.access || top.access || "subscriber";
+        }
+      }
+    }
+
+    return "subscriber";
+  }
+
+  function v3aNormalizeRoute(routeStr) {
+    const raw = String(routeStr || "/dashboard");
+    const p = raw.split("?")[0] || "/";
+    const access = v3aMenuAccessForPath(p);
+    if (!v3aCan(access)) return "/dashboard";
+    return raw;
+  }
+
+  function v3aFilterMenu(items) {
+    const out = [];
+    for (const item of Array.isArray(items) ? items : []) {
+      if (!item) continue;
+
+      const itemAccess = item.access || "subscriber";
+      if (!v3aCan(itemAccess)) continue;
+
+      const next = Object.assign({}, item);
+      if (Array.isArray(item.children) && item.children.length) {
+        const children = item.children.filter((c) =>
+          v3aCan((c && c.access) || itemAccess)
+        );
+        if (!children.length) continue;
+        next.children = children;
+      }
+
+      out.push(next);
+    }
+    return out;
+  }
+
+  function v3aFilterSettings(items) {
+    const out = [];
+    for (const item of Array.isArray(items) ? items : []) {
+      if (!item) continue;
+
+      const itemAccess = item.access || "subscriber";
+      if (!v3aCan(itemAccess)) continue;
+
+      const next = Object.assign({}, item);
+      if (Array.isArray(item.children) && item.children.length) {
+        const children = item.children.filter((c) =>
+          v3aCan((c && c.access) || itemAccess)
+        );
+        next.children = children;
+      }
+
+      out.push(next);
+    }
+    return out;
+  }
 
   function initTooltips() {
     if (window.__V3A_TOOLTIP_READY__) return;
@@ -416,10 +510,13 @@
         return k;
       }
 
+      const menuItems = computed(() => v3aFilterMenu(MENU));
+      const settingsItems = computed(() => v3aFilterSettings(SETTINGS));
+
       function settingsKeyExists(key) {
         const k = normalizeSettingsKey(key);
         if (!k) return false;
-        for (const top of SETTINGS) {
+        for (const top of settingsItems.value) {
           if (top && top.key === k) return true;
           const children = Array.isArray(top?.children) ? top.children : [];
           if (children.some((c) => c && c.key === k)) return true;
@@ -433,7 +530,7 @@
         maintenance: false,
       });
 
-      const route = ref(getRoute());
+      const route = ref(v3aNormalizeRoute(getRoute()));
       const routePath = computed(() => {
         const raw = String(route.value || "/");
         return raw.split("?")[0] || "/";
@@ -2836,12 +2933,18 @@
       }
 
       function navTo(path) {
-        const p = String(path || "/").split("?")[0] || "/";
+        const raw = String(path || "/dashboard");
+        const normalized = v3aNormalizeRoute(raw);
+        if (normalized !== raw) {
+          toastError("禁止访问");
+        }
+
+        const p = normalized.split("?")[0] || "/";
         settingsOpen.value = p === "/settings";
         ensureExpandedForRoute(p);
         persistExpanded();
-        route.value = path;
-        setRoute(path);
+        route.value = normalized;
+        setRoute(normalized);
       }
 
       function buildApiUrl(action, params, withCsrf) {
@@ -3110,6 +3213,7 @@
         const ids = (postsSelectedCids.value || []).slice();
         if (!ids.length) return;
         if (!["publish", "hidden", "private", "waiting"].includes(s)) return;
+        if (s === "publish" && !V3A.canPublish) return;
 
         const label =
           s === "publish"
@@ -5753,9 +5857,16 @@
 
       function listenHash() {
         window.addEventListener("hashchange", () => {
-          const r = getRoute();
-          route.value = r;
-          const p = String(r || "/").split("?")[0] || "/";
+          const desired = getRoute();
+          const normalized = v3aNormalizeRoute(desired);
+          if (normalized !== desired) {
+            toastError("禁止访问");
+            if (getRoute() !== normalized) setRoute(normalized);
+            return;
+          }
+
+          route.value = normalized;
+          const p = String(normalized || "/").split("?")[0] || "/";
           settingsOpen.value = p === "/settings";
           ensureExpandedForRoute(p);
           persistExpanded();
@@ -5927,7 +6038,12 @@
         });
 
         listenHash();
-        route.value = getRoute();
+        const desired = getRoute();
+        const normalized = v3aNormalizeRoute(desired);
+        route.value = normalized;
+        if (normalized !== desired) {
+          setRoute(normalized);
+        }
         settingsOpen.value = routePath.value === "/settings";
         ensureExpandedForRoute(routePath.value);
         document.title = `${crumb.value} - Vue3Admin`;
@@ -6047,7 +6163,9 @@
         V3A,
         ICONS,
         MENU,
+        menuItems,
         SETTINGS,
+        settingsItems,
         jsonExample,
         toasts,
         toastIcon,
@@ -6394,7 +6512,7 @@
       <div class="v3a-app">
         <aside class="v3a-sidebar" :class="{ collapsed: sidebarCollapsed }">
           <nav class="v3a-menu">
-            <div v-for="item in MENU" :key="item.key">
+            <div v-for="item in menuItems" :key="item.key">
               <div
                 class="v3a-menu-item"
                 :class="{ active: isMenuItemActive(item) }"
@@ -6429,7 +6547,7 @@
 
         <aside class="v3a-subsidebar" v-show="settingsOpen && !sidebarCollapsed">
           <div class="v3a-subsidebar-bd">
-            <template v-for="s in SETTINGS" :key="s.key">
+            <template v-for="s in settingsItems" :key="s.key">
               <template v-if="s.key === 'theme'">
                 <button
                   class="v3a-subsidebar-item"
@@ -6778,7 +6896,7 @@
                     <button class="v3a-actionbtn danger" type="button" title="删除多条" :disabled="!postsSelectedCids.length" @click="deleteSelectedPosts()">
                       <span class="v3a-icon" v-html="ICONS.trash"></span>
                     </button>
-                    <button class="v3a-actionbtn success" type="button" title="批量发布" :disabled="!postsSelectedCids.length" @click="updateSelectedPostsStatus('publish')">
+                    <button v-if="V3A.canPublish" class="v3a-actionbtn success" type="button" title="批量发布" :disabled="!postsSelectedCids.length" @click="updateSelectedPostsStatus('publish')">
                       <span class="v3a-icon" v-html="ICONS.eye"></span>
                     </button>
                     <button class="v3a-actionbtn warn" type="button" title="批量隐藏" :disabled="!postsSelectedCids.length" @click="updateSelectedPostsStatus('hidden')">

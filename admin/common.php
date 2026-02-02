@@ -21,5 +21,4 @@ if (!$user->hasLogin()) {
     exit;
 }
 
-// 至少需要投稿权限
-$user->pass('contributor');
+// 权限控制由前端路由与 API 细分处理（参考 Typecho 旧后台菜单权限）。
