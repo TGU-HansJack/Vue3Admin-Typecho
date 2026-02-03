@@ -158,6 +158,7 @@
     data: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-database-icon lucide-database"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>`,
     subscribe: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mail-icon lucide-mail"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg>`,
     settings: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings2-icon lucide-settings-2"><path d="M14 17H5"/><path d="M19 7h-9"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>`,
+    gear: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings-icon lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>`,
     globe: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>`,
     fileText: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg>`,
     bell: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>`,
@@ -2002,6 +2003,135 @@
         }
       }
 
+      // Friends settings (front-end apply templates)
+      const friendsSettingsOpen = ref(false);
+      const friendsSettingsLoading = ref(false);
+      const friendsSettingsSaving = ref(false);
+      const friendsSettingsError = ref("");
+      const friendsSettingsForm = reactive({
+        allowTypeSelect: 0,
+        defaultType: "friend",
+        allowedTypes: {
+          friend: 1,
+          collection: 0,
+        },
+        required: {
+          email: 0,
+          avatar: 0,
+          description: 0,
+          message: 0,
+        },
+      });
+
+      function normalizeFriendsSettingsForm() {
+        friendsSettingsForm.allowTypeSelect = Number(friendsSettingsForm.allowTypeSelect)
+          ? 1
+          : 0;
+
+        friendsSettingsForm.allowedTypes.friend = Number(
+          friendsSettingsForm.allowedTypes.friend
+        )
+          ? 1
+          : 0;
+        friendsSettingsForm.allowedTypes.collection = Number(
+          friendsSettingsForm.allowedTypes.collection
+        )
+          ? 1
+          : 0;
+
+        if (
+          !friendsSettingsForm.allowedTypes.friend &&
+          !friendsSettingsForm.allowedTypes.collection
+        ) {
+          friendsSettingsForm.allowedTypes.friend = 1;
+        }
+
+        const dt = String(friendsSettingsForm.defaultType || "friend");
+        friendsSettingsForm.defaultType =
+          dt === "collection" ? "collection" : "friend";
+
+        if (!friendsSettingsForm.allowedTypes[friendsSettingsForm.defaultType]) {
+          friendsSettingsForm.defaultType = friendsSettingsForm.allowedTypes.friend
+            ? "friend"
+            : "collection";
+        }
+
+        friendsSettingsForm.required.email = Number(friendsSettingsForm.required.email)
+          ? 1
+          : 0;
+        friendsSettingsForm.required.avatar = Number(
+          friendsSettingsForm.required.avatar
+        )
+          ? 1
+          : 0;
+        friendsSettingsForm.required.description = Number(
+          friendsSettingsForm.required.description
+        )
+          ? 1
+          : 0;
+        friendsSettingsForm.required.message = Number(
+          friendsSettingsForm.required.message
+        )
+          ? 1
+          : 0;
+      }
+
+      function applyFriendsSettings(data) {
+        const d = data && typeof data === "object" ? data : {};
+        friendsSettingsForm.allowTypeSelect = Number(d.allowTypeSelect || 0) ? 1 : 0;
+
+        const at = d.allowedTypes && typeof d.allowedTypes === "object" ? d.allowedTypes : {};
+        friendsSettingsForm.allowedTypes.friend = Number(at.friend || 0) ? 1 : 0;
+        friendsSettingsForm.allowedTypes.collection = Number(at.collection || 0) ? 1 : 0;
+
+        const dt = String(d.defaultType || "friend");
+        friendsSettingsForm.defaultType = dt === "collection" ? "collection" : "friend";
+
+        const req = d.required && typeof d.required === "object" ? d.required : {};
+        friendsSettingsForm.required.email = Number(req.email || 0) ? 1 : 0;
+        friendsSettingsForm.required.avatar = Number(req.avatar || 0) ? 1 : 0;
+        friendsSettingsForm.required.description = Number(req.description || 0) ? 1 : 0;
+        friendsSettingsForm.required.message = Number(req.message || 0) ? 1 : 0;
+
+        normalizeFriendsSettingsForm();
+      }
+
+      async function openFriendsSettings() {
+        friendsSettingsError.value = "";
+        friendsSettingsLoading.value = true;
+        friendsSettingsOpen.value = true;
+        try {
+          const data = await apiGet("friends.settings.get");
+          applyFriendsSettings(data);
+        } catch (e) {
+          friendsSettingsError.value =
+            e && e.message ? e.message : "加载失败";
+        } finally {
+          friendsSettingsLoading.value = false;
+        }
+      }
+
+      function closeFriendsSettings() {
+        friendsSettingsOpen.value = false;
+      }
+
+      async function saveFriendsSettings() {
+        normalizeFriendsSettingsForm();
+        friendsSettingsSaving.value = true;
+        friendsSettingsError.value = "";
+        try {
+          const data = await apiPost("friends.settings.save", friendsSettingsForm);
+          applyFriendsSettings(data);
+          toastSuccess("已保存");
+          friendsSettingsOpen.value = false;
+        } catch (e) {
+          friendsSettingsError.value =
+            e && e.message ? e.message : "保存失败";
+        } finally {
+          friendsSettingsSaving.value = false;
+        }
+      }
+
       // Data (IP / PV)
       const dataVisitLoading = ref(false);
       const dataVisitError = ref("");
@@ -2816,8 +2946,31 @@
       <div style="margin-bottom: 12px;"><strong>时间：</strong>{{commentTime}}</div>
       <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{commentText}}</div>
     </div>
-    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
       请登录后台查看并处理。
+    </div>
+  </div>
+</div>
+`.trim();
+      const DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE = `
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">收到一条新的友链申请</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
+      <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
+      <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
+      <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>
+      <div style="margin-bottom: 8px;"><strong>描述：</strong>{{linkDescription}}</div>
+      <div style="margin-bottom: 12px;"><strong>时间：</strong>{{applyTime}}</div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{linkMessage}}</div>
+    </div>
+    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      <a href="{{reviewUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">前往审核</a>
     </div>
   </div>
 </div>
@@ -2860,8 +3013,10 @@
         smtpPass: "",
         smtpSecure: 1,
         commentTemplate: DEFAULT_NOTIFY_COMMENT_TEMPLATE,
+        friendLinkTemplate: DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE,
       });
       const settingsNotifyTemplateEditorOpen = ref(false);
+      const settingsNotifyTemplateKind = ref("comment"); // comment|friendLink
       const settingsNotifyTemplateDraft = ref("");
       const settingsNotifyTemplatePreviewHtml = computed(() => {
         const tpl = String(
@@ -2885,22 +3040,53 @@
         };
         return renderMailTemplate(tpl, sample);
       });
-
-      function openSettingsNotifyTemplateEditor() {
-        settingsNotifyTemplateDraft.value = String(
-          settingsNotifyForm.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE
+      const settingsNotifyFriendLinkTemplatePreviewHtml = computed(() => {
+        const tpl = String(
+          settingsNotifyForm.friendLinkTemplate || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
         );
+        const siteTitle = String(settingsData.site.title || "我的站点");
+        const siteUrlRaw = String(settingsData.site.siteUrl || "https://example.com");
+        const siteUrl = siteUrlRaw.replace(/\/+$/, "");
+        const now = new Date();
+        const sample = {
+          siteTitle,
+          linkName: "示例友链名称",
+          linkUrl: "https://example.com",
+          linkType: "朋友",
+          linkEmail: "friend@example.com",
+          linkAvatar: "https://example.com/avatar.png",
+          linkDescription: "这是一个示例友链描述。",
+          applyTime: now.toLocaleString(),
+          linkMessage: escapeHtml("这是一条示例申请留言。\\n支持换行。").replace(
+            /\\n/g,
+            "<br />"
+          ),
+          reviewUrl: siteUrl
+            ? siteUrl + "/Vue3Admin/#/friends?state=1"
+            : "https://example.com/Vue3Admin/#/friends?state=1",
+        };
+        return renderMailTemplate(tpl, sample);
+      });
+
+      function openSettingsNotifyTemplateEditor(kind = "comment") {
+        settingsNotifyTemplateKind.value = kind === "friendLink" ? "friendLink" : "comment";
+        const tpl =
+          settingsNotifyTemplateKind.value === "friendLink"
+            ? settingsNotifyForm.friendLinkTemplate ||
+              DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
+            : settingsNotifyForm.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE;
+        settingsNotifyTemplateDraft.value = String(tpl);
         settingsNotifyTemplateEditorOpen.value = true;
       }
       function closeSettingsNotifyTemplateEditor() {
         settingsNotifyTemplateEditorOpen.value = false;
       }
       function applySettingsNotifyTemplateDraft() {
-        settingsNotifyForm.commentTemplate = String(
-          settingsNotifyTemplateDraft.value || ""
-        ).trim();
-        if (!settingsNotifyForm.commentTemplate) {
-          settingsNotifyForm.commentTemplate = DEFAULT_NOTIFY_COMMENT_TEMPLATE;
+        const next = String(settingsNotifyTemplateDraft.value || "").trim();
+        if (settingsNotifyTemplateKind.value === "friendLink") {
+          settingsNotifyForm.friendLinkTemplate = next || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE;
+        } else {
+          settingsNotifyForm.commentTemplate = next || DEFAULT_NOTIFY_COMMENT_TEMPLATE;
         }
         settingsNotifyTemplateEditorOpen.value = false;
       }
@@ -5230,6 +5416,9 @@
           settingsNotifyForm.commentTemplate = String(
             settingsData.notify.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE
           );
+          settingsNotifyForm.friendLinkTemplate = String(
+            settingsData.notify.friendLinkTemplate || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
+          );
 
           settingsPermalinkForm.rewrite = Number(settingsData.permalink.rewrite || 0);
           const postUrlRaw = String(settingsData.permalink.postUrl || "");
@@ -5597,6 +5786,9 @@
               Number(data.notify.smtpSecure ?? 1) ? 1 : 0;
             settingsNotifyForm.commentTemplate = String(
               data.notify.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE
+            );
+            settingsNotifyForm.friendLinkTemplate = String(
+              data.notify.friendLinkTemplate || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
             );
           } else {
             settingsNotifyForm.smtpPass = "";
@@ -6408,6 +6600,10 @@
             (v3aNormNum(notify.smtpSecure ?? 1) ? 1 : 0) ||
           v3aNormStr(settingsNotifyForm.commentTemplate) !==
             v3aNormStr(notify.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE) ||
+          v3aNormStr(settingsNotifyForm.friendLinkTemplate) !==
+            v3aNormStr(
+              notify.friendLinkTemplate || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
+            ) ||
           v3aNormStr(settingsNotifyForm.smtpPass) !== "";
 
         const permalink = settingsData.permalink || {};
@@ -7266,6 +7462,35 @@
         }
       );
 
+      watch(
+        () => Number(summary.value.friendLinkApply || 0),
+        (n, prev) => {
+          if (!v3aCan(v3aMenuAccessForPath("/friends"))) return;
+          if (!v3aAclEnabled("friends.manage", true)) return;
+
+          const count = Number(n || 0) || 0;
+          const before = Number(prev || 0) || 0;
+          if (count <= 0 || count <= before) return;
+
+          toastInfo(`有${count}条友链申请需要审核`, {
+            duration: 0,
+            actionLabel: "查看",
+            action: () => {
+              const state = normalizeFriendsState(routeQuery.value?.state);
+              if (routePath.value !== "/friends" || state !== 1) {
+                navTo("/friends?state=1");
+                return;
+              }
+
+              friendsPagination.page = 1;
+              friendsPageJump.value = 1;
+              fetchFriendsStateCount();
+              fetchFriends();
+            },
+          });
+        }
+      );
+
       return {
         V3A,
         ICONS,
@@ -7407,6 +7632,14 @@
         friendInitial,
         checkFriendsHealth,
         migrateFriendAvatars,
+        friendsSettingsOpen,
+        friendsSettingsLoading,
+        friendsSettingsSaving,
+        friendsSettingsError,
+        friendsSettingsForm,
+        openFriendsSettings,
+        closeFriendsSettings,
+        saveFriendsSettings,
         friendEditorOpen,
         friendEditorSaving,
         friendEditorError,
@@ -7581,8 +7814,10 @@
         settingsDiscussionForm,
         settingsNotifyForm,
         settingsNotifyTemplateEditorOpen,
+        settingsNotifyTemplateKind,
         settingsNotifyTemplateDraft,
         settingsNotifyTemplatePreviewHtml,
+        settingsNotifyFriendLinkTemplatePreviewHtml,
         settingsPermalinkForm,
         settingsPermalinkRewriteError,
         settingsPermalinkEnableRewriteAnyway,
@@ -9259,6 +9494,9 @@
                     <button class="v3a-actionbtn primary" type="button" title="迁移头像" :disabled="friendsMigrateWorking" @click="migrateFriendAvatars()">
                       <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
                     </button>
+                    <button class="v3a-actionbtn" type="button" title="设置" @click="openFriendsSettings()">
+                      <span class="v3a-icon" v-html="ICONS.gear"></span>
+                    </button>
                   </div>
                 </div>
 
@@ -9362,6 +9600,83 @@
                   </button>
                   <span class="v3a-muted">跳至</span>
                   <input class="v3a-pagejump" type="number" min="1" :max="friendsPagination.pageCount" v-model.number="friendsPageJump" @keyup.enter="friendsGoPage(friendsPageJump)" @blur="friendsGoPage(friendsPageJump)" />
+                </div>
+
+                <div v-if="friendsSettingsOpen" class="v3a-modal-mask" @click.self="closeFriendsSettings()">
+                  <div class="v3a-modal-card" role="dialog" aria-modal="true">
+                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeFriendsSettings()">
+                      <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                    </button>
+                    <div class="v3a-modal-head">
+                      <div class="v3a-modal-title">友链设置</div>
+                    </div>
+                    <div class="v3a-modal-body">
+                      <div v-if="friendsSettingsError" class="v3a-feedback" style="margin-bottom: 12px;">{{ friendsSettingsError }}</div>
+                      <div v-else-if="friendsSettingsLoading" class="v3a-muted" style="margin-bottom: 12px;">正在加载…</div>
+
+                      <div class="v3a-modal-form">
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">允许访客选择类型</label>
+                          <label class="v3a-switch">
+                            <input type="checkbox" v-model="friendsSettingsForm.allowTypeSelect" :true-value="1" :false-value="0" />
+                            <span class="v3a-switch-ui"></span>
+                          </label>
+                          <div class="v3a-muted" style="font-size: 12px;">关闭时，前台申请将使用默认类型。</div>
+                        </div>
+
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">允许的类型</label>
+                          <div style="display: flex; flex-wrap: wrap; gap: 14px;">
+                            <label style="display: inline-flex; align-items: center; gap: 8px;">
+                              <input class="v3a-check" type="checkbox" v-model="friendsSettingsForm.allowedTypes.friend" :true-value="1" :false-value="0" />
+                              <span>朋友</span>
+                            </label>
+                            <label style="display: inline-flex; align-items: center; gap: 8px;">
+                              <input class="v3a-check" type="checkbox" v-model="friendsSettingsForm.allowedTypes.collection" :true-value="1" :false-value="0" />
+                              <span>收藏</span>
+                            </label>
+                          </div>
+                          <div class="v3a-muted" style="font-size: 12px;">至少保留一种类型。</div>
+                        </div>
+
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">默认类型</label>
+                          <select class="v3a-select v3a-modal-input" v-model="friendsSettingsForm.defaultType">
+                            <option value="friend" :disabled="!friendsSettingsForm.allowedTypes.friend">朋友</option>
+                            <option value="collection" :disabled="!friendsSettingsForm.allowedTypes.collection">收藏</option>
+                          </select>
+                        </div>
+
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">前台申请必填项</label>
+                          <div class="v3a-muted" style="font-size: 12px;">名称/网址始终必填。</div>
+                          <div style="display: flex; flex-wrap: wrap; gap: 14px;">
+                            <label style="display: inline-flex; align-items: center; gap: 8px;">
+                              <input class="v3a-check" type="checkbox" v-model="friendsSettingsForm.required.email" :true-value="1" :false-value="0" />
+                              <span>邮箱</span>
+                            </label>
+                            <label style="display: inline-flex; align-items: center; gap: 8px;">
+                              <input class="v3a-check" type="checkbox" v-model="friendsSettingsForm.required.avatar" :true-value="1" :false-value="0" />
+                              <span>头像</span>
+                            </label>
+                            <label style="display: inline-flex; align-items: center; gap: 8px;">
+                              <input class="v3a-check" type="checkbox" v-model="friendsSettingsForm.required.description" :true-value="1" :false-value="0" />
+                              <span>描述</span>
+                            </label>
+                            <label style="display: inline-flex; align-items: center; gap: 8px;">
+                              <input class="v3a-check" type="checkbox" v-model="friendsSettingsForm.required.message" :true-value="1" :false-value="0" />
+                              <span>留言</span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="v3a-modal-actions">
+                        <button class="v3a-btn v3a-modal-btn" type="button" @click="closeFriendsSettings()" :disabled="friendsSettingsSaving">取消</button>
+                        <button class="v3a-btn primary v3a-modal-btn" type="button" @click="saveFriendsSettings()" :disabled="friendsSettingsSaving || friendsSettingsLoading">{{ friendsSettingsSaving ? '保存中…' : '确定' }}</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div v-if="friendEditorOpen" class="v3a-modal-mask" @click.self="closeFriendEditor()">
@@ -10832,7 +11147,7 @@
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>评论提醒</label>
-                                <div class="v3a-settings-row-help">目前仅实现评论提醒（发送至管理员邮箱）</div>
+                                <div class="v3a-settings-row-help">发送至管理员邮箱，用于提醒有新评论</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <label class="v3a-switch">
@@ -10845,7 +11160,7 @@
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>友链申请提醒</label>
-                                <div class="v3a-settings-row-help">占位功能（暂不发送）</div>
+                                <div class="v3a-settings-row-help">发送至管理员邮箱，用于提醒有新的友链申请</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <label class="v3a-switch">
@@ -10937,6 +11252,34 @@
                                 </div>
                               </div>
                             </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>友链申请提醒模板</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-mailtpl-card">
+                                  <div class="v3a-mailtpl-card-hd">
+                                    <div class="v3a-mailtpl-card-title">预览</div>
+                                    <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor('friendLink')">编辑</button>
+                                  </div>
+                                  <div class="v3a-mailtpl-preview" v-html="settingsNotifyFriendLinkTemplatePreviewHtml"></div>
+                                  <div class="v3a-mailtpl-vars">
+                                    <div class="v3a-mailtpl-vars-title">支持变量：</div>
+                                    <code v-pre>{{siteTitle}}</code>
+                                    <code v-pre>{{linkName}}</code>
+                                    <code v-pre>{{linkUrl}}</code>
+                                    <code v-pre>{{linkType}}</code>
+                                    <code v-pre>{{linkEmail}}</code>
+                                    <code v-pre>{{linkAvatar}}</code>
+                                    <code v-pre>{{linkDescription}}</code>
+                                    <code v-pre>{{linkMessage}}</code>
+                                    <code v-pre>{{applyTime}}</code>
+                                    <code v-pre>{{reviewUrl}}</code>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
                         </template>
@@ -10949,7 +11292,7 @@
                           <span class="v3a-icon" v-html="ICONS.close"></span>
                         </button>
                         <div class="v3a-modal-head">
-                          <div class="v3a-modal-title">编辑邮件模板（HTML）</div>
+                          <div class="v3a-modal-title">编辑邮件模板（HTML） · {{ settingsNotifyTemplateKind === 'friendLink' ? '友链申请' : '评论' }}</div>
                         </div>
                         <div class="v3a-modal-body">
                           <div class="v3a-modal-form">
@@ -10958,13 +11301,27 @@
                               <textarea class="v3a-textarea v3a-modal-textarea v3a-code-editor" v-model="settingsNotifyTemplateDraft" placeholder="<div>...</div>"></textarea>
                               <div class="v3a-muted" style="margin-top: 10px; font-size: 12px; line-height: 1.6;">
                                 可用变量：
-                                <code v-pre>{{siteTitle}}</code>
-                                <code v-pre>{{postTitle}}</code>
-                                <code v-pre>{{postUrl}}</code>
-                                <code v-pre>{{commentAuthor}}</code>
-                                <code v-pre>{{commentTime}}</code>
-                                <code v-pre>{{commentStatus}}</code>
-                                <code v-pre>{{commentText}}</code>
+                                <template v-if="settingsNotifyTemplateKind === 'friendLink'">
+                                  <code v-pre>{{siteTitle}}</code>
+                                  <code v-pre>{{linkName}}</code>
+                                  <code v-pre>{{linkUrl}}</code>
+                                  <code v-pre>{{linkType}}</code>
+                                  <code v-pre>{{linkEmail}}</code>
+                                  <code v-pre>{{linkAvatar}}</code>
+                                  <code v-pre>{{linkDescription}}</code>
+                                  <code v-pre>{{linkMessage}}</code>
+                                  <code v-pre>{{applyTime}}</code>
+                                  <code v-pre>{{reviewUrl}}</code>
+                                </template>
+                                <template v-else>
+                                  <code v-pre>{{siteTitle}}</code>
+                                  <code v-pre>{{postTitle}}</code>
+                                  <code v-pre>{{postUrl}}</code>
+                                  <code v-pre>{{commentAuthor}}</code>
+                                  <code v-pre>{{commentTime}}</code>
+                                  <code v-pre>{{commentStatus}}</code>
+                                  <code v-pre>{{commentText}}</code>
+                                </template>
                               </div>
                             </div>
                           </div>

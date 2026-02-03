@@ -675,6 +675,144 @@ class Plugin implements PluginInterface
         }
     }
 
+    /**
+     * 友链申请邮件提醒（管理员收件）
+     * 触发时机：前台 v3a_links.php 提交申请
+     *
+     * @param array<string,mixed> $apply
+     */
+    public static function notifyFriendLinkApply(array $apply): void
+    {
+        try {
+            $options = \Utils\Helper::options();
+
+            if (!((int) ($options->v3a_mail_enabled ?? 0))) {
+                return;
+            }
+            if (!((int) ($options->v3a_mail_friendlink_enabled ?? 0))) {
+                return;
+            }
+
+            $smtpHost = trim((string) ($options->v3a_mail_smtp_host ?? ''));
+            $smtpPort = (int) ($options->v3a_mail_smtp_port ?? 465);
+            $smtpUser = trim((string) ($options->v3a_mail_smtp_user ?? ''));
+            $smtpPass = (string) ($options->v3a_mail_smtp_pass ?? '');
+            $smtpFrom = trim((string) ($options->v3a_mail_smtp_from ?? ''));
+            $smtpSecure = (int) ($options->v3a_mail_smtp_secure ?? 1) ? 1 : 0;
+
+            if ($smtpFrom === '') {
+                $smtpFrom = $smtpUser;
+            }
+
+            if ($smtpHost === '' || $smtpPort <= 0 || $smtpUser === '' || $smtpPass === '' || $smtpFrom === '') {
+                return;
+            }
+
+            $linkName = trim((string) ($apply['name'] ?? ''));
+            $linkUrl = trim((string) ($apply['url'] ?? ''));
+            $linkAvatar = trim((string) ($apply['avatar'] ?? ''));
+            $linkDescription = trim((string) ($apply['description'] ?? ''));
+            $linkType = strtolower(trim((string) ($apply['type'] ?? 'friend')));
+            $linkEmail = trim((string) ($apply['email'] ?? ''));
+            $linkMessage = trim((string) ($apply['message'] ?? ''));
+            $created = (int) ($apply['created'] ?? 0);
+
+            $applyTime = $created > 0 ? date('Y-m-d H:i:s', $created) : date('Y-m-d H:i:s');
+
+            $typeLabel = $linkType === 'collection' ? '收藏' : '朋友';
+
+            // 收件人：所有管理员
+            try {
+                $db = Db::get();
+            } catch (\Throwable $e) {
+                return;
+            }
+
+            $admins = [];
+            try {
+                $rows = $db->fetchAll(
+                    $db->select('mail', 'screenName', 'name')
+                        ->from('table.users')
+                        ->where('group = ?', 'administrator')
+                );
+                foreach ((array) $rows as $r) {
+                    $mail = trim((string) ($r['mail'] ?? ''));
+                    if ($mail !== '' && filter_var($mail, FILTER_VALIDATE_EMAIL)) {
+                        $name = (string) ($r['screenName'] ?? $r['name'] ?? '');
+                        $admins[] = ['mail' => $mail, 'name' => $name];
+                    }
+                }
+            } catch (\Throwable $e) {
+                return;
+            }
+
+            if (empty($admins)) {
+                return;
+            }
+
+            if (!self::loadPHPMailer()) {
+                return;
+            }
+
+            $template = trim((string) ($options->v3a_mail_friendlink_template ?? ''));
+            if ($template === '') {
+                $template = self::defaultFriendLinkMailTemplate();
+            }
+
+            $siteTitle = (string) ($options->title ?? 'Typecho');
+            $siteUrl = rtrim((string) ($options->siteUrl ?? ''), "/");
+            $reviewUrl = $siteUrl !== '' ? ($siteUrl . '/' . self::ADMIN_DIR . '/#/friends?state=1') : '';
+
+            $vars = [
+                'siteTitle' => $siteTitle,
+                'linkName' => htmlspecialchars($linkName !== '' ? $linkName : '（未填写）', ENT_QUOTES, 'UTF-8'),
+                'linkUrl' => htmlspecialchars($linkUrl !== '' ? $linkUrl : ($siteUrl !== '' ? $siteUrl : ''), ENT_QUOTES, 'UTF-8'),
+                'linkType' => htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8'),
+                'linkEmail' => htmlspecialchars($linkEmail !== '' ? $linkEmail : '（未填写）', ENT_QUOTES, 'UTF-8'),
+                'linkAvatar' => htmlspecialchars($linkAvatar, ENT_QUOTES, 'UTF-8'),
+                'linkDescription' => htmlspecialchars($linkDescription !== '' ? $linkDescription : '（未填写）', ENT_QUOTES, 'UTF-8'),
+                'linkMessage' => nl2br(htmlspecialchars($linkMessage !== '' ? $linkMessage : '（未填写）', ENT_QUOTES, 'UTF-8')),
+                'applyTime' => htmlspecialchars($applyTime, ENT_QUOTES, 'UTF-8'),
+                'reviewUrl' => htmlspecialchars($reviewUrl, ENT_QUOTES, 'UTF-8'),
+            ];
+
+            $bodyHtml = self::renderMailTemplate($template, $vars);
+            $subject = '新友链申请：' . ($linkName !== '' ? $linkName : $siteTitle);
+
+            try {
+                $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+                $mail->CharSet = 'UTF-8';
+                $mail->isSMTP();
+                $mail->Host = $smtpHost;
+                $mail->SMTPAuth = true;
+                $mail->Username = $smtpUser;
+                $mail->Password = $smtpPass;
+                $mail->Port = $smtpPort;
+
+                if ($smtpSecure) {
+                    $mail->SMTPSecure = $smtpPort === 465 ? 'ssl' : 'tls';
+                }
+
+                $mail->setFrom($smtpFrom, $siteTitle);
+                foreach ($admins as $to) {
+                    $mail->addAddress((string) $to['mail'], (string) $to['name']);
+                }
+
+                $mail->isHTML(true);
+                $mail->Subject = $subject;
+                $mail->Body = $bodyHtml;
+                $mail->AltBody = strip_tags(
+                    str_replace(["<br />", "<br/>", "<br>"], "\n", $bodyHtml)
+                );
+
+                $mail->send();
+            } catch (\Throwable $e) {
+                // 不影响前台正常提交
+            }
+        } catch (\Throwable $e) {
+        }
+    }
+
     private static function loadPHPMailer(): bool
     {
         if (class_exists('\\PHPMailer\\PHPMailer\\PHPMailer')) {
@@ -737,6 +875,35 @@ class Plugin implements PluginInterface
     </div>
     <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
       请登录后台查看并处理。
+    </div>
+  </div>
+</div>
+HTML;
+
+        return trim($tpl);
+    }
+
+    private static function defaultFriendLinkMailTemplate(): string
+    {
+        $tpl = <<<'HTML'
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">收到一条新的友链申请</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
+      <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
+      <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
+      <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>
+      <div style="margin-bottom: 8px;"><strong>描述：</strong>{{linkDescription}}</div>
+      <div style="margin-bottom: 12px;"><strong>时间：</strong>{{applyTime}}</div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{linkMessage}}</div>
+    </div>
+    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      <a href="{{reviewUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">前往审核</a>
     </div>
   </div>
 </div>

@@ -990,6 +990,77 @@ function v3a_bool_int($value): int
     return 0;
 }
 
+/**
+ * Friends apply settings (front-end v3a_links.php templates).
+ *
+ * @return array{
+ *  allowTypeSelect:int,
+ *  defaultType:string,
+ *  allowedTypes:array{friend:int,collection:int},
+ *  required:array{email:int,avatar:int,description:int,message:int}
+ * }
+ */
+function v3a_friends_apply_settings_default(): array
+{
+    return [
+        'allowTypeSelect' => 0,
+        'defaultType' => 'friend',
+        'allowedTypes' => [
+            'friend' => 1,
+            'collection' => 0,
+        ],
+        'required' => [
+            'email' => 0,
+            'avatar' => 0,
+            'description' => 0,
+            'message' => 0,
+        ],
+    ];
+}
+
+/**
+ * @param mixed $input
+ * @return array{
+ *  allowTypeSelect:int,
+ *  defaultType:string,
+ *  allowedTypes:array{friend:int,collection:int},
+ *  required:array{email:int,avatar:int,description:int,message:int}
+ * }
+ */
+function v3a_friends_apply_settings_sanitize($input): array
+{
+    $out = v3a_friends_apply_settings_default();
+    if (!is_array($input)) {
+        return $out;
+    }
+
+    $out['allowTypeSelect'] = v3a_bool_int($input['allowTypeSelect'] ?? 0);
+
+    $allowedTypes = is_array($input['allowedTypes'] ?? null) ? $input['allowedTypes'] : [];
+    $out['allowedTypes']['friend'] = v3a_bool_int($allowedTypes['friend'] ?? 0);
+    $out['allowedTypes']['collection'] = v3a_bool_int($allowedTypes['collection'] ?? 0);
+    if (empty($out['allowedTypes']['friend']) && empty($out['allowedTypes']['collection'])) {
+        $out['allowedTypes']['friend'] = 1;
+    }
+
+    $defaultType = strtolower(trim(v3a_string($input['defaultType'] ?? 'friend', 'friend')));
+    if (!in_array($defaultType, ['friend', 'collection'], true)) {
+        $defaultType = 'friend';
+    }
+    if (empty($out['allowedTypes'][$defaultType])) {
+        $defaultType = !empty($out['allowedTypes']['friend']) ? 'friend' : 'collection';
+    }
+    $out['defaultType'] = $defaultType;
+
+    $required = is_array($input['required'] ?? null) ? $input['required'] : [];
+    $out['required']['email'] = v3a_bool_int($required['email'] ?? 0);
+    $out['required']['avatar'] = v3a_bool_int($required['avatar'] ?? 0);
+    $out['required']['description'] = v3a_bool_int($required['description'] ?? 0);
+    $out['required']['message'] = v3a_bool_int($required['message'] ?? 0);
+
+    return $out;
+}
+
 function v3a_layout_text($layout): string
 {
     if (!$layout) {
@@ -4193,6 +4264,62 @@ try {
         v3a_exit_json(0, $counts);
     }
 
+    if ($do === 'friends.settings.get') {
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['friends']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $raw = '';
+        try {
+            $raw = (string) ($options->v3a_friend_apply_settings ?? '');
+        } catch (\Throwable $e) {
+        }
+
+        $decoded = null;
+        if (trim($raw) !== '') {
+            try {
+                $decoded = json_decode($raw, true);
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $settings = v3a_friends_apply_settings_sanitize(is_array($decoded) ? $decoded : null);
+        v3a_exit_json(0, $settings);
+    }
+
+    if ($do === 'friends.settings.save') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['friends']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $settings = v3a_friends_apply_settings_sanitize($payload);
+
+        try {
+            v3a_upsert_option(
+                $db,
+                'v3a_friend_apply_settings',
+                json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                0
+            );
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+
+        v3a_exit_json(0, $settings);
+    }
+
     if ($do === 'friends.list') {
         v3a_require_role($user, 'subscriber');
 
@@ -5898,6 +6025,7 @@ try {
                 'smtpPass' => '',
                 'smtpSecure' => (int) ($options->v3a_mail_smtp_secure ?? 1),
                 'commentTemplate' => (string) ($options->v3a_mail_comment_template ?? ''),
+                'friendLinkTemplate' => (string) ($options->v3a_mail_friendlink_template ?? ''),
                 'hasSmtpPass' => (string) ($options->v3a_mail_smtp_pass ?? '') === '' ? 0 : 1,
             ],
             'permalink' => [
@@ -6369,6 +6497,7 @@ try {
         $smtpPass = v3a_string($payload['smtpPass'] ?? '', '');
         $smtpSecure = v3a_bool_int($payload['smtpSecure'] ?? 1);
         $commentTemplate = v3a_string($payload['commentTemplate'] ?? '', '');
+        $friendLinkTemplate = v3a_string($payload['friendLinkTemplate'] ?? '', '');
 
         if ($smtpFrom !== '' && !filter_var($smtpFrom, FILTER_VALIDATE_EMAIL)) {
             v3a_exit_json(400, null, '发件邮箱地址格式错误');
@@ -6378,7 +6507,7 @@ try {
         }
 
         $hasExistingPass = (string) ($options->v3a_mail_smtp_pass ?? '') !== '';
-        if ($mailEnabled && $commentNotifyEnabled) {
+        if ($mailEnabled && ($commentNotifyEnabled || $friendLinkNotifyEnabled)) {
             if ($smtpFrom === '' || !filter_var($smtpFrom, FILTER_VALIDATE_EMAIL)) {
                 v3a_exit_json(400, null, '发件邮箱地址不能为空');
             }
@@ -6402,6 +6531,7 @@ try {
         v3a_upsert_option($db, 'v3a_mail_smtp_user', $smtpUser, 0);
         v3a_upsert_option($db, 'v3a_mail_smtp_secure', $smtpSecure, 0);
         v3a_upsert_option($db, 'v3a_mail_comment_template', $commentTemplate, 0);
+        v3a_upsert_option($db, 'v3a_mail_friendlink_template', $friendLinkTemplate, 0);
         if (trim($smtpPass) !== '') {
             v3a_upsert_option($db, 'v3a_mail_smtp_pass', $smtpPass, 0);
         }
@@ -6417,6 +6547,7 @@ try {
             'smtpPass' => '',
             'smtpSecure' => $smtpSecure,
             'commentTemplate' => $commentTemplate,
+            'friendLinkTemplate' => $friendLinkTemplate,
             'hasSmtpPass' => (trim($smtpPass) !== '' || $hasExistingPass) ? 1 : 0,
         ];
 
