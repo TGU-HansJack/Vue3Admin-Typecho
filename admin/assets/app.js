@@ -9009,36 +9009,23 @@
                             </div>
                           </div>
                           <div class="v3a-settings-section-hd-right">
-                            <button class="v3a-btn" type="button" @click="fetchSettingsAcl()" :disabled="settingsAclLoading || settingsSaving">
-                              <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
-                              刷新
-                            </button>
+                            <select v-if="settingsAclLoaded" class="v3a-select" style="width: 140px;" v-model="settingsAclGroup">
+                              <option value="administrator">管理员</option>
+                              <option value="editor">编辑</option>
+                              <option value="contributor">贡献者</option>
+                              <option value="subscriber">关注者</option>
+                              <option value="visitor">访问者</option>
+                            </select>
                           </div>
                         </div>
 
                         <div v-if="settingsAclLoading" class="v3a-muted">正在加载…</div>
-                        <div v-else-if="!settingsAclLoaded" class="v3a-muted">点击“刷新”加载权限配置。</div>
+                        <div v-else-if="!settingsAclLoaded" class="v3a-muted">权限配置未加载（自动加载失败可刷新页面重试）。</div>
 
                         <template v-else>
-                          <div class="v3a-settings-fields">
-                            <div class="v3a-settings-row">
-                              <div class="v3a-settings-row-label">
-                                <label>用户组</label>
-                              </div>
-                              <div class="v3a-settings-row-control">
-                                <div class="v3a-quickactions">
-                                  <button class="v3a-chipbtn" :class="{ active: settingsAclGroup === 'administrator' }" type="button" @click="settingsAclGroup = 'administrator'">管理员</button>
-                                  <button class="v3a-chipbtn" :class="{ active: settingsAclGroup === 'editor' }" type="button" @click="settingsAclGroup = 'editor'">编辑</button>
-                                  <button class="v3a-chipbtn" :class="{ active: settingsAclGroup === 'contributor' }" type="button" @click="settingsAclGroup = 'contributor'">贡献者</button>
-                                  <button class="v3a-chipbtn" :class="{ active: settingsAclGroup === 'subscriber' }" type="button" @click="settingsAclGroup = 'subscriber'">关注者</button>
-                                  <button class="v3a-chipbtn" :class="{ active: settingsAclGroup === 'visitor' }" type="button" @click="settingsAclGroup = 'visitor'">访问者</button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div class="v3a-settings-fields" style="padding-top: 0;">
-                            <table class="v3a-table">
+                          <div class="v3a-card" style="margin-top: 12px;">
+                            <div class="bd" style="padding: 0;">
+                              <table class="v3a-table v3a-acl-table">
                               <thead>
                                 <tr>
                                   <th>权限项</th>
@@ -9223,7 +9210,8 @@
                                   <td class="v3a-muted">以上模块通常仅管理员可用。</td>
                                 </tr>
                               </tbody>
-                            </table>
+                              </table>
+                            </div>
                           </div>
 
                           <div class="v3a-muted" style="margin-top: 12px;">
@@ -10444,17 +10432,17 @@
         </main>
 
         <div v-if="permissionInfoOpen" class="v3a-modal-mask" @click.self="closePermissionInfo()">
-          <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 980px;">
+          <div class="v3a-modal-card v3a-permission-info-modal" role="dialog" aria-modal="true">
             <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closePermissionInfo()">
               <span class="v3a-icon" v-html="ICONS.close"></span>
             </button>
 
-            <div class="v3a-modal-hd">
+            <div class="v3a-modal-head">
               <div class="v3a-modal-title">权限细分</div>
               <div class="v3a-modal-subtitle">基于 Typecho 用户组（旧 admin 设计）并结合 Vue3Admin 当前模块</div>
             </div>
 
-            <div class="v3a-modal-bd">
+            <div class="v3a-modal-body">
               <div class="v3a-muted" style="margin-bottom: 12px;">
                 说明：数字越小权限越高。贡献者发布文章需要审核（待审核 → 编辑/管理员发布）。管理员可在「设定 / 权限」中微调权限与上传限制。
               </div>

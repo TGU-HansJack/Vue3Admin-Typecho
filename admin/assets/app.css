@@ -1312,6 +1312,30 @@ a {
   overflow: auto;
 }
 
+.v3a-modal-card.v3a-permission-info-modal {
+  width: min(980px, 96vw);
+  max-width: 96vw;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+
+.v3a-modal-card.v3a-permission-info-modal .v3a-modal-head {
+  flex: 0 0 auto;
+}
+
+.v3a-modal-card.v3a-permission-info-modal .v3a-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.v3a-modal-subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--v3a-muted);
+}
+
 .v3a-plugin-config-legacy {
   padding: 0 2px 2px;
 }
