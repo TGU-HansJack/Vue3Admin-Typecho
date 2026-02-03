@@ -4629,6 +4629,26 @@
         }
       }
 
+      async function setDefaultCategory(mid) {
+        if (taxonomySaving.value) return;
+        const id = Number(mid || 0);
+        if (!id) return;
+        const current = Number(defaultCategoryId.value || 0) || 0;
+        if (id === current) return;
+
+        taxonomySaving.value = true;
+        taxonomyError.value = "";
+        try {
+          const data = await apiPost("metas.category.default", { mid: id });
+          defaultCategoryId.value = Number(data?.defaultCategory || id) || id;
+          toastSuccess("已设置默认分类");
+        } catch (e) {
+          taxonomyError.value = e && e.message ? e.message : "设置失败";
+        } finally {
+          taxonomySaving.value = false;
+        }
+      }
+
       function openTagEditor(tag) {
         const t = tag && typeof tag === "object" ? tag : null;
         tagForm.mid = t ? Number(t.mid || 0) : 0;
@@ -7732,6 +7752,7 @@
         closeCategoryEditor,
         saveCategory,
         deleteCategory,
+        setDefaultCategory,
         openTagEditor,
         closeTagEditor,
         saveTag,
@@ -8687,17 +8708,29 @@
                 <div class="v3a-grid">
                   <div class="v3a-card">
                     <div class="bd" style="padding: 0;">
-                      <table class="v3a-table v3a-taxonomy-table">
-                        <thead><tr><th>名称</th><th>缩略名</th><th>数量</th><th>操作</th></tr></thead>
+                      <table class="v3a-table v3a-taxonomy-table v3a-taxonomy-table-cats">
+                        <thead><tr><th>名称</th><th>默认分类</th><th>缩略名</th><th>描述</th><th>数量</th><th>操作</th></tr></thead>
                         <tbody>
                           <tr v-for="c in categoriesAll" :key="c.mid">
                             <td>
                               <div style="display:flex; align-items:center; gap: 8px;">
                                 <span :style="{ paddingLeft: (Number(c.levels || 0) * 12) + 'px' }">{{ c.name }}</span>
-                                <span v-if="Number(c.mid) === Number(defaultCategoryId)" class="v3a-pill success">默认</span>
                               </div>
                             </td>
+                            <td>
+                              <span v-if="Number(c.mid) === Number(defaultCategoryId)" class="v3a-pill success">默认</span>
+                              <button
+                                v-else
+                                class="v3a-pill v3a-taxonomy-default-btn"
+                                type="button"
+                                @click.stop="setDefaultCategory(c.mid)"
+                                :disabled="taxonomySaving || taxonomyLoading"
+                              >默认</button>
+                            </td>
                             <td class="v3a-muted">{{ c.slug }}</td>
+                            <td class="v3a-muted">
+                              <span class="v3a-taxonomy-desc" :title="c.description || ''">{{ c.description || '—' }}</span>
+                            </td>
                             <td>{{ formatNumber(c.count) }}</td>
                             <td style="white-space: nowrap;">
                               <button class="v3a-mini-btn" type="button" @click="openCategoryEditor(c)">编辑</button>
@@ -8705,7 +8738,7 @@
                             </td>
                           </tr>
                           <tr v-if="!categoriesAll.length">
-                            <td colspan="4" class="v3a-muted">暂无分类</td>
+                            <td colspan="6" class="v3a-muted">暂无分类</td>
                           </tr>
                         </tbody>
                       </table>
@@ -8714,7 +8747,7 @@
 
                   <div class="v3a-card">
                     <div class="bd" style="padding: 0;">
-                      <table class="v3a-table v3a-taxonomy-table">
+                      <table class="v3a-table v3a-taxonomy-table v3a-taxonomy-table-tags">
                         <thead><tr><th>名称</th><th>缩略名</th><th>引用</th><th>操作</th></tr></thead>
                         <tbody>
                           <tr v-for="t in tagsAll" :key="t.mid">

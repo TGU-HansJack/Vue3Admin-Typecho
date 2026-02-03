@@ -2823,16 +2823,64 @@ a {
   height: 14px;
 }
 
-.v3a-taxonomy-table th:nth-child(3),
-.v3a-taxonomy-table td:nth-child(3) {
+.v3a-taxonomy-table-tags th:nth-child(3),
+.v3a-taxonomy-table-tags td:nth-child(3) {
   width: 86px;
   text-align: center;
 }
 
-.v3a-taxonomy-table th:nth-child(4),
-.v3a-taxonomy-table td:nth-child(4) {
+.v3a-taxonomy-table-tags th:nth-child(4),
+.v3a-taxonomy-table-tags td:nth-child(4) {
   width: 140px;
   text-align: right;
+}
+
+.v3a-taxonomy-table-cats th:nth-child(2),
+.v3a-taxonomy-table-cats td:nth-child(2) {
+  width: 96px;
+  text-align: center;
+}
+
+.v3a-taxonomy-table-cats th:nth-child(5),
+.v3a-taxonomy-table-cats td:nth-child(5) {
+  width: 86px;
+  text-align: center;
+}
+
+.v3a-taxonomy-table-cats th:nth-child(6),
+.v3a-taxonomy-table-cats td:nth-child(6) {
+  width: 140px;
+  text-align: right;
+}
+
+.v3a-taxonomy-desc {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.v3a-pill.v3a-taxonomy-default-btn {
+  display: none;
+  cursor: pointer;
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.02);
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.v3a-taxonomy-table-cats tbody tr:hover .v3a-pill.v3a-taxonomy-default-btn {
+  display: inline-flex;
+}
+
+.v3a-pill.v3a-taxonomy-default-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.72);
+}
+
+.v3a-pill.v3a-taxonomy-default-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .v3a-link-danger {

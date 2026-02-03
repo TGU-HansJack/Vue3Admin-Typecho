@@ -5497,6 +5497,46 @@ try {
         }
     }
 
+    if ($do === 'metas.category.default') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+
+        if (!$user->pass('editor', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['posts']['taxonomy'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $mid = v3a_int($payload['mid'] ?? $payload['id'] ?? 0, 0);
+        if ($mid <= 0) {
+            v3a_exit_json(400, null, 'Missing mid');
+        }
+
+        $exists = $db->fetchRow(
+            $db->select('mid')
+                ->from('table.metas')
+                ->where('type = ?', 'category')
+                ->where('mid = ?', $mid)
+                ->limit(1)
+        );
+        if (empty($exists)) {
+            v3a_exit_json(404, null, '分类不存在');
+        }
+
+        try {
+            v3a_upsert_option($db, 'defaultCategory', $mid, 0);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+
+        v3a_exit_json(0, ['defaultCategory' => $mid]);
+    }
+
     if ($do === 'metas.category.save') {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
