@@ -1014,6 +1014,12 @@ a {
   background: #f5f5f5;
 }
 
+.v3a-chipbtn.active {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: var(--color-primary-shallow);
+  color: var(--color-primary);
+}
+
 /* Dashboard grid (keep legacy class name) */
 .v3a-dashboard {
   display: grid;

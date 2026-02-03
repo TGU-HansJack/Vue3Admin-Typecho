@@ -75,6 +75,28 @@ try {
     $indexUrl = (string) ($options->index ?? '');
 } catch (\Throwable $e) {
 }
+
+$acl = [];
+try {
+    $db = \Typecho\Db::get();
+    $row = $db->fetchObject(
+        $db->select('value')
+            ->from('table.options')
+            ->where('name = ? AND user = ?', 'v3a_acl_config', 0)
+            ->limit(1)
+    );
+    $raw = trim((string) ($row->value ?? ''));
+    if ($raw !== '') {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded) && isset($decoded['groups']) && is_array($decoded['groups'])) {
+            $g = strtolower((string) ($user->group ?? 'subscriber'));
+            if (isset($decoded['groups'][$g]) && is_array($decoded['groups'][$g])) {
+                $acl = $decoded['groups'][$g];
+            }
+        }
+    }
+} catch (\Throwable $e) {
+}
 ?>
 <!doctype html>
 <html lang="zh-CN" style="--color-primary: <?php echo htmlspecialchars($primaryColor, ENT_QUOTES); ?>; --color-primary-shallow: <?php echo htmlspecialchars($primaryShallow, ENT_QUOTES); ?>; --color-primary-deep: <?php echo htmlspecialchars($primaryDeep, ENT_QUOTES); ?>;">
@@ -104,6 +126,7 @@ try {
             logoutUrl: <?php echo json_encode($options->logoutUrl, JSON_UNESCAPED_SLASHES); ?>,
             canPublish: <?php echo $user->pass('editor', true) ? 'true' : 'false'; ?>,
             markdownEnabled: <?php echo !empty($options->markdown) ? 'true' : 'false'; ?>,
+            acl: <?php echo json_encode($acl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
             user: {
                 uid: <?php echo (int) ($user->uid ?? 0); ?>,
                 name: <?php echo json_encode($user->screenName ?? ''); ?>,

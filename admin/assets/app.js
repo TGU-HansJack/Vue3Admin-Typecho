@@ -29,6 +29,81 @@
     return current <= required;
   }
 
+  function v3aAclValue(path) {
+    const acl = V3A && V3A.acl && typeof V3A.acl === "object" ? V3A.acl : null;
+    if (!acl) return undefined;
+
+    const parts = String(path || "").split(".").filter(Boolean);
+    let cur = acl;
+    for (const key of parts) {
+      if (!cur || typeof cur !== "object" || !Object.prototype.hasOwnProperty.call(cur, key)) {
+        return undefined;
+      }
+      cur = cur[key];
+    }
+    return cur;
+  }
+
+  function v3aAclEnabled(path, fallback = true) {
+    const v = v3aAclValue(path);
+    if (v === undefined) return !!fallback;
+    return Number(v) ? true : false;
+  }
+
+  function v3aAclAllowMenuKey(key) {
+    const k = String(key || "");
+    if (!k) return true;
+
+    if (k === "dashboard" || k === "settings" || k === "posts" || k === "pages" || k === "maintenance") {
+      return true;
+    }
+
+    if (k === "posts-manage") return v3aAclEnabled("posts.manage", true);
+    if (k === "posts-write") return v3aAclEnabled("posts.write", true);
+    if (k === "posts-taxonomy") return v3aAclEnabled("posts.taxonomy", true);
+
+    if (k === "comments") return v3aAclEnabled("comments.manage", true);
+
+    if (k === "pages-manage") return v3aAclEnabled("pages.manage", true);
+    if (k === "pages-edit") return v3aAclEnabled("pages.manage", true);
+
+    if (k === "files") return v3aAclEnabled("files.access", true);
+
+    if (k === "friends") return v3aAclEnabled("friends.manage", true);
+    if (k === "data") return v3aAclEnabled("data.manage", true);
+    if (k === "subscribe") return v3aAclEnabled("subscribe.manage", true);
+    if (k === "users") return v3aAclEnabled("users.manage", true);
+
+    if (k === "maintenance-tasks" || k === "maintenance-backup") {
+      return v3aAclEnabled("maintenance.manage", true);
+    }
+
+    return true;
+  }
+
+  function v3aAclAllowPath(path) {
+    const p = String(path || "/");
+    if (p === "/dashboard" || p === "/settings") return true;
+
+    if (p === "/posts/manage") return v3aAclEnabled("posts.manage", true);
+    if (p === "/posts/write") return v3aAclEnabled("posts.write", true);
+    if (p === "/posts/taxonomy") return v3aAclEnabled("posts.taxonomy", true);
+
+    if (p === "/comments") return v3aAclEnabled("comments.manage", true);
+    if (p === "/pages/manage") return v3aAclEnabled("pages.manage", true);
+    if (p === "/pages/edit") return v3aAclEnabled("pages.manage", true);
+    if (p === "/files") return v3aAclEnabled("files.access", true);
+
+    if (p === "/friends") return v3aAclEnabled("friends.manage", true);
+    if (p === "/data") return v3aAclEnabled("data.manage", true);
+    if (p === "/subscribe") return v3aAclEnabled("subscribe.manage", true);
+    if (p === "/users") return v3aAclEnabled("users.manage", true);
+
+    if (p.startsWith("/maintenance/")) return v3aAclEnabled("maintenance.manage", true);
+
+    return true;
+  }
+
   const v3aAssetBase = (() => {
     try {
       const src =
@@ -133,12 +208,14 @@
     monitor: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>`,
     smartphone: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" x2="12.01" y1="18" y2="18"></line></svg>`,
     smilePlus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11v1a10 10 0 1 1-9-10"></path><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" x2="9.01" y1="9" y2="9"></line><line x1="15" x2="15.01" y1="9" y2="9"></line><path d="M16 5h6"></path><path d="M19 2v6"></path></svg>`,
+    info: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>`,
   };
 
   const SETTINGS = [
     { key: "user", label: "用户", icon: "user", subtitle: "个人资料", access: "subscriber" },
     { key: "site", label: "网站", icon: "globe", subtitle: "站点地址、SEO", access: "administrator" },
     { key: "content", label: "内容", icon: "fileText", subtitle: "阅读、评论、文本", access: "administrator" },
+    { key: "acl", label: "权限", icon: "shieldAlert", subtitle: "角色权限、上传限制", access: "administrator" },
     { key: "notify", label: "通知", icon: "bell", subtitle: "邮件、Bark 推送", access: "administrator" },
     {
       key: "theme",
@@ -171,7 +248,7 @@
         { key: "posts-taxonomy", label: "分类/标签", to: "/posts/taxonomy", access: "editor" },
       ],
     },
-    { key: "comments", label: "评论", icon: "comments", to: "/comments", badgeKey: "commentsWaiting", access: "contributor" },
+    { key: "comments", label: "评论", icon: "comments", to: "/comments", badgeKey: "commentsWaiting", access: "editor" },
     {
       key: "pages",
       label: "页面",
@@ -182,7 +259,7 @@
         { key: "pages-edit", label: "编辑", to: "/pages/edit", access: "editor" },
       ],
     },
-    { key: "files", label: "文件", icon: "files", to: "/files", access: "editor" },
+    { key: "files", label: "文件", icon: "files", to: "/files", access: "contributor" },
     { key: "friends", label: "朋友们", icon: "friends", to: "/friends", access: "administrator" },
     { key: "data", label: "数据", icon: "data", to: "/data", access: "administrator" },
     { key: "subscribe", label: "订阅", icon: "subscribe", to: "/subscribe", access: "administrator" },
@@ -223,6 +300,7 @@
     const p = raw.split("?")[0] || "/";
     const access = v3aMenuAccessForPath(p);
     if (!v3aCan(access)) return "/dashboard";
+    if (!v3aAclAllowPath(p)) return "/dashboard";
     return raw;
   }
 
@@ -236,11 +314,15 @@
 
       const next = Object.assign({}, item);
       if (Array.isArray(item.children) && item.children.length) {
-        const children = item.children.filter((c) =>
-          v3aCan((c && c.access) || itemAccess)
-        );
+        const children = item.children.filter((c) => {
+          if (!c) return false;
+          if (!v3aCan((c && c.access) || itemAccess)) return false;
+          return v3aAclAllowMenuKey(c.key);
+        });
         if (!children.length) continue;
         next.children = children;
+      } else if (!v3aAclAllowMenuKey(item.key)) {
+        continue;
       }
 
       out.push(next);
@@ -498,6 +580,15 @@
       const settingsThemeOpen = ref(false);
       const lastThemeSettingsKey = ref("theme.activate");
       const writeSidebarOpen = ref(false);
+      const permissionInfoOpen = ref(false);
+
+      function openPermissionInfo() {
+        permissionInfoOpen.value = true;
+      }
+
+      function closePermissionInfo() {
+        permissionInfoOpen.value = false;
+      }
 
       const isThemeSettingsActive = computed(() =>
         String(settingsActiveKey.value || "").startsWith("theme.")
@@ -1928,7 +2019,11 @@
       const commentsFilters = reactive({
         keywords: "",
         status: "approved", // approved|waiting|spam|hold|all
-        scope: V3A.canPublish ? "all" : "mine", // mine|all (editors only)
+        scope:
+          V3A.canPublish &&
+          (!V3A.acl || !V3A.acl.comments || Number(V3A.acl.comments.scopeAll))
+            ? "all"
+            : "mine", // mine|all (editors only)
       });
       const commentsPagination = reactive({
         page: 1,
@@ -2365,6 +2460,17 @@
         { value: "/[category]/[slug].html", label: "按分类归档", example: "/{category}/{slug}.html" },
         { value: "custom", label: "个性化定义", example: "" },
       ];
+
+      // Settings: ACL
+      const settingsAclLoading = ref(false);
+      const settingsAclLoaded = ref(false);
+      const settingsAclGroup = ref("contributor");
+      const settingsAclForm = reactive({
+        version: 1,
+        groups: {},
+      });
+      const settingsAclOriginal = ref("");
+      const settingsAclGroupLevel = computed(() => v3aGroupLevel(settingsAclGroup.value));
 
       // Settings: Themes & Plugins
       const themesLoading = ref(false);
@@ -3209,13 +3315,22 @@
         postsLoading.value = true;
         postsError.value = "";
         try {
+          const scopeAllAllowed =
+            !!V3A.canPublish &&
+            (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll));
+          let scope = postsFilters.scope;
+          if (String(scope || "mine") === "all" && !scopeAllAllowed) {
+            scope = "mine";
+            postsFilters.scope = "mine";
+          }
+
           const data = await apiGet("posts.list", {
             page: postsPagination.page,
             pageSize: postsPagination.pageSize,
             status: postsFilters.status,
             keywords: postsFilters.keywords,
             category: postsFilters.category || "",
-            scope: postsFilters.scope,
+            scope,
           });
           postsItems.value = data.items || [];
           const p = data.pagination || {};
@@ -3625,10 +3740,37 @@
         const files = Array.from(fileList || []);
         if (!files.length) return;
 
+        const aclFiles =
+          V3A.acl && typeof V3A.acl === "object" && V3A.acl.files && typeof V3A.acl.files === "object"
+            ? V3A.acl.files
+            : null;
+        if (aclFiles && !Number(aclFiles.upload || 0)) {
+          filesError.value = "当前用户组已禁用上传";
+          return;
+        }
+
+        const maxSizeMb = aclFiles ? Number(aclFiles.maxSizeMb || 0) : 0;
+        const allowedTypes =
+          aclFiles && Array.isArray(aclFiles.types)
+            ? aclFiles.types.map((t) => String(t || "").toLowerCase().replace(/^\\./, "")).filter(Boolean)
+            : [];
+
         filesUploading.value = true;
         filesError.value = "";
         try {
           for (const file of files) {
+            if (maxSizeMb > 0 && Number.isFinite(file.size) && file.size > maxSizeMb * 1024 * 1024) {
+              throw new Error(`文件过大：${file.name}（上限 ${maxSizeMb}MB）`);
+            }
+
+            if (allowedTypes.length) {
+              const parts = String(file.name || "").split(".");
+              const ext = parts.length > 1 ? String(parts[parts.length - 1] || "").toLowerCase() : "";
+              if (!ext || !allowedTypes.includes(ext)) {
+                throw new Error(`不允许的文件类型：${file.name}`);
+              }
+            }
+
             const form = new FormData();
             form.append("file", file, file.name);
 
@@ -3878,12 +4020,21 @@
         commentsLoading.value = true;
         commentsError.value = "";
         try {
+          const scopeAllAllowed =
+            !!V3A.canPublish &&
+            (!V3A.acl || !V3A.acl.comments || Number(V3A.acl.comments.scopeAll));
+          let scope = commentsFilters.scope;
+          if (String(scope || "mine") === "all" && !scopeAllAllowed) {
+            scope = "mine";
+            commentsFilters.scope = "mine";
+          }
+
           const data = await apiGet("comments.list", {
             page: commentsPagination.page,
             pageSize: commentsPagination.pageSize,
             status: commentsFilters.status,
             keywords: commentsFilters.keywords,
-            scope: commentsFilters.scope,
+            scope,
           });
           commentsItems.value = data.items || [];
           const p = data.pagination || {};
@@ -4424,6 +4575,36 @@
         }
       }
 
+      function v3aApplyAclConfig(config) {
+        const normalized = v3aAclNormalizeConfig(config);
+        settingsAclForm.version = normalized.version;
+        settingsAclForm.groups = normalized.groups;
+        settingsAclOriginal.value = JSON.stringify(normalized);
+        settingsAclLoaded.value = true;
+
+        const current = String(settingsAclGroup.value || "contributor");
+        if (!settingsAclForm.groups || !settingsAclForm.groups[current]) {
+          settingsAclGroup.value = "contributor";
+        }
+      }
+
+      async function fetchSettingsAcl() {
+        if (!settingsData.isAdmin) return;
+        if (settingsAclLoading.value) return;
+
+        settingsAclLoading.value = true;
+        settingsError.value = "";
+        settingsMessage.value = "";
+        try {
+          const data = await apiGet("acl.get");
+          v3aApplyAclConfig(data && data.config ? data.config : data);
+        } catch (e) {
+          settingsError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          settingsAclLoading.value = false;
+        }
+      }
+
       async function saveSettingsProfile() {
         settingsSaving.value = true;
         settingsError.value = "";
@@ -4798,6 +4979,26 @@
           }
           settingsPermalinkEnableRewriteAnyway.value = 0;
           if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
+        } catch (e) {
+          settingsError.value = e && e.message ? e.message : "保存失败";
+        } finally {
+          settingsSaving.value = false;
+        }
+      }
+
+      async function saveSettingsAcl() {
+        if (!settingsData.isAdmin) return;
+        if (settingsSaving.value) return;
+        if (!settingsAclLoaded.value) return;
+
+        settingsSaving.value = true;
+        settingsError.value = "";
+        settingsMessage.value = "";
+        try {
+          const config = v3aAclNormalizeConfig(settingsAclForm);
+          const data = await apiPost("acl.save", { config });
+          v3aApplyAclConfig(data && data.config ? data.config : data);
+          if (!settingsBatchSaving.value) settingsMessage.value = "已保存（刷新后生效）";
         } catch (e) {
           settingsError.value = e && e.message ? e.message : "保存失败";
         } finally {
@@ -5212,6 +5413,12 @@
         if (routePath.value !== "/settings") return;
 
         const activeKey = String(settingsActiveKey.value || "");
+        if (activeKey === "acl") {
+          if (!settingsAclLoaded.value && !settingsAclLoading.value) {
+            await fetchSettingsAcl();
+          }
+          return;
+        }
         if (activeKey.startsWith("theme.")) {
           if (!themesItems.value.length && !themesLoading.value) {
             await fetchThemes();
@@ -5282,6 +5489,85 @@
         return s;
       }
 
+      const V3A_ACL_GROUPS = [
+        "administrator",
+        "editor",
+        "contributor",
+        "subscriber",
+        "visitor",
+      ];
+
+      function v3aAclNormalizeTypes(types) {
+        const raw = Array.isArray(types) ? types : [];
+        const cleaned = raw
+          .map((t) => String(t || "").trim().toLowerCase().replace(/^\\./, ""))
+          .filter(Boolean);
+        return Array.from(new Set(cleaned)).sort();
+      }
+
+      function v3aAclNormalizeGroup(group) {
+        const g = group && typeof group === "object" ? group : {};
+        const normBool = (v, fallback = 0) => (Number(v) ? 1 : 0) || fallback;
+
+        const posts = g.posts && typeof g.posts === "object" ? g.posts : {};
+        const comments = g.comments && typeof g.comments === "object" ? g.comments : {};
+        const pages = g.pages && typeof g.pages === "object" ? g.pages : {};
+        const files = g.files && typeof g.files === "object" ? g.files : {};
+        const friends = g.friends && typeof g.friends === "object" ? g.friends : {};
+        const data = g.data && typeof g.data === "object" ? g.data : {};
+        const subscribe = g.subscribe && typeof g.subscribe === "object" ? g.subscribe : {};
+        const users = g.users && typeof g.users === "object" ? g.users : {};
+        const maintenance = g.maintenance && typeof g.maintenance === "object" ? g.maintenance : {};
+
+        const maxSizeMbRaw = Number(files.maxSizeMb ?? 0);
+        const maxSizeMb = Number.isFinite(maxSizeMbRaw)
+          ? Math.max(0, Math.min(2048, Math.floor(maxSizeMbRaw)))
+          : 0;
+
+        return {
+          posts: {
+            write: normBool(posts.write),
+            manage: normBool(posts.manage),
+            taxonomy: normBool(posts.taxonomy),
+            scopeAll: normBool(posts.scopeAll),
+          },
+          comments: {
+            manage: normBool(comments.manage),
+            scopeAll: normBool(comments.scopeAll),
+          },
+          pages: {
+            manage: normBool(pages.manage),
+          },
+          files: {
+            access: normBool(files.access),
+            upload: normBool(files.upload),
+            scopeAll: normBool(files.scopeAll),
+            maxSizeMb,
+            types: v3aAclNormalizeTypes(files.types),
+          },
+          friends: { manage: normBool(friends.manage) },
+          data: { manage: normBool(data.manage) },
+          subscribe: { manage: normBool(subscribe.manage) },
+          users: { manage: normBool(users.manage) },
+          maintenance: { manage: normBool(maintenance.manage) },
+        };
+      }
+
+      function v3aAclNormalizeConfig(config) {
+        const cfg = config && typeof config === "object" ? config : {};
+        const rawGroups = cfg.groups && typeof cfg.groups === "object" ? cfg.groups : {};
+
+        const out = { version: 1, groups: {} };
+        const version = Number(cfg.version || 1);
+        out.version = Number.isFinite(version) && version > 0 ? Math.floor(version) : 1;
+
+        for (const key of V3A_ACL_GROUPS) {
+          out.groups[key] = v3aAclNormalizeGroup(rawGroups[key]);
+        }
+
+        return out;
+      }
+
       const settingsDirtyState = computed(() => {
         if (settingsLoading.value) {
           return {
@@ -5293,6 +5579,7 @@
             discussion: false,
             notify: false,
             permalink: false,
+            acl: false,
           };
         }
 
@@ -5326,6 +5613,7 @@
             discussion: false,
             notify: false,
             permalink: false,
+            acl: false,
           };
         }
 
@@ -5458,6 +5746,11 @@
                 v3aNormPermalinkPattern(baseCustomPattern || permalinkPostUrl)
             : currentPostSelection !== basePostSelection);
 
+        const aclDirty =
+          settingsAclLoaded.value &&
+          settingsAclOriginal.value !==
+            JSON.stringify(v3aAclNormalizeConfig(settingsAclForm));
+
         return {
           profile: profileDirty,
           userOptions: userOptionsDirty,
@@ -5467,6 +5760,7 @@
           discussion: discussionDirty,
           notify: notifyDirty,
           permalink: permalinkDirty,
+          acl: aclDirty,
         };
       });
 
@@ -5488,6 +5782,7 @@
         if (dirty.discussion) tasks.push(saveSettingsDiscussion);
         if (dirty.notify) tasks.push(saveSettingsNotify);
         if (dirty.permalink) tasks.push(saveSettingsPermalink);
+        if (dirty.acl) tasks.push(saveSettingsAcl);
         if (!tasks.length) return;
 
         settingsBatchSaving.value = true;
@@ -6528,7 +6823,13 @@
         settingsPermalinkRewriteError,
         settingsPermalinkEnableRewriteAnyway,
         permalinkPostPatternOptions,
+        settingsAclLoading,
+        settingsAclLoaded,
+        settingsAclGroup,
+        settingsAclGroupLevel,
+        settingsAclForm,
         fetchSettings,
+        fetchSettingsAcl,
         saveSettingsProfile,
         saveSettingsUserOptions,
         saveSettingsPassword,
@@ -6541,6 +6842,7 @@
         closeSettingsNotifyTemplateEditor,
         applySettingsNotifyTemplateDraft,
         saveSettingsPermalink,
+        saveSettingsAcl,
         saveSettingsAll,
         themesLoading,
         themesError,
@@ -6614,6 +6916,9 @@
         isMenuItemActive,
         toggleSidebar,
         toggleWriteSidebar,
+        permissionInfoOpen,
+        openPermissionInfo,
+        closePermissionInfo,
         handleMenuClick,
         navTo,
         openSettings,
@@ -7008,6 +7313,9 @@
                     <div class="v3a-posts-title">管理</div>
                   </div>
                   <div class="v3a-posts-actions">
+                    <button class="v3a-actionbtn" type="button" title="权限说明" @click="openPermissionInfo()">
+                      <span class="v3a-icon" v-html="ICONS.info"></span>
+                    </button>
                     <button class="v3a-actionbtn danger" type="button" title="删除多条" :disabled="!postsSelectedCids.length" @click="deleteSelectedPosts()">
                       <span class="v3a-icon" v-html="ICONS.trash"></span>
                     </button>
@@ -7028,6 +7336,20 @@
                     <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
                     <input class="v3a-input" v-model="postsFilters.keywords" @keyup.enter="applyPostsFilters()" placeholder="搜索标题..." />
                   </div>
+                  <select class="v3a-select" v-model="postsFilters.status" @change="applyPostsFilters()" style="width: 140px;">
+                    <option value="all">全部状态</option>
+                    <option value="publish">已发布</option>
+                    <option value="draft">草稿</option>
+                    <option value="waiting">待审核</option>
+                    <option value="private">私密</option>
+                    <option value="hidden">隐藏</option>
+                  </select>
+                  <select v-if="V3A.canPublish && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))" class="v3a-select" v-model="postsFilters.scope" @change="applyPostsFilters()" style="width: 140px;">
+                    <option value="mine">我的文章</option>
+                    <option value="all">全部文章</option>
+                  </select>
+                  <button class="v3a-btn" type="button" @click="applyPostsFilters()" :disabled="postsLoading">搜索</button>
+                  <div class="v3a-muted">{{ formatNumber(postsPagination.total) }} 篇</div>
                 </div>
 
                 <div class="v3a-card">
@@ -7041,6 +7363,7 @@
                             <input ref="postsSelectAllEl" class="v3a-check" type="checkbox" :checked="postsSelectedAll" @change="togglePostsSelectAll($event.target.checked)" />
                           </th>
                           <th>标题</th>
+                          <th v-if="V3A.canPublish && postsFilters.scope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))">作者</th>
                           <th>分类</th>
                           <th>标签</th>
                           <th title="评论"><span class="v3a-icon" v-html="ICONS.comments"></span></th>
@@ -7059,6 +7382,9 @@
                           <td>
                             <a href="###" @click.prevent="openPostEditor(p.cid)">{{ p.title || '（无标题）' }}</a>
                           </td>
+                          <td v-if="V3A.canPublish && postsFilters.scope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))" class="v3a-muted">
+                            {{ (p.author && p.author.name) ? p.author.name : '—' }}
+                          </td>
                           <td>{{ (p.categories && p.categories.length) ? p.categories[0].name : '—' }}</td>
                           <td>{{ (p.tags && p.tags.length) ? p.tags.map(t => t.name).join(', ') : '—' }}</td>
                           <td style="text-align:center;">{{ formatNumber(p.commentsNum) }}</td>
@@ -7076,7 +7402,7 @@
                           </td>
                         </tr>
                         <tr v-if="!postsItems.length">
-                          <td colspan="10" class="v3a-muted" style="padding: 16px;">暂无文章</td>
+                          <td :colspan="(V3A.canPublish && postsFilters.scope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))) ? 11 : 10" class="v3a-muted" style="padding: 16px;">暂无文章</td>
                         </tr>
                       </tbody>
                     </table>
@@ -7936,7 +8262,7 @@
                     <button class="v3a-actionbtn danger" type="button" title="删除多条" :disabled="!filesSelectMode || !filesSelectedIds.length" @click="deleteSelectedFiles()">
                       <span class="v3a-icon" v-html="ICONS.trash"></span>
                     </button>
-                    <button class="v3a-actionbtn primary" type="button" title="上传文件" :disabled="filesUploading" @click="openFilesUploadModal()">
+                    <button v-if="!V3A.acl || !V3A.acl.files || Number(V3A.acl.files.upload)" class="v3a-actionbtn primary" type="button" title="上传文件" :disabled="filesUploading" @click="openFilesUploadModal()">
                       <span class="v3a-icon" v-html="ICONS.upload"></span>
                     </button>
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="filesLoading" @click="refreshFiles()">
@@ -8215,6 +8541,9 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
+                    <button class="v3a-actionbtn" type="button" title="权限说明" @click="openPermissionInfo()">
+                      <span class="v3a-icon" v-html="ICONS.info"></span>
+                    </button>
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="usersLoading" @click="applyUsersFilters()">
                       <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
                     </button>
@@ -8662,6 +8991,245 @@
                         <div class="v3a-settings-actions">
                           <button class="v3a-btn primary" type="button" @click="saveSettingsPassword()" :disabled="settingsSaving">更新密码</button>
                         </div>
+                      </div>
+                    </div>
+                  </template>
+
+                  <template v-else-if="settingsActiveKey === 'acl'">
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.shieldAlert"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">权限控制</div>
+                              <div class="v3a-settings-section-subtitle">按用户组微调权限与上传限制（基于旧 admin 权限模型）</div>
+                            </div>
+                          </div>
+                          <div class="v3a-settings-section-hd-right">
+                            <button class="v3a-btn" type="button" @click="fetchSettingsAcl()" :disabled="settingsAclLoading || settingsSaving">
+                              <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                              刷新
+                            </button>
+                          </div>
+                        </div>
+
+                        <div v-if="settingsAclLoading" class="v3a-muted">正在加载…</div>
+                        <div v-else-if="!settingsAclLoaded" class="v3a-muted">点击“刷新”加载权限配置。</div>
+
+                        <template v-else>
+                          <div class="v3a-settings-fields">
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>用户组</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-quickactions">
+                                  <button class="v3a-chipbtn" :class="{ active: settingsAclGroup === 'administrator' }" type="button" @click="settingsAclGroup = 'administrator'">管理员</button>
+                                  <button class="v3a-chipbtn" :class="{ active: settingsAclGroup === 'editor' }" type="button" @click="settingsAclGroup = 'editor'">编辑</button>
+                                  <button class="v3a-chipbtn" :class="{ active: settingsAclGroup === 'contributor' }" type="button" @click="settingsAclGroup = 'contributor'">贡献者</button>
+                                  <button class="v3a-chipbtn" :class="{ active: settingsAclGroup === 'subscriber' }" type="button" @click="settingsAclGroup = 'subscriber'">关注者</button>
+                                  <button class="v3a-chipbtn" :class="{ active: settingsAclGroup === 'visitor' }" type="button" @click="settingsAclGroup = 'visitor'">访问者</button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="v3a-settings-fields" style="padding-top: 0;">
+                            <table class="v3a-table">
+                              <thead>
+                                <tr>
+                                  <th>权限项</th>
+                                  <th style="width: 280px;">配置</th>
+                                  <th>说明</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr>
+                                  <td>撰写文章</td>
+                                  <td>
+                                    <label class="v3a-remember" style="margin: 0;">
+                                      <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].posts.write" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 2" />
+                                      <span>启用</span>
+                                    </label>
+                                  </td>
+                                  <td class="v3a-muted">贡献者发布将进入「待审核」。</td>
+                                </tr>
+                                <tr>
+                                  <td>管理文章</td>
+                                  <td>
+                                    <label class="v3a-remember" style="margin: 0;">
+                                      <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].posts.manage" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 2" />
+                                      <span>启用</span>
+                                    </label>
+                                  </td>
+                                  <td class="v3a-muted">贡献者仅限管理自己的文章。</td>
+                                </tr>
+                                <tr>
+                                  <td>查看全部文章</td>
+                                  <td>
+                                    <label class="v3a-remember" style="margin: 0;">
+                                      <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].posts.scopeAll" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 1" />
+                                      <span>启用</span>
+                                    </label>
+                                  </td>
+                                  <td class="v3a-muted">用于审核/管理其他用户文章。</td>
+                                </tr>
+                                <tr>
+                                  <td>分类 / 标签</td>
+                                  <td>
+                                    <label class="v3a-remember" style="margin: 0;">
+                                      <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].posts.taxonomy" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 1" />
+                                      <span>启用</span>
+                                    </label>
+                                  </td>
+                                  <td class="v3a-muted">分类与标签的创建、编辑、删除。</td>
+                                </tr>
+                                <tr>
+                                  <td>评论管理</td>
+                                  <td>
+                                    <label class="v3a-remember" style="margin: 0;">
+                                      <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].comments.manage" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 1" />
+                                      <span>启用</span>
+                                    </label>
+                                  </td>
+                                  <td class="v3a-muted">包含审核、回复、编辑、删除。</td>
+                                </tr>
+                                <tr>
+                                  <td>查看全部评论</td>
+                                  <td>
+                                    <label class="v3a-remember" style="margin: 0;">
+                                      <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].comments.scopeAll" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 1" />
+                                      <span>启用</span>
+                                    </label>
+                                  </td>
+                                  <td class="v3a-muted">否则仅能查看自己文章下的评论（如已实现）。</td>
+                                </tr>
+                                <tr>
+                                  <td>页面管理</td>
+                                  <td>
+                                    <label class="v3a-remember" style="margin: 0;">
+                                      <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].pages.manage" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 1" />
+                                      <span>启用</span>
+                                    </label>
+                                  </td>
+                                  <td class="v3a-muted">撰写与管理页面。</td>
+                                </tr>
+                                <tr>
+                                  <td>文件管理</td>
+                                  <td>
+                                    <label class="v3a-remember" style="margin: 0;">
+                                      <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].files.access" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 2" />
+                                      <span>启用</span>
+                                    </label>
+                                  </td>
+                                  <td class="v3a-muted">查看与管理附件列表。</td>
+                                </tr>
+                                <tr>
+                                  <td>允许上传文件</td>
+                                  <td>
+                                    <label class="v3a-remember" style="margin: 0;">
+                                      <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].files.upload" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 2 || !settingsAclForm.groups[settingsAclGroup].files.access" />
+                                      <span>启用</span>
+                                    </label>
+                                  </td>
+                                  <td class="v3a-muted">禁用后将阻止上传接口。</td>
+                                </tr>
+                                <tr>
+                                  <td>管理全部文件</td>
+                                  <td>
+                                    <label class="v3a-remember" style="margin: 0;">
+                                      <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].files.scopeAll" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 1" />
+                                      <span>启用</span>
+                                    </label>
+                                  </td>
+                                  <td class="v3a-muted">禁用时仅能管理自己上传的文件。</td>
+                                </tr>
+                                <tr>
+                                  <td>上传大小限制（MB）</td>
+                                  <td>
+                                    <input class="v3a-input" type="number" min="0" max="2048" v-model.number="settingsAclForm.groups[settingsAclGroup].files.maxSizeMb" :disabled="settingsAclGroupLevel > 2 || !settingsAclForm.groups[settingsAclGroup].files.upload" placeholder="0 表示不额外限制" />
+                                  </td>
+                                  <td class="v3a-muted">0 表示不额外限制（仍受站点全局附件限制影响）。</td>
+                                </tr>
+                                <tr>
+                                  <td>允许上传类型</td>
+                                  <td>
+                                    <div style="display:flex; flex-wrap: wrap; gap: 10px;">
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" value="jpg" v-model="settingsAclForm.groups[settingsAclGroup].files.types" :disabled="settingsAclGroupLevel > 2 || !settingsAclForm.groups[settingsAclGroup].files.upload" />
+                                        <span>jpg</span>
+                                      </label>
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" value="png" v-model="settingsAclForm.groups[settingsAclGroup].files.types" :disabled="settingsAclGroupLevel > 2 || !settingsAclForm.groups[settingsAclGroup].files.upload" />
+                                        <span>png</span>
+                                      </label>
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" value="gif" v-model="settingsAclForm.groups[settingsAclGroup].files.types" :disabled="settingsAclGroupLevel > 2 || !settingsAclForm.groups[settingsAclGroup].files.upload" />
+                                        <span>gif</span>
+                                      </label>
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" value="webp" v-model="settingsAclForm.groups[settingsAclGroup].files.types" :disabled="settingsAclGroupLevel > 2 || !settingsAclForm.groups[settingsAclGroup].files.upload" />
+                                        <span>webp</span>
+                                      </label>
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" value="zip" v-model="settingsAclForm.groups[settingsAclGroup].files.types" :disabled="settingsAclGroupLevel > 2 || !settingsAclForm.groups[settingsAclGroup].files.upload" />
+                                        <span>zip</span>
+                                      </label>
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" value="pdf" v-model="settingsAclForm.groups[settingsAclGroup].files.types" :disabled="settingsAclGroupLevel > 2 || !settingsAclForm.groups[settingsAclGroup].files.upload" />
+                                        <span>pdf</span>
+                                      </label>
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" value="mp4" v-model="settingsAclForm.groups[settingsAclGroup].files.types" :disabled="settingsAclGroupLevel > 2 || !settingsAclForm.groups[settingsAclGroup].files.upload" />
+                                        <span>mp4</span>
+                                      </label>
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" value="mp3" v-model="settingsAclForm.groups[settingsAclGroup].files.types" :disabled="settingsAclGroupLevel > 2 || !settingsAclForm.groups[settingsAclGroup].files.upload" />
+                                        <span>mp3</span>
+                                      </label>
+                                    </div>
+                                  </td>
+                                  <td class="v3a-muted">留空表示不额外限制（仍会校验全局附件类型）。</td>
+                                </tr>
+                                <tr>
+                                  <td>用户 / 链接 / 数据 / 订阅 / 维护</td>
+                                  <td>
+                                    <div style="display:flex; flex-wrap: wrap; gap: 12px;">
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].users.manage" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 0" />
+                                        <span>用户</span>
+                                      </label>
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].friends.manage" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 0" />
+                                        <span>链接</span>
+                                      </label>
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].data.manage" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 0" />
+                                        <span>数据</span>
+                                      </label>
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].subscribe.manage" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 0" />
+                                        <span>订阅</span>
+                                      </label>
+                                      <label class="v3a-remember" style="margin: 0;">
+                                        <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].maintenance.manage" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 0" />
+                                        <span>维护</span>
+                                      </label>
+                                    </div>
+                                  </td>
+                                  <td class="v3a-muted">以上模块通常仅管理员可用。</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <div class="v3a-muted" style="margin-top: 12px;">
+                            提示：此页用于微调 Vue3Admin 内部模块权限，不会改变 Typecho 核心用户组定义。
+                          </div>
+                        </template>
                       </div>
                     </div>
                   </template>
@@ -9874,6 +10442,144 @@
             </template>
           </section>
         </main>
+
+        <div v-if="permissionInfoOpen" class="v3a-modal-mask" @click.self="closePermissionInfo()">
+          <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 980px;">
+            <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closePermissionInfo()">
+              <span class="v3a-icon" v-html="ICONS.close"></span>
+            </button>
+
+            <div class="v3a-modal-hd">
+              <div class="v3a-modal-title">权限细分</div>
+              <div class="v3a-modal-subtitle">基于 Typecho 用户组（旧 admin 设计）并结合 Vue3Admin 当前模块</div>
+            </div>
+
+            <div class="v3a-modal-bd">
+              <div class="v3a-muted" style="margin-bottom: 12px;">
+                说明：数字越小权限越高。贡献者发布文章需要审核（待审核 → 编辑/管理员发布）。管理员可在「设定 / 权限」中微调权限与上传限制。
+              </div>
+
+              <table class="v3a-table">
+                <thead>
+                  <tr>
+                    <th>权限</th>
+                    <th style="text-align:center;">管理员</th>
+                    <th style="text-align:center;">编辑</th>
+                    <th style="text-align:center;">贡献者</th>
+                    <th style="text-align:center;">关注者</th>
+                    <th style="text-align:center;">访问者</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>代号 / 等级</td>
+                    <td style="text-align:center;">administrator / 0</td>
+                    <td style="text-align:center;">editor / 1</td>
+                    <td style="text-align:center;">contributor / 2</td>
+                    <td style="text-align:center;">subscriber / 3</td>
+                    <td style="text-align:center;">visitor / 4</td>
+                  </tr>
+                  <tr>
+                    <td>进入控制台</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                  <tr>
+                    <td>仪表盘</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                  <tr>
+                    <td>撰写文章</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√（审核后发布）</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                  <tr>
+                    <td>管理文章</td>
+                    <td style="text-align:center;">√（全部）</td>
+                    <td style="text-align:center;">√（全部）</td>
+                    <td style="text-align:center;">√（仅自己）</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                  <tr>
+                    <td>审核/发布文章</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                  <tr>
+                    <td>分类/标签</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                  <tr>
+                    <td>评论管理</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                  <tr>
+                    <td>页面管理</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                  <tr>
+                    <td>上传/管理文件</td>
+                    <td style="text-align:center;">√（全部）</td>
+                    <td style="text-align:center;">√（全部）</td>
+                    <td style="text-align:center;">√（受限/仅自己）</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                  <tr>
+                    <td>管理链接 / 数据 / 订阅 / 用户 / 维护</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                  <tr>
+                    <td>个人资料 / 账号安全</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                  <tr>
+                    <td>站点/内容/通知/主题/插件/存储/永久链接设置</td>
+                    <td style="text-align:center;">√</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                    <td style="text-align:center;">×</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
 
         <ol class="v3a-toaster" aria-live="polite" aria-relevant="additions removals">
           <li v-for="t in toasts" :key="t.id" class="v3a-toast" :data-type="t.type">

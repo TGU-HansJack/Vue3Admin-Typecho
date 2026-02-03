@@ -59,6 +59,7 @@ class Plugin implements PluginInterface
         self::deployAdminDirectory();
         self::installOrUpgradeSchema();
         self::ensureDefaultRegisterGroupOption();
+        self::ensureAclConfigOption();
         self::switchAdminDir('/' . self::ADMIN_DIR . '/');
 
         // 运行时自愈：当后台目录被误删/覆盖/升级后缺文件时自动重新部署
@@ -67,6 +68,9 @@ class Plugin implements PluginInterface
 
         // Register: allow choosing default group for new users (exclude administrator).
         \Typecho\Plugin::factory('Widget_Register')->register = __CLASS__ . '::filterRegisterGroup';
+
+        // ACL: enforce per-group upload restrictions for /action/upload
+        \Typecho\Plugin::factory('Widget_Upload')->uploadHandle = __CLASS__ . '::uploadHandle';
 
         // 访问统计（前台）：用于仪表盘“访问量/今日 IP”等数据
         \Typecho\Plugin::factory('Widget_Archive')->afterRender = __CLASS__ . '::trackVisit';
@@ -106,6 +110,253 @@ class Plugin implements PluginInterface
                 Db::WRITE
             );
         } catch (\Throwable $e) {
+        }
+    }
+
+    private static function defaultAclConfig(): array
+    {
+        return [
+            'version' => 1,
+            'groups' => [
+                'administrator' => [
+                    'posts' => ['write' => 1, 'manage' => 1, 'taxonomy' => 1, 'scopeAll' => 1],
+                    'comments' => ['manage' => 1, 'scopeAll' => 1],
+                    'pages' => ['manage' => 1],
+                    'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 1, 'maxSizeMb' => 0, 'types' => []],
+                    'friends' => ['manage' => 1],
+                    'data' => ['manage' => 1],
+                    'subscribe' => ['manage' => 1],
+                    'users' => ['manage' => 1],
+                    'maintenance' => ['manage' => 1],
+                ],
+                'editor' => [
+                    'posts' => ['write' => 1, 'manage' => 1, 'taxonomy' => 1, 'scopeAll' => 1],
+                    'comments' => ['manage' => 1, 'scopeAll' => 1],
+                    'pages' => ['manage' => 1],
+                    'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 1, 'maxSizeMb' => 0, 'types' => []],
+                    'friends' => ['manage' => 0],
+                    'data' => ['manage' => 0],
+                    'subscribe' => ['manage' => 0],
+                    'users' => ['manage' => 0],
+                    'maintenance' => ['manage' => 0],
+                ],
+                'contributor' => [
+                    'posts' => ['write' => 1, 'manage' => 1, 'taxonomy' => 0, 'scopeAll' => 0],
+                    'comments' => ['manage' => 0, 'scopeAll' => 0],
+                    'pages' => ['manage' => 0],
+                    'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 0, 'maxSizeMb' => 5, 'types' => []],
+                    'friends' => ['manage' => 0],
+                    'data' => ['manage' => 0],
+                    'subscribe' => ['manage' => 0],
+                    'users' => ['manage' => 0],
+                    'maintenance' => ['manage' => 0],
+                ],
+                'subscriber' => [
+                    'posts' => ['write' => 0, 'manage' => 0, 'taxonomy' => 0, 'scopeAll' => 0],
+                    'comments' => ['manage' => 0, 'scopeAll' => 0],
+                    'pages' => ['manage' => 0],
+                    'files' => ['access' => 0, 'upload' => 0, 'scopeAll' => 0, 'maxSizeMb' => 0, 'types' => []],
+                    'friends' => ['manage' => 0],
+                    'data' => ['manage' => 0],
+                    'subscribe' => ['manage' => 0],
+                    'users' => ['manage' => 0],
+                    'maintenance' => ['manage' => 0],
+                ],
+                'visitor' => [
+                    'posts' => ['write' => 0, 'manage' => 0, 'taxonomy' => 0, 'scopeAll' => 0],
+                    'comments' => ['manage' => 0, 'scopeAll' => 0],
+                    'pages' => ['manage' => 0],
+                    'files' => ['access' => 0, 'upload' => 0, 'scopeAll' => 0, 'maxSizeMb' => 0, 'types' => []],
+                    'friends' => ['manage' => 0],
+                    'data' => ['manage' => 0],
+                    'subscribe' => ['manage' => 0],
+                    'users' => ['manage' => 0],
+                    'maintenance' => ['manage' => 0],
+                ],
+            ],
+        ];
+    }
+
+    private static function ensureAclConfigOption(): void
+    {
+        try {
+            $db = Db::get();
+            $exists = (int) ($db->fetchObject(
+                $db->select(['COUNT(*)' => 'num'])
+                    ->from('table.options')
+                    ->where('name = ? AND user = ?', 'v3a_acl_config', 0)
+            )->num ?? 0);
+
+            if ($exists > 0) {
+                return;
+            }
+
+            $db->query(
+                $db->insert('table.options')->rows([
+                    'name' => 'v3a_acl_config',
+                    'value' => json_encode(self::defaultAclConfig(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'user' => 0,
+                ]),
+                Db::WRITE
+            );
+        } catch (\Throwable $e) {
+        }
+    }
+
+    private static function getAclFilesRule(string $group): array
+    {
+        static $cached = null;
+        if ($cached === null) {
+            $cached = [];
+            try {
+                $db = Db::get();
+                $row = $db->fetchObject(
+                    $db->select('value')
+                        ->from('table.options')
+                        ->where('name = ? AND user = ?', 'v3a_acl_config', 0)
+                        ->limit(1)
+                );
+                $raw = (string) ($row->value ?? '');
+                $decoded = $raw !== '' ? json_decode($raw, true) : null;
+                if (is_array($decoded)) {
+                    $cached = $decoded;
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $g = strtolower(trim($group));
+        $files = [];
+        try {
+            $files = (array) (($cached['groups'][$g]['files'] ?? []) ?: []);
+        } catch (\Throwable $e) {
+        }
+
+        $types = [];
+        if (!empty($files['types']) && is_array($files['types'])) {
+            foreach ($files['types'] as $t) {
+                $v = strtolower(trim((string) $t));
+                $v = ltrim($v, '.');
+                if ($v !== '') {
+                    $types[$v] = true;
+                }
+            }
+        }
+
+        $files['types'] = array_values(array_keys($types));
+        return $files;
+    }
+
+    private static function v3aUploadSafeName(string &$name): string
+    {
+        $name = str_replace(['"', '<', '>'], '', $name);
+        $name = str_replace('\\', '/', $name);
+        $name = false === strpos($name, '/') ? ('a' . $name) : str_replace('/', '/a', $name);
+        $info = pathinfo($name);
+        $name = substr((string) ($info['basename'] ?? ''), 1);
+
+        return isset($info['extension']) ? strtolower((string) $info['extension']) : '';
+    }
+
+    private static function v3aMakeUploadDir(string $path): bool
+    {
+        $path = preg_replace('/\\\\+/', '/', $path);
+        $path = rtrim((string) $path, '/');
+        if ($path === '') {
+            return false;
+        }
+
+        if (is_dir($path)) {
+            return true;
+        }
+
+        @mkdir($path, 0755, true);
+        return is_dir($path);
+    }
+
+    public static function uploadHandle(array $file)
+    {
+        try {
+            $user = \Widget\User::alloc();
+            $group = strtolower(trim((string) ($user->group ?? 'subscriber')));
+            $rule = self::getAclFilesRule($group);
+
+            if (isset($rule['access']) && !(int) $rule['access']) {
+                return false;
+            }
+            if (isset($rule['upload']) && !(int) $rule['upload']) {
+                return false;
+            }
+
+            $maxSizeMb = isset($rule['maxSizeMb']) ? (int) $rule['maxSizeMb'] : 0;
+            if ($maxSizeMb > 0 && isset($file['size']) && (int) $file['size'] > $maxSizeMb * 1024 * 1024) {
+                return false;
+            }
+
+            $name = (string) ($file['name'] ?? '');
+            if ($name === '') {
+                return false;
+            }
+
+            $ext = self::v3aUploadSafeName($name);
+            if (!\Widget\Upload::checkFileType($ext)) {
+                return false;
+            }
+
+            $allowed = isset($rule['types']) && is_array($rule['types']) ? $rule['types'] : [];
+            if (!empty($allowed)) {
+                $extLower = strtolower((string) $ext);
+                $allowedMap = array_fill_keys(array_map('strtolower', $allowed), true);
+                if (!isset($allowedMap[$extLower])) {
+                    return false;
+                }
+            }
+
+            $date = new \Typecho\Date();
+            $dir = \Typecho\Common::url(
+                defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : \Widget\Upload::UPLOAD_DIR,
+                defined('__TYPECHO_UPLOAD_ROOT_DIR__') ? __TYPECHO_UPLOAD_ROOT_DIR__ : __TYPECHO_ROOT_DIR__
+            ) . '/' . $date->year . '/' . $date->month;
+
+            if (!is_dir($dir)) {
+                if (!self::v3aMakeUploadDir($dir)) {
+                    return false;
+                }
+            }
+
+            $fileName = sprintf('%u', crc32(uniqid())) . '.' . $ext;
+            $fullPath = $dir . '/' . $fileName;
+
+            if (isset($file['tmp_name'])) {
+                if (!@move_uploaded_file($file['tmp_name'], $fullPath)) {
+                    return false;
+                }
+            } elseif (isset($file['bytes'])) {
+                if (!file_put_contents($fullPath, $file['bytes'])) {
+                    return false;
+                }
+            } elseif (isset($file['bits'])) {
+                if (!file_put_contents($fullPath, $file['bits'])) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+
+            if (!isset($file['size'])) {
+                $file['size'] = filesize($fullPath);
+            }
+
+            return [
+                'name' => $name,
+                'path' => (defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : \Widget\Upload::UPLOAD_DIR)
+                    . '/' . $date->year . '/' . $date->month . '/' . $fileName,
+                'size' => $file['size'],
+                'type' => $ext,
+                'mime' => \Typecho\Common::mimeContentType($fullPath),
+            ];
+        } catch (\Throwable $e) {
+            return false;
         }
     }
 
@@ -513,7 +764,9 @@ HTML;
             if (!$runtimeInit) {
                 $runtimeInit = true;
                 self::ensureDefaultRegisterGroupOption();
+                self::ensureAclConfigOption();
                 \Typecho\Plugin::factory('Widget_Register')->register = __CLASS__ . '::filterRegisterGroup';
+                \Typecho\Plugin::factory('Widget_Upload')->uploadHandle = __CLASS__ . '::uploadHandle';
             }
 
             $target = rtrim(__TYPECHO_ROOT_DIR__, '/\\') . DIRECTORY_SEPARATOR . self::ADMIN_DIR;

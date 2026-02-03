@@ -259,6 +259,223 @@ function v3a_require_role($user, string $role): void
     v3a_exit_json(403, null, 'Forbidden');
 }
 
+/**
+ * ACL config (Vue3Admin internal).
+ *
+ * Stored in table.options: name=v3a_acl_config user=0
+ */
+function v3a_acl_default_config(): array
+{
+    return [
+        'version' => 1,
+        'groups' => [
+            'administrator' => [
+                'posts' => ['write' => 1, 'manage' => 1, 'taxonomy' => 1, 'scopeAll' => 1],
+                'comments' => ['manage' => 1, 'scopeAll' => 1],
+                'pages' => ['manage' => 1],
+                'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 1, 'maxSizeMb' => 0, 'types' => []],
+                'friends' => ['manage' => 1],
+                'data' => ['manage' => 1],
+                'subscribe' => ['manage' => 1],
+                'users' => ['manage' => 1],
+                'maintenance' => ['manage' => 1],
+            ],
+            'editor' => [
+                'posts' => ['write' => 1, 'manage' => 1, 'taxonomy' => 1, 'scopeAll' => 1],
+                'comments' => ['manage' => 1, 'scopeAll' => 1],
+                'pages' => ['manage' => 1],
+                'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 1, 'maxSizeMb' => 0, 'types' => []],
+                'friends' => ['manage' => 0],
+                'data' => ['manage' => 0],
+                'subscribe' => ['manage' => 0],
+                'users' => ['manage' => 0],
+                'maintenance' => ['manage' => 0],
+            ],
+            'contributor' => [
+                'posts' => ['write' => 1, 'manage' => 1, 'taxonomy' => 0, 'scopeAll' => 0],
+                'comments' => ['manage' => 0, 'scopeAll' => 0],
+                'pages' => ['manage' => 0],
+                'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 0, 'maxSizeMb' => 5, 'types' => []],
+                'friends' => ['manage' => 0],
+                'data' => ['manage' => 0],
+                'subscribe' => ['manage' => 0],
+                'users' => ['manage' => 0],
+                'maintenance' => ['manage' => 0],
+            ],
+            'subscriber' => [
+                'posts' => ['write' => 0, 'manage' => 0, 'taxonomy' => 0, 'scopeAll' => 0],
+                'comments' => ['manage' => 0, 'scopeAll' => 0],
+                'pages' => ['manage' => 0],
+                'files' => ['access' => 0, 'upload' => 0, 'scopeAll' => 0, 'maxSizeMb' => 0, 'types' => []],
+                'friends' => ['manage' => 0],
+                'data' => ['manage' => 0],
+                'subscribe' => ['manage' => 0],
+                'users' => ['manage' => 0],
+                'maintenance' => ['manage' => 0],
+            ],
+            'visitor' => [
+                'posts' => ['write' => 0, 'manage' => 0, 'taxonomy' => 0, 'scopeAll' => 0],
+                'comments' => ['manage' => 0, 'scopeAll' => 0],
+                'pages' => ['manage' => 0],
+                'files' => ['access' => 0, 'upload' => 0, 'scopeAll' => 0, 'maxSizeMb' => 0, 'types' => []],
+                'friends' => ['manage' => 0],
+                'data' => ['manage' => 0],
+                'subscribe' => ['manage' => 0],
+                'users' => ['manage' => 0],
+                'maintenance' => ['manage' => 0],
+            ],
+        ],
+    ];
+}
+
+function v3a_acl_sanitize_types($types): array
+{
+    if (!is_array($types)) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($types as $t) {
+        $v = strtolower(trim((string) $t));
+        $v = ltrim($v, '.');
+        if ($v === '') {
+            continue;
+        }
+        $out[$v] = true;
+    }
+
+    $keys = array_keys($out);
+    sort($keys);
+    return $keys;
+}
+
+function v3a_acl_sanitize_group($group): array
+{
+    $g = is_array($group) ? $group : [];
+
+    $posts = isset($g['posts']) && is_array($g['posts']) ? $g['posts'] : [];
+    $comments = isset($g['comments']) && is_array($g['comments']) ? $g['comments'] : [];
+    $pages = isset($g['pages']) && is_array($g['pages']) ? $g['pages'] : [];
+    $files = isset($g['files']) && is_array($g['files']) ? $g['files'] : [];
+    $friends = isset($g['friends']) && is_array($g['friends']) ? $g['friends'] : [];
+    $data = isset($g['data']) && is_array($g['data']) ? $g['data'] : [];
+    $subscribe = isset($g['subscribe']) && is_array($g['subscribe']) ? $g['subscribe'] : [];
+    $users = isset($g['users']) && is_array($g['users']) ? $g['users'] : [];
+    $maintenance = isset($g['maintenance']) && is_array($g['maintenance']) ? $g['maintenance'] : [];
+
+    $maxSizeMb = (int) ($files['maxSizeMb'] ?? 0);
+    if ($maxSizeMb < 0) {
+        $maxSizeMb = 0;
+    }
+    if ($maxSizeMb > 2048) {
+        $maxSizeMb = 2048;
+    }
+
+    return [
+        'posts' => [
+            'write' => v3a_bool_int($posts['write'] ?? 0),
+            'manage' => v3a_bool_int($posts['manage'] ?? 0),
+            'taxonomy' => v3a_bool_int($posts['taxonomy'] ?? 0),
+            'scopeAll' => v3a_bool_int($posts['scopeAll'] ?? 0),
+        ],
+        'comments' => [
+            'manage' => v3a_bool_int($comments['manage'] ?? 0),
+            'scopeAll' => v3a_bool_int($comments['scopeAll'] ?? 0),
+        ],
+        'pages' => [
+            'manage' => v3a_bool_int($pages['manage'] ?? 0),
+        ],
+        'files' => [
+            'access' => v3a_bool_int($files['access'] ?? 0),
+            'upload' => v3a_bool_int($files['upload'] ?? 0),
+            'scopeAll' => v3a_bool_int($files['scopeAll'] ?? 0),
+            'maxSizeMb' => $maxSizeMb,
+            'types' => v3a_acl_sanitize_types($files['types'] ?? []),
+        ],
+        'friends' => ['manage' => v3a_bool_int($friends['manage'] ?? 0)],
+        'data' => ['manage' => v3a_bool_int($data['manage'] ?? 0)],
+        'subscribe' => ['manage' => v3a_bool_int($subscribe['manage'] ?? 0)],
+        'users' => ['manage' => v3a_bool_int($users['manage'] ?? 0)],
+        'maintenance' => ['manage' => v3a_bool_int($maintenance['manage'] ?? 0)],
+    ];
+}
+
+function v3a_acl_sanitize_config($config): array
+{
+    $base = v3a_acl_default_config();
+    $cfg = is_array($config) ? $config : [];
+
+    $version = isset($cfg['version']) && is_numeric($cfg['version']) ? (int) $cfg['version'] : 1;
+    if ($version <= 0) {
+        $version = 1;
+    }
+
+    $out = [
+        'version' => $version,
+        'groups' => [],
+    ];
+
+    $groups = isset($cfg['groups']) && is_array($cfg['groups']) ? $cfg['groups'] : [];
+    foreach (array_keys($base['groups']) as $k) {
+        $out['groups'][$k] = v3a_acl_sanitize_group($groups[$k] ?? $base['groups'][$k]);
+    }
+
+    return $out;
+}
+
+function v3a_acl_load($db): array
+{
+    $name = 'v3a_acl_config';
+
+    $raw = '';
+    try {
+        $row = $db->fetchObject(
+            $db->select('value')
+                ->from('table.options')
+                ->where('name = ? AND user = ?', $name, 0)
+                ->limit(1)
+        );
+        $raw = (string) ($row->value ?? '');
+    } catch (\Throwable $e) {
+    }
+
+    $decoded = null;
+    if ($raw !== '') {
+        $decoded = json_decode($raw, true);
+    }
+
+    if (!is_array($decoded)) {
+        $decoded = v3a_acl_default_config();
+        try {
+            v3a_upsert_option($db, $name, json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0);
+        } catch (\Throwable $e) {
+        }
+    }
+
+    return v3a_acl_sanitize_config($decoded);
+}
+
+function v3a_acl_for_user($db, $user): array
+{
+    static $cached = null;
+    if (is_array($cached)) {
+        return $cached;
+    }
+
+    $cfg = v3a_acl_load($db);
+    $group = 'subscriber';
+    try {
+        $group = strtolower(trim((string) ($user->group ?? 'subscriber')));
+    } catch (\Throwable $e) {
+    }
+
+    $cached = isset($cfg['groups'][$group]) && is_array($cfg['groups'][$group])
+        ? $cfg['groups'][$group]
+        : v3a_acl_sanitize_group([]);
+
+    return $cached;
+}
+
 function v3a_int($value, int $default = 0): int
 {
     if (is_int($value)) {
@@ -1343,12 +1560,20 @@ try {
     if ($do === 'posts.list') {
         v3a_require_role($user, 'contributor');
 
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['posts']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
         $page = max(1, (int) $request->get('page', 1));
         $pageSize = (int) $request->get('pageSize', 20);
         $pageSize = max(1, min(50, $pageSize));
 
         $status = v3a_string($request->get('status', 'all'), 'all');
         $scope = v3a_string($request->get('scope', 'mine'), 'mine');
+        if ($scope === 'all' && (empty($acl['posts']['scopeAll']) || !$user->pass('editor', true))) {
+            $scope = 'mine';
+        }
         $keywords = v3a_string($request->get('keywords', ''), '');
         $category = (int) $request->get('category', 0);
 
@@ -1579,6 +1804,11 @@ try {
     if ($do === 'posts.get') {
         v3a_require_role($user, 'contributor');
 
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['posts']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
         $cid = (int) $request->get('cid', 0);
         if ($cid <= 0) {
             v3a_exit_json(400, null, 'Missing cid');
@@ -1686,6 +1916,11 @@ try {
 
         v3a_security_protect($security, $request);
         v3a_require_role($user, 'contributor');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['posts']['write'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $payload = v3a_payload();
 
@@ -1800,6 +2035,11 @@ try {
         v3a_security_protect($security, $request);
         v3a_require_role($user, 'contributor');
 
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['posts']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
         $payload = v3a_payload();
         $cids = $payload['cids'] ?? $payload['cid'] ?? $payload['ids'] ?? [];
         if (is_numeric($cids)) {
@@ -1828,6 +2068,11 @@ try {
 
         v3a_security_protect($security, $request);
         v3a_require_role($user, 'contributor');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['posts']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $payload = v3a_payload();
         $status = v3a_string($payload['status'] ?? '', '');
@@ -1880,6 +2125,10 @@ try {
 
     if ($do === 'pages.list') {
         if (!$user->pass('editor', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['pages']['manage'])) {
             v3a_exit_json(403, null, 'Forbidden');
         }
 
@@ -2023,6 +2272,10 @@ try {
         if (!$user->pass('editor', true)) {
             v3a_exit_json(403, null, 'Forbidden');
         }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['pages']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $cid = (int) $request->get('cid', 0);
         $parent = (int) $request->get('parent', 0);
@@ -2136,6 +2389,10 @@ try {
         if (!$user->pass('editor', true)) {
             v3a_exit_json(403, null, 'Forbidden');
         }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['pages']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $payload = v3a_payload();
 
@@ -2244,6 +2501,10 @@ try {
         if (!$user->pass('editor', true)) {
             v3a_exit_json(403, null, 'Forbidden');
         }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['pages']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $payload = v3a_payload();
         $cids = $payload['cids'] ?? $payload['cid'] ?? $payload['ids'] ?? [];
@@ -2267,7 +2528,12 @@ try {
     }
 
     if ($do === 'comments.list') {
-        v3a_require_role($user, 'contributor');
+        v3a_require_role($user, 'editor');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['comments']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $page = max(1, (int) $request->get('page', 1));
         $pageSize = (int) $request->get('pageSize', 20);
@@ -2275,6 +2541,9 @@ try {
 
         $status = v3a_string($request->get('status', 'approved'), 'approved'); // approved|waiting|spam|hold|all
         $scope = v3a_string($request->get('scope', 'mine'), 'mine'); // mine|all (editors only)
+        if ($scope === 'all' && empty($acl['comments']['scopeAll'])) {
+            $scope = 'mine';
+        }
         $keywords = v3a_string($request->get('keywords', ''), '');
         $cid = (int) $request->get('cid', 0);
 
@@ -2403,7 +2672,12 @@ try {
     }
 
     if ($do === 'comments.get') {
-        v3a_require_role($user, 'contributor');
+        v3a_require_role($user, 'editor');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['comments']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $coid = (int) $request->get('coid', 0);
         if ($coid <= 0) {
@@ -2436,7 +2710,7 @@ try {
         }
 
         $ownerId = (int) ($row['ownerId'] ?? 0);
-        if (!$user->pass('editor', true) && $ownerId !== (int) $user->uid) {
+        if (empty($acl['comments']['scopeAll']) && $ownerId !== (int) $user->uid) {
             v3a_exit_json(403, null, 'Forbidden');
         }
 
@@ -2487,7 +2761,12 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
         v3a_security_protect($security, $request);
-        v3a_require_role($user, 'contributor');
+        v3a_require_role($user, 'editor');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['comments']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $payload = v3a_payload();
         $status = v3a_string($payload['status'] ?? '', '');
@@ -2507,6 +2786,23 @@ try {
             v3a_exit_json(400, null, 'Missing coid');
         }
 
+        if (empty($acl['comments']['scopeAll'])) {
+            $uid = (int) ($user->uid ?? 0);
+            if ($uid <= 0) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+
+            $forbidden = (int) ($db->fetchObject(
+                $db->select(['COUNT(coid)' => 'num'])
+                    ->from('table.comments')
+                    ->where('coid IN ?', $coids)
+                    ->where('ownerId <> ?', $uid)
+            )->num ?? 0);
+            if ($forbidden > 0) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+        }
+
         try {
             $updated = V3A_CommentsEditProxy::alloc()->v3aMark($coids, $status);
             v3a_exit_json(0, ['updated' => (int) $updated]);
@@ -2520,12 +2816,31 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
         v3a_security_protect($security, $request);
-        v3a_require_role($user, 'contributor');
+        v3a_require_role($user, 'editor');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['comments']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $payload = v3a_payload();
         $coid = v3a_int($payload['coid'] ?? 0, 0);
         if ($coid <= 0) {
             v3a_exit_json(400, null, 'Missing coid');
+        }
+
+        if (empty($acl['comments']['scopeAll'])) {
+            $uid = (int) ($user->uid ?? 0);
+            if ($uid <= 0) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+            $row = $db->fetchRow(
+                $db->select('coid', 'ownerId')->from('table.comments')->where('coid = ?', $coid)->limit(1)
+            );
+            $ownerId = (int) ($row['ownerId'] ?? 0);
+            if (empty($row) || $ownerId !== $uid) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
         }
 
         $widgetRequest = [
@@ -2552,7 +2867,12 @@ try {
             v3a_exit_json(405, null, 'Method Not Allowed');
         }
         v3a_security_protect($security, $request);
-        v3a_require_role($user, 'contributor');
+        v3a_require_role($user, 'editor');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['comments']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $payload = v3a_payload();
         $coid = v3a_int($payload['coid'] ?? 0, 0);
@@ -2562,6 +2882,20 @@ try {
         }
         if ($text === '') {
             v3a_exit_json(400, null, 'Missing text');
+        }
+
+        if (empty($acl['comments']['scopeAll'])) {
+            $uid = (int) ($user->uid ?? 0);
+            if ($uid <= 0) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+            $row = $db->fetchRow(
+                $db->select('coid', 'ownerId')->from('table.comments')->where('coid = ?', $coid)->limit(1)
+            );
+            $ownerId = (int) ($row['ownerId'] ?? 0);
+            if (empty($row) || $ownerId !== $uid) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
         }
 
         try {
@@ -2580,7 +2914,12 @@ try {
         }
 
         v3a_security_protect($security, $request);
-        v3a_require_role($user, 'contributor');
+        v3a_require_role($user, 'editor');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['comments']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $payload = v3a_payload();
         $coids = $payload['coids'] ?? $payload['coid'] ?? $payload['ids'] ?? [];
@@ -2595,6 +2934,23 @@ try {
             v3a_exit_json(400, null, 'Missing coid');
         }
 
+        if (empty($acl['comments']['scopeAll'])) {
+            $uid = (int) ($user->uid ?? 0);
+            if ($uid <= 0) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+
+            $forbidden = (int) ($db->fetchObject(
+                $db->select(['COUNT(coid)' => 'num'])
+                    ->from('table.comments')
+                    ->where('coid IN ?', $coids)
+                    ->where('ownerId <> ?', $uid)
+            )->num ?? 0);
+            if ($forbidden > 0) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+        }
+
         try {
             $deleted = V3A_CommentsEditProxy::alloc()->v3aDelete($coids);
             v3a_exit_json(0, ['deleted' => (int) $deleted]);
@@ -2604,7 +2960,12 @@ try {
     }
 
     if ($do === 'files.list') {
-        v3a_require_role($user, 'editor');
+        v3a_require_role($user, 'contributor');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['files']['access'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $page = max(1, (int) $request->get('page', 1));
         $pageSize = (int) $request->get('pageSize', 20);
@@ -2623,7 +2984,7 @@ try {
             ->from('table.contents')
             ->where('table.contents.type = ?', 'attachment');
 
-        if (!$user->pass('editor', true)) {
+        if (!$user->pass('editor', true) || empty($acl['files']['scopeAll'])) {
             $select->where('table.contents.authorId = ?', (int) $user->uid);
         }
 
@@ -2762,7 +3123,12 @@ try {
         }
 
         v3a_security_protect($security, $request);
-        v3a_require_role($user, 'editor');
+        v3a_require_role($user, 'contributor');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['files']['access'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $payload = v3a_payload();
         $cids = $payload['cids'] ?? $payload['cid'] ?? $payload['ids'] ?? [];
@@ -2777,6 +3143,36 @@ try {
             v3a_exit_json(400, null, 'Missing cid');
         }
 
+        if (!$user->pass('editor', true) || empty($acl['files']['scopeAll'])) {
+            $uid = (int) ($user->uid ?? 0);
+            if ($uid <= 0) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+
+            $owned = [];
+            try {
+                $rows = $db->fetchAll(
+                    $db->select('cid')
+                        ->from('table.contents')
+                        ->where('type = ?', 'attachment')
+                        ->where('cid IN ?', $cids)
+                        ->where('authorId = ?', $uid)
+                );
+                foreach ((array) $rows as $r) {
+                    $cid = (int) ($r['cid'] ?? 0);
+                    if ($cid > 0) {
+                        $owned[] = $cid;
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
+
+            $cids = array_values(array_unique($owned));
+            if (empty($cids)) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+        }
+
         try {
             $deleted = V3A_AttachmentEditProxy::alloc()->v3aDelete($cids);
             v3a_exit_json(0, ['deleted' => (int) $deleted]);
@@ -2787,6 +3183,10 @@ try {
 
     if ($do === 'users.list') {
         if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['users']['manage'])) {
             v3a_exit_json(403, null, 'Forbidden');
         }
 
@@ -2923,6 +3323,10 @@ try {
         if (!$user->pass('administrator', true)) {
             v3a_exit_json(403, null, 'Forbidden');
         }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['users']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         v3a_security_protect($security, $request);
 
@@ -2987,6 +3391,10 @@ try {
         }
 
         if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['users']['manage'])) {
             v3a_exit_json(403, null, 'Forbidden');
         }
 
@@ -3115,7 +3523,7 @@ try {
     }
 
     if ($do === 'metas.categories') {
-        v3a_require_role($user, 'editor');
+        v3a_require_role($user, 'contributor');
 
         try {
             $rows = \Widget\Metas\Category\Rows::alloc()->to($categories);
@@ -3143,7 +3551,7 @@ try {
     }
 
     if ($do === 'metas.tags') {
-        v3a_require_role($user, 'editor');
+        v3a_require_role($user, 'contributor');
 
         try {
             $rows = $db->fetchAll(
@@ -3174,6 +3582,10 @@ try {
         v3a_security_protect($security, $request);
 
         if (!$user->pass('editor', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['posts']['taxonomy'])) {
             v3a_exit_json(403, null, 'Forbidden');
         }
 
@@ -3313,6 +3725,10 @@ try {
         if (!$user->pass('editor', true)) {
             v3a_exit_json(403, null, 'Forbidden');
         }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['posts']['taxonomy'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
 
         $payload = v3a_payload();
         $mids = $payload['mids'] ?? $payload['mid'] ?? $payload['ids'] ?? [];
@@ -3372,6 +3788,10 @@ try {
         v3a_security_protect($security, $request);
 
         if (!$user->pass('editor', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['posts']['taxonomy'])) {
             v3a_exit_json(403, null, 'Forbidden');
         }
 
@@ -3458,6 +3878,10 @@ try {
         v3a_security_protect($security, $request);
 
         if (!$user->pass('editor', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['posts']['taxonomy'])) {
             v3a_exit_json(403, null, 'Forbidden');
         }
 
@@ -3683,6 +4107,47 @@ try {
                 'frontPageFiles' => $frontPageFiles,
             ],
         ]);
+    }
+
+    if ($do === 'acl.get') {
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $config = v3a_acl_load($db);
+        v3a_exit_json(0, ['config' => $config]);
+    }
+
+    if ($do === 'acl.save') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+
+        v3a_security_protect($security, $request);
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $config = $payload['config'] ?? [];
+        if (is_string($config)) {
+            $decoded = json_decode($config, true);
+            $config = is_array($decoded) ? $decoded : [];
+        }
+
+        $sanitized = v3a_acl_sanitize_config(is_array($config) ? $config : []);
+        try {
+            v3a_upsert_option(
+                $db,
+                'v3a_acl_config',
+                json_encode($sanitized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                0
+            );
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+
+        v3a_exit_json(0, ['config' => $sanitized]);
     }
 
     if ($do === 'settings.user.profile.save') {
