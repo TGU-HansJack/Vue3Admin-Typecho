@@ -73,7 +73,7 @@
     if (k === "data") return v3aAclEnabled("data.manage", true);
     if (k === "users") return v3aAclEnabled("users.manage", true);
 
-    if (k === "maintenance-tasks" || k === "maintenance-backup") {
+    if (k === "maintenance-backup") {
       return v3aAclEnabled("maintenance.manage", true);
     }
 
@@ -269,11 +269,26 @@
       icon: "maintenance",
       access: "administrator",
       children: [
-        { key: "maintenance-tasks", label: "任务", to: "/maintenance/tasks", access: "administrator" },
         { key: "maintenance-backup", label: "备份", to: "/maintenance/backup", access: "administrator" },
       ],
     },
   ];
+
+  function v3aRouteExists(path) {
+    const p = String(path || "/");
+    if (p === "/settings") return true;
+
+    for (const top of MENU) {
+      if (!top) continue;
+      if (top.to && top.to === p) return true;
+      const children = Array.isArray(top.children) ? top.children : [];
+      for (const child of children) {
+        if (child && child.to === p) return true;
+      }
+    }
+
+    return false;
+  }
 
   function v3aMenuAccessForPath(path) {
     const p = String(path || "/");
@@ -296,6 +311,7 @@
   function v3aNormalizeRoute(routeStr) {
     const raw = String(routeStr || "/dashboard");
     const p = raw.split("?")[0] || "/";
+    if (!v3aRouteExists(p)) return "/dashboard";
     const access = v3aMenuAccessForPath(p);
     if (!v3aCan(access)) return "/dashboard";
     if (!v3aAclAllowPath(p)) return "/dashboard";
@@ -10004,40 +10020,6 @@
                         <button class="v3a-btn primary v3a-modal-btn" type="button" @click="saveUserEditor()" :disabled="userEditorSaving">{{ userEditorSaving ? "保存中…" : "保存" }}</button>
                       </div>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </template>
-
-            <template v-else-if="routePath === '/maintenance/tasks'">
-              <div class="v3a-container">
-                <div class="v3a-pagehead">
-                  <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
-                    </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
-                  </div>
-                  <div class="v3a-pagehead-actions">
-                    <button class="v3a-btn primary" type="button">新建任务</button>
-                  </div>
-                </div>
-
-                <div class="v3a-card">
-                  <div class="hd"><div class="title">任务列表（UI 占位）</div></div>
-                  <div class="bd">
-                    <table class="v3a-table">
-                      <thead><tr><th>任务</th><th>计划</th><th>状态</th><th>操作</th></tr></thead>
-                      <tbody>
-                        <tr v-for="i in 4" :key="i">
-                          <td>示例任务 #{{ i }}</td>
-                          <td>每天 02:00</td>
-                          <td><span class="v3a-pill">未启用</span></td>
-                          <td><span class="v3a-muted">启用 / 编辑</span></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    <div class="v3a-muted" style="margin-top: 10px;">后续将对接计划任务与清理任务。</div>
                   </div>
                 </div>
               </div>
