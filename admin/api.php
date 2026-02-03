@@ -208,6 +208,347 @@ function v3a_device_info_from_ua(string $ua): array
     return ['type' => $type, 'name' => $name];
 }
 
+/**
+ * Backup helpers (Typecho .dat format, compatible with old admin/backup.php).
+ */
+function v3a_backup_header_template(): string
+{
+    return '%TYPECHO_BACKUP_XXXX%';
+}
+
+function v3a_backup_header_version(): string
+{
+    return '0001';
+}
+
+function v3a_backup_header(): string
+{
+    return str_replace('XXXX', v3a_backup_header_version(), v3a_backup_header_template());
+}
+
+/**
+ * @return array<string,int>
+ */
+function v3a_backup_types(): array
+{
+    return [
+        'contents' => 1,
+        'comments' => 2,
+        'metas' => 3,
+        'relationships' => 4,
+        'users' => 5,
+        'fields' => 6,
+    ];
+}
+
+/**
+ * @return array<string,array<int,string>>
+ */
+function v3a_backup_fields_map(): array
+{
+    return [
+        'contents' => [
+            'cid',
+            'title',
+            'slug',
+            'created',
+            'modified',
+            'text',
+            'order',
+            'authorId',
+            'template',
+            'type',
+            'status',
+            'password',
+            'commentsNum',
+            'allowComment',
+            'allowPing',
+            'allowFeed',
+            'parent',
+        ],
+        'comments' => [
+            'coid',
+            'cid',
+            'created',
+            'author',
+            'authorId',
+            'ownerId',
+            'mail',
+            'url',
+            'ip',
+            'agent',
+            'text',
+            'type',
+            'status',
+            'parent',
+        ],
+        'metas' => [
+            'mid',
+            'name',
+            'slug',
+            'type',
+            'description',
+            'count',
+            'order',
+            'parent',
+        ],
+        'relationships' => ['cid', 'mid'],
+        'users' => [
+            'uid',
+            'name',
+            'password',
+            'mail',
+            'url',
+            'screenName',
+            'created',
+            'activated',
+            'logged',
+            'group',
+            'authCode',
+        ],
+        'fields' => [
+            'cid',
+            'name',
+            'type',
+            'str_value',
+            'int_value',
+            'float_value',
+        ],
+    ];
+}
+
+function v3a_backup_apply_fields(string $table, array $data, array &$lastIds): array
+{
+    $map = v3a_backup_fields_map();
+    if (!isset($map[$table]) || !is_array($map[$table])) {
+        return $data;
+    }
+
+    $allowed = $map[$table];
+
+    $result = [];
+    foreach ($data as $key => $val) {
+        $index = array_search($key, $allowed, true);
+        if ($index === false) {
+            continue;
+        }
+        $result[$key] = $val;
+
+        if ($index === 0 && !in_array($table, ['relationships', 'fields'], true)) {
+            $id = is_numeric($val) ? (int) $val : 0;
+            if ($id > 0) {
+                $lastIds[$table] = isset($lastIds[$table])
+                    ? max((int) $lastIds[$table], $id)
+                    : $id;
+            }
+        }
+    }
+
+    return $result;
+}
+
+function v3a_backup_build_buffer(int $type, array $data): string
+{
+    $body = '';
+    $schema = [];
+
+    foreach ($data as $key => $val) {
+        if ($val === null) {
+            $schema[$key] = null;
+            continue;
+        }
+
+        $str = (string) $val;
+        $schema[$key] = strlen($str);
+        $body .= $str;
+    }
+
+    $header = json_encode($schema);
+    return \Typecho\Common::buildBackupBuffer((string) $type, (string) $header, $body);
+}
+
+function v3a_backup_export_to_file($db, $options, string $path): void
+{
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+
+    $fp = @fopen($path, 'wb');
+    if (!$fp) {
+        throw new \RuntimeException('Cannot write backup file');
+    }
+
+    $header = v3a_backup_header();
+    fwrite($fp, $header);
+
+    $types = v3a_backup_types();
+    $lastIds = [];
+
+    foreach ($types as $table => $val) {
+        $page = 1;
+        do {
+            $rows = $db->fetchAll($db->select()->from('table.' . $table)->page($page, 20));
+            $page++;
+
+            foreach ((array) $rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $filtered = v3a_backup_apply_fields($table, $row, $lastIds);
+                fwrite($fp, v3a_backup_build_buffer((int) $val, $filtered));
+            }
+        } while (count((array) $rows) === 20);
+    }
+
+    fwrite($fp, $header);
+    fclose($fp);
+}
+
+function v3a_backup_parse_header($str, &$version): bool
+{
+    if (!is_string($str) || strlen($str) !== strlen(v3a_backup_header_template())) {
+        return false;
+    }
+
+    if (!preg_match("/%TYPECHO_BACKUP_[A-Z0-9]{4}%/", $str)) {
+        return false;
+    }
+
+    $version = substr($str, 16, -1);
+    return true;
+}
+
+function v3a_backup_relogin(array &$userRow, $options): void
+{
+    if (empty($userRow['authCode'])) {
+        $userRow['authCode'] = function_exists('openssl_random_pseudo_bytes')
+            ? bin2hex(openssl_random_pseudo_bytes(16))
+            : sha1(\Typecho\Common::randString(20));
+    }
+
+    $t = time();
+    try {
+        $t = (int) ($options->time ?? $t);
+    } catch (\Throwable $e) {
+    }
+
+    $userRow['activated'] = $t;
+    $userRow['logged'] = $t;
+
+    \Typecho\Cookie::set('__typecho_uid', (string) ($userRow['uid'] ?? ''));
+    \Typecho\Cookie::set('__typecho_authCode', \Typecho\Common::hash((string) ($userRow['authCode'] ?? '')));
+}
+
+function v3a_backup_import_from_file($db, $options, string $path): array
+{
+    $fp = @fopen($path, 'rb');
+    if (!$fp) {
+        throw new \RuntimeException('Cannot read backup file');
+    }
+
+    $fileSize = (int) (@filesize($path) ?: 0);
+    $headerSize = strlen(v3a_backup_header_template());
+    if ($fileSize < $headerSize * 2) {
+        @fclose($fp);
+        throw new \RuntimeException('Invalid backup file');
+    }
+
+    $version = '';
+    $fileHeader = @fread($fp, $headerSize);
+    if (!v3a_backup_parse_header($fileHeader, $version)) {
+        @fclose($fp);
+        throw new \RuntimeException('Invalid backup file');
+    }
+
+    fseek($fp, $fileSize - $headerSize);
+    $fileFooter = @fread($fp, $headerSize);
+    if (!v3a_backup_parse_header($fileFooter, $version)) {
+        @fclose($fp);
+        throw new \RuntimeException('Invalid backup file');
+    }
+
+    fseek($fp, $headerSize);
+    $offset = $headerSize;
+
+    $types = v3a_backup_types();
+    $reverse = array_flip($types);
+
+    $cleared = [];
+    $lastIds = [];
+    $relogged = false;
+    $rows = 0;
+
+    while (!feof($fp) && $offset + $headerSize < $fileSize) {
+        $buffer = \Typecho\Common::extractBackupBuffer($fp, $offset, (string) $version);
+        if (!$buffer) {
+            @fclose($fp);
+            throw new \RuntimeException('Restore failed');
+        }
+
+        [$type, $header, $body] = $buffer;
+        if (!isset($reverse[$type])) {
+            continue;
+        }
+
+        $table = (string) $reverse[$type];
+        $schema = json_decode((string) $header, true);
+        if (!is_array($schema)) {
+            continue;
+        }
+
+        $data = [];
+        $pos = 0;
+        foreach ($schema as $key => $len) {
+            if ($len === null) {
+                $data[$key] = null;
+                continue;
+            }
+
+            $n = is_numeric($len) ? (int) $len : 0;
+            $data[$key] = substr((string) $body, $pos, $n);
+            $pos += $n;
+        }
+
+        try {
+            if (empty($cleared[$table])) {
+                $db->truncate('table.' . $table);
+                $cleared[$table] = true;
+            }
+
+            if (!$relogged && $table === 'users' && ($data['group'] ?? '') === 'administrator') {
+                v3a_backup_relogin($data, $options);
+                $relogged = true;
+            }
+
+            $filtered = v3a_backup_apply_fields($table, $data, $lastIds);
+            $db->query($db->insert('table.' . $table)->rows($filtered));
+            $rows++;
+        } catch (\Throwable $e) {
+            @fclose($fp);
+            throw $e;
+        }
+    }
+
+    try {
+        if (false !== strpos(strtolower((string) $db->getAdapterName()), 'pgsql')) {
+            foreach ($lastIds as $table => $id) {
+                $seq = $db->getPrefix() . $table . '_seq';
+                $db->query('ALTER SEQUENCE ' . $seq . ' RESTART WITH ' . (((int) $id) + 1));
+            }
+        }
+    } catch (\Throwable $e) {
+    }
+
+    @fclose($fp);
+
+    return [
+        'rows' => $rows,
+        'tables' => array_keys($cleared),
+    ];
+}
+
 function v3a_decode_rule(string $rule): string
 {
     return (string) preg_replace("/\\[([_a-z0-9-]+)[^\\]]*\\]/i", "{\\1}", $rule);
@@ -414,7 +755,6 @@ function v3a_acl_default_config(): array
                 'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 1, 'maxSizeMb' => 0, 'types' => []],
                 'friends' => ['manage' => 1],
                 'data' => ['manage' => 1],
-                'subscribe' => ['manage' => 1],
                 'users' => ['manage' => 1],
                 'maintenance' => ['manage' => 1],
             ],
@@ -425,7 +765,6 @@ function v3a_acl_default_config(): array
                 'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 1, 'maxSizeMb' => 0, 'types' => []],
                 'friends' => ['manage' => 0],
                 'data' => ['manage' => 0],
-                'subscribe' => ['manage' => 0],
                 'users' => ['manage' => 0],
                 'maintenance' => ['manage' => 0],
             ],
@@ -436,7 +775,6 @@ function v3a_acl_default_config(): array
                 'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 0, 'maxSizeMb' => 5, 'types' => []],
                 'friends' => ['manage' => 0],
                 'data' => ['manage' => 0],
-                'subscribe' => ['manage' => 0],
                 'users' => ['manage' => 0],
                 'maintenance' => ['manage' => 0],
             ],
@@ -447,7 +785,6 @@ function v3a_acl_default_config(): array
                 'files' => ['access' => 0, 'upload' => 0, 'scopeAll' => 0, 'maxSizeMb' => 0, 'types' => []],
                 'friends' => ['manage' => 0],
                 'data' => ['manage' => 0],
-                'subscribe' => ['manage' => 0],
                 'users' => ['manage' => 0],
                 'maintenance' => ['manage' => 0],
             ],
@@ -458,7 +795,6 @@ function v3a_acl_default_config(): array
                 'files' => ['access' => 0, 'upload' => 0, 'scopeAll' => 0, 'maxSizeMb' => 0, 'types' => []],
                 'friends' => ['manage' => 0],
                 'data' => ['manage' => 0],
-                'subscribe' => ['manage' => 0],
                 'users' => ['manage' => 0],
                 'maintenance' => ['manage' => 0],
             ],
@@ -497,7 +833,6 @@ function v3a_acl_sanitize_group($group): array
     $files = isset($g['files']) && is_array($g['files']) ? $g['files'] : [];
     $friends = isset($g['friends']) && is_array($g['friends']) ? $g['friends'] : [];
     $data = isset($g['data']) && is_array($g['data']) ? $g['data'] : [];
-    $subscribe = isset($g['subscribe']) && is_array($g['subscribe']) ? $g['subscribe'] : [];
     $users = isset($g['users']) && is_array($g['users']) ? $g['users'] : [];
     $maintenance = isset($g['maintenance']) && is_array($g['maintenance']) ? $g['maintenance'] : [];
 
@@ -532,7 +867,6 @@ function v3a_acl_sanitize_group($group): array
         ],
         'friends' => ['manage' => v3a_bool_int($friends['manage'] ?? 0)],
         'data' => ['manage' => v3a_bool_int($data['manage'] ?? 0)],
-        'subscribe' => ['manage' => v3a_bool_int($subscribe['manage'] ?? 0)],
         'users' => ['manage' => v3a_bool_int($users['manage'] ?? 0)],
         'maintenance' => ['manage' => v3a_bool_int($maintenance['manage'] ?? 0)],
     ];
@@ -6175,6 +6509,220 @@ try {
         }
 
         v3a_exit_json(0, ['saved' => 1]);
+    }
+
+    if ($do === 'backup.list') {
+        v3a_require_role($user, 'administrator');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $dir = defined('__TYPECHO_BACKUP_DIR__') ? (string) __TYPECHO_BACKUP_DIR__ : '';
+        if ($dir === '') {
+            v3a_exit_json(500, null, 'Backup dir not configured');
+        }
+
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        $items = [];
+        $pattern = rtrim($dir, "/\\") . '/*.dat';
+        foreach ((array) glob($pattern) as $path) {
+            if (!is_string($path) || $path === '') {
+                continue;
+            }
+
+            $name = basename($path);
+            if ($name === '') {
+                continue;
+            }
+
+            $items[] = [
+                'file' => $name,
+                'size' => (int) (@filesize($path) ?: 0),
+                'time' => (int) (@filemtime($path) ?: 0),
+            ];
+        }
+
+        usort($items, static function ($a, $b) {
+            $at = is_array($a) ? (int) ($a['time'] ?? 0) : 0;
+            $bt = is_array($b) ? (int) ($b['time'] ?? 0) : 0;
+            return $bt <=> $at;
+        });
+
+        v3a_exit_json(0, [
+            'dir' => $dir,
+            'items' => $items,
+        ]);
+    }
+
+    if ($do === 'backup.export') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $dir = defined('__TYPECHO_BACKUP_DIR__') ? (string) __TYPECHO_BACKUP_DIR__ : '';
+        if ($dir === '') {
+            v3a_exit_json(500, null, 'Backup dir not configured');
+        }
+
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        $host = '';
+        try {
+            $host = (string) parse_url((string) ($options->siteUrl ?? ''), PHP_URL_HOST);
+        } catch (\Throwable $e) {
+        }
+        $host = strtolower(trim($host));
+        $host = $host !== '' ? preg_replace('/[^0-9a-z._-]+/i', '_', $host) : 'site';
+
+        $suffix = '';
+        try {
+            $suffix = bin2hex(random_bytes(4));
+        } catch (\Throwable $e) {
+            $suffix = uniqid();
+        }
+
+        $file = date('Ymd_His') . '_' . $host . '_' . $suffix . '.dat';
+        $path = rtrim($dir, "/\\") . DIRECTORY_SEPARATOR . $file;
+
+        @set_time_limit(0);
+        v3a_backup_export_to_file($db, $options, $path);
+
+        v3a_exit_json(0, [
+            'file' => $file,
+        ]);
+    }
+
+    if ($do === 'backup.delete') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $file = v3a_string($payload['file'] ?? '', '');
+        $file = basename($file);
+        if ($file === '' || !preg_match('/^[0-9a-zA-Z][0-9a-zA-Z._-]*\\.dat$/', $file)) {
+            v3a_exit_json(400, null, 'Invalid file');
+        }
+
+        $dir = defined('__TYPECHO_BACKUP_DIR__') ? (string) __TYPECHO_BACKUP_DIR__ : '';
+        $path = rtrim($dir, "/\\") . DIRECTORY_SEPARATOR . $file;
+        if (!is_file($path)) {
+            v3a_exit_json(404, null, 'Not Found');
+        }
+
+        @unlink($path);
+        v3a_exit_json(0, ['deleted' => 1]);
+    }
+
+    if ($do === 'backup.import') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $path = '';
+        $isUploaded = false;
+
+        if (!empty($_FILES) && isset($_FILES['file']) && is_array($_FILES['file'])) {
+            $f = $_FILES['file'];
+            $err = isset($f['error']) ? (int) $f['error'] : 0;
+            if ($err !== UPLOAD_ERR_OK) {
+                v3a_exit_json(400, null, 'Upload failed');
+            }
+
+            $tmp = isset($f['tmp_name']) ? (string) $f['tmp_name'] : '';
+            if ($tmp === '' || !is_uploaded_file($tmp)) {
+                v3a_exit_json(400, null, 'Upload failed');
+            }
+
+            $path = $tmp;
+            $isUploaded = true;
+        } else {
+            $payload = v3a_payload();
+            $file = v3a_string($payload['file'] ?? '', '');
+            $file = basename($file);
+            if ($file === '' || !preg_match('/^[0-9a-zA-Z][0-9a-zA-Z._-]*\\.dat$/', $file)) {
+                v3a_exit_json(400, null, 'Invalid file');
+            }
+
+            $dir = defined('__TYPECHO_BACKUP_DIR__') ? (string) __TYPECHO_BACKUP_DIR__ : '';
+            $path = rtrim($dir, "/\\") . DIRECTORY_SEPARATOR . $file;
+            if (!is_file($path)) {
+                v3a_exit_json(404, null, 'Not Found');
+            }
+        }
+
+        @set_time_limit(0);
+        $result = v3a_backup_import_from_file($db, $options, $path);
+
+        // Uploaded tmp file will be removed by PHP automatically, but we clean it anyway.
+        if ($isUploaded) {
+            @unlink($path);
+        }
+
+        v3a_exit_json(0, [
+            'imported' => 1,
+            'result' => $result,
+        ]);
+    }
+
+    if ($do === 'backup.download') {
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $file = v3a_string($request->get('file', ''), '');
+        $file = basename($file);
+        if ($file === '' || !preg_match('/^[0-9a-zA-Z][0-9a-zA-Z._-]*\\.dat$/', $file)) {
+            v3a_exit_json(400, null, 'Invalid file');
+        }
+
+        $dir = defined('__TYPECHO_BACKUP_DIR__') ? (string) __TYPECHO_BACKUP_DIR__ : '';
+        $path = rtrim($dir, "/\\") . DIRECTORY_SEPARATOR . $file;
+        if (!is_file($path)) {
+            v3a_exit_json(404, null, 'Not Found');
+        }
+
+        if (ob_get_level()) {
+            ob_clean();
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . addslashes($file) . '"');
+        header('Content-Length: ' . (string) (@filesize($path) ?: 0));
+        readfile($path);
+        exit;
     }
 
     v3a_exit_json(404, null, 'Unknown action');

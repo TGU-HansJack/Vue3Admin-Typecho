@@ -71,7 +71,6 @@
 
     if (k === "friends") return v3aAclEnabled("friends.manage", true);
     if (k === "data") return v3aAclEnabled("data.manage", true);
-    if (k === "subscribe") return v3aAclEnabled("subscribe.manage", true);
     if (k === "users") return v3aAclEnabled("users.manage", true);
 
     if (k === "maintenance-tasks" || k === "maintenance-backup") {
@@ -96,7 +95,6 @@
 
     if (p === "/friends") return v3aAclEnabled("friends.manage", true);
     if (p === "/data") return v3aAclEnabled("data.manage", true);
-    if (p === "/subscribe") return v3aAclEnabled("subscribe.manage", true);
     if (p === "/users") return v3aAclEnabled("users.manage", true);
 
     if (p.startsWith("/maintenance/")) return v3aAclEnabled("maintenance.manage", true);
@@ -216,7 +214,7 @@
     { key: "site", label: "网站", icon: "globe", subtitle: "站点地址、SEO", access: "administrator" },
     { key: "content", label: "内容", icon: "fileText", subtitle: "阅读、评论、文本", access: "administrator" },
     { key: "acl", label: "权限", icon: "shieldAlert", subtitle: "角色权限、上传限制", access: "administrator" },
-    { key: "notify", label: "通知", icon: "bell", subtitle: "邮件、Bark 推送", access: "administrator" },
+    { key: "notify", label: "通知", icon: "bell", subtitle: "邮件、推送", access: "administrator" },
     {
       key: "theme",
       label: "主题",
@@ -262,7 +260,6 @@
     { key: "files", label: "文件", icon: "files", to: "/files", access: "contributor" },
     { key: "friends", label: "朋友们", icon: "friends", to: "/friends", access: "administrator" },
     { key: "data", label: "数据", icon: "data", to: "/data", access: "administrator" },
-    { key: "subscribe", label: "订阅", icon: "subscribe", to: "/subscribe", access: "administrator" },
     { key: "users", label: "用户", icon: "user", to: "/users", access: "administrator" },
     { key: "settings", label: "设定", icon: "settings", action: "openSettings", access: "subscriber" },
     {
@@ -1802,6 +1799,157 @@
 
       async function refreshData() {
         await fetchDataVisits();
+      }
+
+      // Backup (maintenance)
+      const backupLoading = ref(false);
+      const backupWorking = ref(false);
+      const backupError = ref("");
+      const backupDir = ref("");
+      const backupItems = ref([]);
+      const backupRestoreMode = ref("upload"); // upload|server
+      const backupUploadEl = ref(null);
+      const backupUploadFile = ref(null);
+
+      function formatBytes(bytes) {
+        const n = Number(bytes || 0);
+        if (!Number.isFinite(n) || n <= 0) return "—";
+        const units = ["B", "KB", "MB", "GB", "TB"];
+        let v = n;
+        let i = 0;
+        while (v >= 1024 && i < units.length - 1) {
+          v /= 1024;
+          i++;
+        }
+        const fixed = i === 0 ? 0 : v >= 100 ? 0 : v >= 10 ? 1 : 2;
+        return `${v.toFixed(fixed)} ${units[i]}`;
+      }
+
+      function backupDownloadUrl(file) {
+        const f = String(file || "").trim();
+        if (!f) return "";
+        return buildApiUrl("backup.download", { file: f }, true);
+      }
+
+      async function fetchBackups() {
+        backupLoading.value = true;
+        backupError.value = "";
+        try {
+          const data = await apiGet("backup.list");
+          backupDir.value = String(data?.dir || "");
+          backupItems.value = Array.isArray(data?.items) ? data.items : [];
+        } catch (e) {
+          backupItems.value = [];
+          backupError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          backupLoading.value = false;
+        }
+      }
+
+      async function exportBackup() {
+        if (backupWorking.value) return;
+        if (!confirm("开始备份？将生成 .dat 文件用于恢复数据。")) return;
+        backupWorking.value = true;
+        backupError.value = "";
+        try {
+          const data = await apiPost("backup.export", {});
+          const file = String(data?.file || "");
+          await fetchBackups();
+          toastSuccess("备份已生成");
+          const url = backupDownloadUrl(file);
+          if (url) window.open(url, "_blank", "noreferrer");
+        } catch (e) {
+          backupError.value = e && e.message ? e.message : "备份失败";
+          toastError(backupError.value);
+        } finally {
+          backupWorking.value = false;
+        }
+      }
+
+      function downloadBackup(file) {
+        const url = backupDownloadUrl(file);
+        if (!url) return;
+        window.open(url, "_blank", "noreferrer");
+      }
+
+      async function deleteBackup(file) {
+        const f = String(file || "").trim();
+        if (!f) return;
+        if (!confirm(`确认删除备份文件：${f}？`)) return;
+        backupWorking.value = true;
+        backupError.value = "";
+        try {
+          await apiPost("backup.delete", { file: f });
+          await fetchBackups();
+          toastSuccess("已删除");
+        } catch (e) {
+          backupError.value = e && e.message ? e.message : "删除失败";
+          toastError(backupError.value);
+        } finally {
+          backupWorking.value = false;
+        }
+      }
+
+      async function restoreBackupFromServer(file) {
+        const f = String(file || "").trim();
+        if (!f) return;
+        if (!confirm("恢复操作将清除所有现有数据，是否继续？")) return;
+        backupWorking.value = true;
+        backupError.value = "";
+        try {
+          await apiPost("backup.import", { file: f });
+          toastSuccess("恢复完成（建议刷新页面）");
+        } catch (e) {
+          backupError.value = e && e.message ? e.message : "恢复失败";
+          toastError(backupError.value);
+        } finally {
+          backupWorking.value = false;
+        }
+      }
+
+      function onBackupUploadChange(e) {
+        const files = e && e.target && e.target.files ? e.target.files : null;
+        backupUploadFile.value = files && files.length ? files[0] : null;
+      }
+
+      async function restoreBackupFromUpload() {
+        const file = backupUploadFile.value;
+        if (!file) {
+          toastError("请选择备份文件");
+          return;
+        }
+        if (!confirm("恢复操作将清除所有现有数据，是否继续？")) return;
+
+        backupWorking.value = true;
+        backupError.value = "";
+        try {
+          const url = buildApiUrl("backup.import", null, true);
+          const form = new FormData();
+          form.append("file", file, file.name);
+
+          const res = await fetch(url, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+            body: form,
+          });
+          const json = await readApiJson(res);
+          if (!json || json.code !== 0) {
+            throw new Error(json?.message || "恢复失败");
+          }
+
+          backupUploadFile.value = null;
+          try {
+            if (backupUploadEl.value) backupUploadEl.value.value = "";
+          } catch (e) {}
+
+          toastSuccess("恢复完成（建议刷新页面）");
+        } catch (e) {
+          backupError.value = e && e.message ? e.message : "恢复失败";
+          toastError(backupError.value);
+        } finally {
+          backupWorking.value = false;
+        }
       }
 
       // Users
@@ -5578,7 +5726,6 @@
         const files = g.files && typeof g.files === "object" ? g.files : {};
         const friends = g.friends && typeof g.friends === "object" ? g.friends : {};
         const data = g.data && typeof g.data === "object" ? g.data : {};
-        const subscribe = g.subscribe && typeof g.subscribe === "object" ? g.subscribe : {};
         const users = g.users && typeof g.users === "object" ? g.users : {};
         const maintenance = g.maintenance && typeof g.maintenance === "object" ? g.maintenance : {};
 
@@ -5610,7 +5757,6 @@
           },
           friends: { manage: normBool(friends.manage) },
           data: { manage: normBool(data.manage) },
-          subscribe: { manage: normBool(subscribe.manage) },
           users: { manage: normBool(users.manage) },
           maintenance: { manage: normBool(maintenance.manage) },
         };
@@ -6401,6 +6547,9 @@
             await fetchSettings();
             await maybeFetchSettingsExtras();
           }
+          if (p === "/maintenance/backup") {
+            await fetchBackups();
+          }
         }
       );
 
@@ -6552,6 +6701,9 @@
         if (routePath.value === "/settings") {
           await fetchSettings();
           await maybeFetchSettingsExtras();
+        }
+        if (routePath.value === "/maintenance/backup") {
+          await fetchBackups();
         }
       });
 
@@ -6758,6 +6910,22 @@
         applyDataVisitFilters,
         dataVisitGoPage,
         refreshData,
+        backupLoading,
+        backupWorking,
+        backupError,
+        backupDir,
+        backupItems,
+        backupRestoreMode,
+        backupUploadEl,
+        backupUploadFile,
+        formatBytes,
+        fetchBackups,
+        exportBackup,
+        downloadBackup,
+        deleteBackup,
+        restoreBackupFromServer,
+        onBackupUploadChange,
+        restoreBackupFromUpload,
         usersLoading,
         usersError,
         usersItems,
@@ -7392,9 +7560,6 @@
                     <div class="v3a-posts-title">管理</div>
                   </div>
                   <div class="v3a-posts-actions">
-                    <button class="v3a-actionbtn" type="button" title="权限说明" @click="openPermissionInfo()">
-                      <span class="v3a-icon" v-html="ICONS.info"></span>
-                    </button>
                     <button class="v3a-actionbtn danger" type="button" title="删除多条" :disabled="!postsSelectedCids.length" @click="deleteSelectedPosts()">
                       <span class="v3a-icon" v-html="ICONS.trash"></span>
                     </button>
@@ -8597,40 +8762,6 @@
               </div>
             </template>
 
-            <template v-else-if="routePath === '/subscribe'">
-              <div class="v3a-container">
-                <div class="v3a-pagehead">
-                  <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
-                    </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
-                  </div>
-                  <div class="v3a-pagehead-actions">
-                    <button class="v3a-btn primary" type="button">新增订阅</button>
-                  </div>
-                </div>
-
-                <div class="v3a-card">
-                  <div class="hd"><div class="title">订阅列表（UI 占位）</div></div>
-                  <div class="bd">
-                    <table class="v3a-table">
-                      <thead><tr><th>Email</th><th>状态</th><th>时间</th><th>操作</th></tr></thead>
-                      <tbody>
-                        <tr v-for="i in 5" :key="i">
-                          <td>user{{ i }}@example.com</td>
-                          <td><span class="v3a-pill success">启用</span></td>
-                          <td>—</td>
-                          <td><span class="v3a-muted">停用</span></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    <div class="v3a-muted" style="margin-top: 10px;">该模块后续将对接 <code>v3a_subscribe</code> 数据表。</div>
-                  </div>
-                </div>
-              </div>
-            </template>
-
             <template v-else-if="routePath === '/users'">
               <div class="v3a-container">
                 <div class="v3a-pagehead">
@@ -8834,34 +8965,97 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
-                    <button class="v3a-btn" type="button">配置</button>
-                    <button class="v3a-btn primary" type="button">立即备份</button>
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="backupLoading || backupWorking" @click="fetchBackups()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                    <button class="v3a-btn primary" type="button" @click="exportBackup()" :disabled="backupWorking">
+                      {{ backupWorking ? "备份中…" : "开始备份" }}
+                    </button>
                   </div>
                 </div>
 
-                <div class="v3a-grid">
+                <div v-if="backupError" class="v3a-alert" style="margin-bottom: 12px;">{{ backupError }}</div>
+
+                <div class="v3a-grid two">
                   <div class="v3a-card">
-                    <div class="hd"><div class="title">备份说明</div></div>
+                    <div class="hd"><div class="title">备份您的数据</div></div>
                     <div class="bd v3a-muted">
-                      备份模块已完成页面骨架：后续将支持数据库备份、文件备份、下载与定时任务。
+                      <ul style="margin: 0; padding-left: 18px;">
+                        <li>此备份仅包含内容数据（文章/页面/评论/分类标签/用户等），不包含站点设置。</li>
+                        <li>数据量较大时可能耗时较久，建议在低峰期执行。</li>
+                        <li><span style="color: var(--v3a-danger); font-weight: 600;">恢复操作会清除现有数据，请谨慎操作。</span></li>
+                      </ul>
+                      <div style="margin-top: 12px;">
+                        <button class="v3a-btn primary" type="button" @click="exportBackup()" :disabled="backupWorking">
+                          {{ backupWorking ? "备份中…" : "开始备份" }}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
                   <div class="v3a-card">
-                    <div class="hd"><div class="title">备份记录（UI 占位）</div></div>
-                    <div class="bd">
-                      <table class="v3a-table">
-                        <thead><tr><th>文件</th><th>大小</th><th>时间</th><th>操作</th></tr></thead>
-                        <tbody>
-                          <tr v-for="i in 5" :key="i">
-                            <td>backup-{{ i }}.zip</td>
-                            <td>—</td>
-                            <td>—</td>
-                            <td><span class="v3a-muted">下载 / 删除</span></td>
-                          </tr>
-                        </tbody>
-                      </table>
+                    <div class="hd" style="padding: calc(var(--spacing) * 2) calc(var(--spacing) * 5);">
+                      <div class="title">恢复数据</div>
+                      <select class="v3a-select" v-model="backupRestoreMode" :disabled="backupWorking" style="width: 140px; height: 32px;">
+                        <option value="upload">上传</option>
+                        <option value="server">从服务器</option>
+                      </select>
                     </div>
+                    <div class="bd">
+                      <template v-if="backupRestoreMode === 'upload'">
+                        <div class="v3a-muted" style="margin-bottom: 10px;">选择 .dat 备份文件上传并恢复。</div>
+                        <div style="display:flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                          <input class="v3a-input" type="text" :value="backupUploadFile ? backupUploadFile.name : ''" placeholder="选择 .dat 备份文件…" readonly style="flex: 1; min-width: 220px;" />
+                          <button class="v3a-btn" type="button" @click="backupUploadEl && backupUploadEl.click()" :disabled="backupWorking">浏览…</button>
+                          <input ref="backupUploadEl" type="file" accept=".dat" @change="onBackupUploadChange" style="display: none;" />
+                        </div>
+                        <div style="margin-top: 12px; display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                          <button class="v3a-btn primary" type="button" @click="restoreBackupFromUpload()" :disabled="backupWorking || !backupUploadFile">
+                            {{ backupWorking ? "恢复中…" : "上传并恢复" }}
+                          </button>
+                          <div v-if="backupUploadFile" class="v3a-muted" style="font-size: 12px;">{{ backupUploadFile.name }}</div>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <div class="v3a-muted" style="margin-bottom: 10px;">
+                          从服务器目录恢复：<code>{{ backupDir || "usr/backups" }}</code>
+                        </div>
+                        <div v-if="backupLoading" class="v3a-muted">正在加载…</div>
+                        <div v-else-if="!backupItems.length" class="v3a-muted">暂无备份文件</div>
+                        <div v-else class="v3a-muted">点击下方列表的“恢复”进行操作。</div>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="v3a-card" style="margin-top: calc(var(--spacing) * 4);">
+                  <div class="bd" style="padding: 0;">
+                    <div v-if="backupLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+                    <table v-else class="v3a-table v3a-posts-table">
+                      <thead>
+                        <tr>
+                          <th>文件</th>
+                          <th style="text-align:center;">大小</th>
+                          <th style="text-align:center;">时间</th>
+                          <th style="text-align:right;">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="b in backupItems" :key="b.file">
+                          <td><span style="font-variant-numeric: tabular-nums;">{{ b.file }}</span></td>
+                          <td style="text-align:center;">{{ formatBytes(b.size) }}</td>
+                          <td style="text-align:center;">{{ formatTime(b.time) }}</td>
+                          <td style="text-align:right; white-space: nowrap;">
+                            <button class="v3a-mini-btn" type="button" @click="downloadBackup(b.file)">下载</button>
+                            <button class="v3a-mini-btn" type="button" @click="restoreBackupFromServer(b.file)">恢复</button>
+                            <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deleteBackup(b.file)">删除</button>
+                          </td>
+                        </tr>
+                        <tr v-if="!backupItems.length">
+                          <td colspan="4" class="v3a-muted" style="padding: 16px;">暂无备份文件（目录：{{ backupDir || "usr/backups" }}）</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
@@ -9282,7 +9476,7 @@
                                   <td class="v3a-muted">留空表示不额外限制（仍会校验全局附件类型）。</td>
                                 </tr>
                                 <tr>
-                                  <td>用户 / 链接 / 数据 / 订阅 / 维护</td>
+                                  <td>用户 / 链接 / 数据 / 维护</td>
                                   <td>
                                     <div style="display:flex; flex-wrap: wrap; gap: 12px;">
                                       <label class="v3a-remember" style="margin: 0;">
@@ -9296,10 +9490,6 @@
                                       <label class="v3a-remember" style="margin: 0;">
                                         <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].data.manage" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 0" />
                                         <span>数据</span>
-                                      </label>
-                                      <label class="v3a-remember" style="margin: 0;">
-                                        <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].subscribe.manage" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 0" />
-                                        <span>订阅</span>
                                       </label>
                                       <label class="v3a-remember" style="margin: 0;">
                                         <input class="v3a-check" type="checkbox" v-model="settingsAclForm.groups[settingsAclGroup].maintenance.manage" :true-value="1" :false-value="0" :disabled="settingsAclGroupLevel > 0" />
@@ -10640,7 +10830,7 @@
                     <td style="text-align:center;">×</td>
                   </tr>
                   <tr>
-                    <td>管理链接 / 数据 / 订阅 / 用户 / 维护</td>
+                    <td>管理链接 / 数据 / 用户 / 维护</td>
                     <td style="text-align:center;">√</td>
                     <td style="text-align:center;">×</td>
                     <td style="text-align:center;">×</td>
