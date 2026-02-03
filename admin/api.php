@@ -70,36 +70,142 @@ function v3a_truncate(string $value, int $max = 120): string
     return substr($value, 0, $max);
 }
 
-function v3a_device_from_ua(string $ua): string
+/**
+ * @return array{type:string,name:string}
+ */
+function v3a_device_info_from_ua(string $ua): array
 {
-    $u = strtolower(trim($ua));
+    $ua = trim($ua);
+    $u = strtolower($ua);
     if ($u === '') {
-        return '';
+        return ['type' => '', 'name' => ''];
     }
 
-    if (
+    // Bot
+    $bot = '';
+    if (strpos($u, 'googlebot') !== false) {
+        $bot = 'Googlebot';
+    } elseif (strpos($u, 'bingbot') !== false) {
+        $bot = 'Bingbot';
+    } elseif (strpos($u, 'baiduspider') !== false) {
+        $bot = 'Baiduspider';
+    } elseif (strpos($u, 'yandex') !== false && strpos($u, 'bot') !== false) {
+        $bot = 'YandexBot';
+    } elseif (strpos($u, 'duckduckbot') !== false) {
+        $bot = 'DuckDuckBot';
+    } elseif (strpos($u, 'slurp') !== false) {
+        $bot = 'Yahoo Slurp';
+    } elseif (
         strpos($u, 'bot') !== false
         || strpos($u, 'spider') !== false
         || strpos($u, 'crawler') !== false
-        || strpos($u, 'slurp') !== false
     ) {
-        return '爬虫';
+        $bot = 'Bot';
+    }
+    if ($bot !== '') {
+        return ['type' => 'bot', 'name' => $bot];
     }
 
-    if (strpos($u, 'ipad') !== false || strpos($u, 'tablet') !== false) {
-        return '平板';
+    // Device type
+    $type = 'desktop';
+    $device = '';
+    if (strpos($u, 'ipad') !== false) {
+        $type = 'tablet';
+        $device = 'iPad';
+    } elseif (strpos($u, 'tablet') !== false) {
+        $type = 'tablet';
+        $device = '平板';
+    } elseif (strpos($u, 'iphone') !== false) {
+        $type = 'mobile';
+        $device = 'iPhone';
+    } elseif (strpos($u, 'ipod') !== false) {
+        $type = 'mobile';
+        $device = 'iPod';
+    } elseif (strpos($u, 'android') !== false) {
+        $type = strpos($u, 'mobile') !== false ? 'mobile' : 'tablet';
+        $device = $type === 'mobile' ? 'Android 手机' : 'Android 平板';
+        if (preg_match('/android\\s[0-9\\.]+;\\s*([^;\\)]+?)(?:\\s+build\\/|;|\\))/i', $ua, $m)) {
+            $model = trim((string) ($m[1] ?? ''));
+            if ($model !== '' && strlen($model) <= 40) {
+                $device = $model;
+            }
+        }
+    } elseif (strpos($u, 'mobile') !== false) {
+        $type = 'mobile';
+        $device = '手机';
     }
 
-    if (
-        strpos($u, 'mobile') !== false
-        || strpos($u, 'android') !== false
-        || strpos($u, 'iphone') !== false
-        || strpos($u, 'ipod') !== false
-    ) {
-        return '手机';
+    // OS
+    $os = '';
+    if (preg_match('/windows nt\\s*([0-9\\.]+)/i', $ua, $m)) {
+        $ver = (string) ($m[1] ?? '');
+        $map = [
+            '10.0' => 'Windows 10/11',
+            '6.3' => 'Windows 8.1',
+            '6.2' => 'Windows 8',
+            '6.1' => 'Windows 7',
+            '6.0' => 'Windows Vista',
+            '5.1' => 'Windows XP',
+        ];
+        $os = $map[$ver] ?? ('Windows ' . $ver);
+    } elseif (strpos($u, 'ipad') !== false && preg_match('/os\\s*([0-9_]+)/i', $ua, $m)) {
+        $os = 'iPadOS ' . str_replace('_', '.', (string) ($m[1] ?? ''));
+    } elseif ((strpos($u, 'iphone') !== false || strpos($u, 'ipod') !== false) && preg_match('/iphone os\\s*([0-9_]+)/i', $ua, $m)) {
+        $os = 'iOS ' . str_replace('_', '.', (string) ($m[1] ?? ''));
+    } elseif (strpos($u, 'android') !== false && preg_match('/android\\s*([0-9\\.]+)/i', $ua, $m)) {
+        $os = 'Android ' . (string) ($m[1] ?? '');
+    } elseif (strpos($u, 'mac os x') !== false && strpos($u, 'iphone') === false && strpos($u, 'ipad') === false) {
+        if (preg_match('/mac os x\\s*([0-9_]+)/i', $ua, $m)) {
+            $os = 'macOS ' . str_replace('_', '.', (string) ($m[1] ?? ''));
+        } else {
+            $os = 'macOS';
+        }
+    } elseif (strpos($u, 'linux') !== false) {
+        $os = 'Linux';
     }
 
-    return '电脑';
+    // Browser / App
+    $browser = '';
+    if (strpos($u, 'micromessenger') !== false) {
+        $browser = '微信';
+        if (preg_match('/micromessenger\\/(\\d+)(?:\\.(\\d+))?/i', $ua, $m)) {
+            $major = (string) ($m[1] ?? '');
+            $minor = (string) ($m[2] ?? '');
+            $browser .= $minor !== '' ? (' ' . $major . '.' . $minor) : (' ' . $major);
+        }
+    } elseif (preg_match('/edg\\/(\\d+)/i', $ua, $m)) {
+        $browser = 'Edge ' . (string) ($m[1] ?? '');
+    } elseif (preg_match('/opr\\/(\\d+)/i', $ua, $m)) {
+        $browser = 'Opera ' . (string) ($m[1] ?? '');
+    } elseif (preg_match('/chrome\\/(\\d+)/i', $ua, $m) && strpos($u, 'edg/') === false && strpos($u, 'opr/') === false) {
+        $browser = 'Chrome ' . (string) ($m[1] ?? '');
+    } elseif (preg_match('/firefox\\/(\\d+)/i', $ua, $m)) {
+        $browser = 'Firefox ' . (string) ($m[1] ?? '');
+    } elseif (strpos($u, 'safari/') !== false && strpos($u, 'chrome/') === false && strpos($u, 'chromium') === false) {
+        if (preg_match('/version\\/(\\d+)/i', $ua, $m)) {
+            $browser = 'Safari ' . (string) ($m[1] ?? '');
+        } else {
+            $browser = 'Safari';
+        }
+    }
+
+    $parts = [];
+    if ($device !== '') {
+        $parts[] = $device;
+    }
+    if ($os !== '') {
+        $parts[] = $os;
+    }
+    if ($browser !== '') {
+        $parts[] = $browser;
+    }
+
+    $name = implode(' · ', array_values(array_unique($parts)));
+    if ($name === '') {
+        $name = $type === 'mobile' ? '手机' : ($type === 'tablet' ? '平板' : '电脑');
+    }
+
+    return ['type' => $type, 'name' => $name];
 }
 
 function v3a_decode_rule(string $rule): string
@@ -3817,6 +3923,7 @@ try {
             }
 
             $ua = isset($r['ua']) ? (string) ($r['ua'] ?? '') : '';
+            $deviceInfo = v3a_device_info_from_ua($ua);
             $items[] = [
                 'id' => (int) ($r['id'] ?? 0),
                 'ip' => (string) ($r['ip'] ?? ''),
@@ -3826,7 +3933,8 @@ try {
                 'type' => (string) ($r['type'] ?? ''),
                 'referer' => isset($r['referer']) && $r['referer'] !== null ? (string) $r['referer'] : '',
                 'ua' => $ua,
-                'device' => v3a_device_from_ua($ua),
+                'deviceType' => (string) ($deviceInfo['type'] ?? ''),
+                'device' => (string) ($deviceInfo['name'] ?? ''),
                 'created' => (int) ($r['created'] ?? 0),
             ];
         }

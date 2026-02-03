@@ -119,9 +119,130 @@ function v3a_track_normalize_uri(string $raw): string
     return $raw;
 }
 
+function v3a_track_server(string $key): string
+{
+    if (!isset($_SERVER[$key])) {
+        return '';
+    }
+    return trim((string) $_SERVER[$key]);
+}
+
+function v3a_track_strip_ip(string $ip): string
+{
+    $ip = trim($ip);
+    $ip = trim($ip, "\"' ");
+    if ($ip === '') {
+        return '';
+    }
+
+    // [IPv6]:port
+    if (preg_match('/^\\[([0-9a-f:]+)\\]:(\\d+)$/i', $ip, $m)) {
+        return (string) $m[1];
+    }
+
+    // IPv4:port
+    if (preg_match('/^(\\d{1,3}(?:\\.\\d{1,3}){3}):(\\d+)$/', $ip, $m)) {
+        return (string) $m[1];
+    }
+
+    return $ip;
+}
+
+function v3a_track_valid_ip(string $ip): bool
+{
+    $ip = trim($ip);
+    if ($ip === '') {
+        return false;
+    }
+    return filter_var($ip, FILTER_VALIDATE_IP) !== false;
+}
+
+function v3a_track_public_ip(string $ip): bool
+{
+    $ip = trim($ip);
+    if ($ip === '') {
+        return false;
+    }
+    return filter_var(
+        $ip,
+        FILTER_VALIDATE_IP,
+        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+    ) !== false;
+}
+
+function v3a_track_client_ip(string $fallback = ''): string
+{
+    $candidates = [];
+
+    // CDN / Proxy headers
+    $cf = v3a_track_server('HTTP_CF_CONNECTING_IP');
+    if ($cf !== '') {
+        $candidates[] = $cf;
+    }
+
+    $xri = v3a_track_server('HTTP_X_REAL_IP');
+    if ($xri !== '') {
+        $candidates[] = $xri;
+    }
+
+    $forwarded = v3a_track_server('HTTP_FORWARDED');
+    if ($forwarded !== '') {
+        $parts = explode(',', $forwarded);
+        foreach ($parts as $p) {
+            if (preg_match('/for=(\"?)(\\[?[0-9a-f:.]+\\]?)(\\1)/i', $p, $m)) {
+                $candidates[] = (string) $m[2];
+            }
+        }
+    }
+
+    $xff = v3a_track_server('HTTP_X_FORWARDED_FOR');
+    if ($xff !== '') {
+        foreach (explode(',', $xff) as $part) {
+            $candidates[] = $part;
+        }
+    }
+
+    $remote = v3a_track_server('REMOTE_ADDR');
+    if ($remote !== '') {
+        $candidates[] = $remote;
+    }
+
+    if ($fallback !== '') {
+        $candidates[] = $fallback;
+    }
+
+    $valid = [];
+    foreach ($candidates as $raw) {
+        $ip = v3a_track_strip_ip((string) $raw);
+        if (!v3a_track_valid_ip($ip)) {
+            continue;
+        }
+        $valid[] = $ip;
+    }
+
+    // De-duplicate while preserving order.
+    $dedup = [];
+    foreach ($valid as $ip) {
+        if (in_array($ip, $dedup, true)) {
+            continue;
+        }
+        $dedup[] = $ip;
+    }
+
+    // Prefer public IP.
+    foreach ($dedup as $ip) {
+        if (v3a_track_public_ip($ip)) {
+            return $ip;
+        }
+    }
+
+    return $dedup[0] ?? '';
+}
+
 try {
     $request = \Typecho\Request::getInstance();
-    $ip = (string) $request->getIp();
+    $fallbackIp = (string) $request->getIp();
+    $ip = v3a_track_client_ip($fallbackIp);
 
     // Avoid "unknown" being counted as valid statistics.
     if ($ip === '' || $ip === 'unknown') {

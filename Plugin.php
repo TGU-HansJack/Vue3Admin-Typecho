@@ -467,7 +467,7 @@ class Plugin implements PluginInterface
         }
 
         $request = \Typecho\Request::getInstance();
-        $ip = (string) $request->getIp();
+        $ip = self::detectClientIp((string) $request->getIp());
 
         // 避免把 “unknown” 当作有效统计
         if ($ip === '' || $ip === 'unknown') {
@@ -756,6 +756,83 @@ HTML;
         }
 
         return substr($value, 0, $maxLength);
+    }
+
+    private static function detectClientIp(string $fallback = ''): string
+    {
+        $candidates = [];
+
+        $cf = isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? trim((string) $_SERVER['HTTP_CF_CONNECTING_IP']) : '';
+        if ($cf !== '') {
+            $candidates[] = $cf;
+        }
+
+        $xri = isset($_SERVER['HTTP_X_REAL_IP']) ? trim((string) $_SERVER['HTTP_X_REAL_IP']) : '';
+        if ($xri !== '') {
+            $candidates[] = $xri;
+        }
+
+        $forwarded = isset($_SERVER['HTTP_FORWARDED']) ? trim((string) $_SERVER['HTTP_FORWARDED']) : '';
+        if ($forwarded !== '') {
+            $parts = explode(',', $forwarded);
+            foreach ($parts as $p) {
+                if (preg_match('/for=(\"?)(\\[?[0-9a-f:.]+\\]?)(\\1)/i', $p, $m)) {
+                    $candidates[] = (string) $m[2];
+                }
+            }
+        }
+
+        $xff = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? trim((string) $_SERVER['HTTP_X_FORWARDED_FOR']) : '';
+        if ($xff !== '') {
+            foreach (explode(',', $xff) as $part) {
+                $candidates[] = $part;
+            }
+        }
+
+        $remote = isset($_SERVER['REMOTE_ADDR']) ? trim((string) $_SERVER['REMOTE_ADDR']) : '';
+        if ($remote !== '') {
+            $candidates[] = $remote;
+        }
+
+        if ($fallback !== '') {
+            $candidates[] = $fallback;
+        }
+
+        $valid = [];
+        foreach ($candidates as $raw) {
+            $ip = trim((string) $raw);
+            $ip = trim($ip, "\"' ");
+            if ($ip === '') {
+                continue;
+            }
+
+            if (preg_match('/^\\[([0-9a-f:]+)\\]:(\\d+)$/i', $ip, $m)) {
+                $ip = (string) $m[1];
+            } elseif (preg_match('/^(\\d{1,3}(?:\\.\\d{1,3}){3}):(\\d+)$/', $ip, $m)) {
+                $ip = (string) $m[1];
+            }
+
+            if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
+                continue;
+            }
+            $valid[] = $ip;
+        }
+
+        $dedup = [];
+        foreach ($valid as $ip) {
+            if (in_array($ip, $dedup, true)) {
+                continue;
+            }
+            $dedup[] = $ip;
+        }
+
+        foreach ($dedup as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
+                return $ip;
+            }
+        }
+
+        return $dedup[0] ?? '';
     }
 
     private static function deployAdminDirectory(): void

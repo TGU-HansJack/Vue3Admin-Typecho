@@ -15,6 +15,44 @@
 - 自动部署后台资源到站点根目录：`/Vue3Admin/`。
 - 访问统计：前台访问会写入访问日志表（用于仪表盘统计数据）。
 
+## 前台访客统计（可选：主题 footer 上报）
+
+为了避免把后台面板请求计入统计，并兼容一些缓存/静态化场景，推荐在主题的 `footer.php`（或页面底部公共文件，建议放在 `</body>` 前）添加以下代码：
+
+```html
+<!-- Vue3Admin 访客统计：仅前台（不含后台面板） -->
+<script>
+(function () {
+  try {
+    var endpoint = "<?php echo \Typecho\Common::url('Vue3Admin/track.php', $this->options->siteUrl); ?>";
+    var payload = {
+      path: location.pathname + location.search,
+      cid: <?php echo $this->is('post') && isset($this->cid) ? (int) $this->cid : 0; ?>,
+      referrer: document.referrer || ""
+    };
+    var body = JSON.stringify(payload);
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(endpoint, new Blob([body], { type: "application/json" }));
+      return;
+    }
+    fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body,
+      keepalive: true,
+      credentials: "omit"
+    }).catch(function () {});
+  } catch (e) {}
+})();
+</script>
+```
+
+说明：
+
+- 记录字段：访问 IP（服务端获取）、访问路径（`path`）、文章 ID（`cid`，仅文章页）、访问设备（由 UA 解析）、访问时间（服务端时间）。
+- 上报端点：站点根目录的 `/Vue3Admin/track.php`（插件启用后会自动部署）。
+- 如果站点在反代/CDN 后，想显示真实访客 IP，请确保服务器正确传递 `CF-Connecting-IP` / `X-Forwarded-For` / `X-Real-IP` 等请求头。
+
 ## 安装与启用
 
 > 请使用 Release 页面提供的打包文件进行安装。
