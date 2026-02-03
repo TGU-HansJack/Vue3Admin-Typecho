@@ -2472,6 +2472,10 @@ a {
   background: transparent;
 }
 
+.v3a-table td .v3a-mini-btn.primary {
+  color: rgb(37, 99, 235);
+}
+
 .v3a-metric-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

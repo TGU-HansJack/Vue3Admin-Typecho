@@ -9333,12 +9333,12 @@
                           <td style="width: 150px; text-align: right;">
                             <template v-if="row.source === 'link'">
                               <button class="v3a-mini-btn" type="button" @click="openFriendEditor(row)">编辑</button>
-                              <a href="###" class="v3a-link-danger" @click.prevent="deleteFriend(row)">移除</a>
+                              <button class="v3a-mini-btn v3a-link-danger" type="button" @click="deleteFriend(row)">移除</button>
                             </template>
                             <template v-else>
                               <template v-if="friendsState === 1">
                                 <button class="v3a-mini-btn primary" type="button" @click="auditFriendApply(row, 'pass')">通过</button>
-                                <a href="###" class="v3a-link-danger" @click.prevent="auditFriendApply(row, 'reject')">拒绝</a>
+                                <button class="v3a-mini-btn v3a-link-danger" type="button" @click="auditFriendApply(row, 'reject')">拒绝</button>
                               </template>
                               <span v-else class="v3a-muted">—</span>
                             </template>
