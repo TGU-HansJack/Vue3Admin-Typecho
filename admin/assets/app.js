@@ -1742,6 +1742,114 @@
         uploadFilesFromModal(files);
       }
 
+      // Data (IP / PV)
+      const dataVisitLoading = ref(false);
+      const dataVisitError = ref("");
+      const dataVisitItems = ref([]);
+      const dataVisitFilters = reactive({
+        keywords: "",
+        onlyPosts: false,
+      });
+      const dataVisitPagination = reactive({
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        pageCount: 1,
+      });
+      const dataVisitPageJump = ref(1);
+
+      const dataApiLoading = ref(false);
+      const dataApiError = ref("");
+      const dataApiItems = ref([]);
+      const dataApiFilters = reactive({
+        keywords: "",
+      });
+      const dataApiPagination = reactive({
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        pageCount: 1,
+      });
+      const dataApiPageJump = ref(1);
+
+      function dataDeviceTone(device) {
+        const d = String(device || "");
+        if (d === "爬虫") return "danger";
+        if (d === "手机") return "warn";
+        if (d === "平板") return "";
+        if (d === "电脑") return "success";
+        return "";
+      }
+
+      async function fetchDataVisits() {
+        dataVisitLoading.value = true;
+        dataVisitError.value = "";
+        try {
+          const data = await apiGet("data.visit.list", {
+            page: dataVisitPagination.page,
+            pageSize: dataVisitPagination.pageSize,
+            keywords: dataVisitFilters.keywords,
+            onlyPosts: dataVisitFilters.onlyPosts ? 1 : 0,
+          });
+          dataVisitItems.value = Array.isArray(data?.items) ? data.items : [];
+          Object.assign(dataVisitPagination, data?.pagination || {});
+          dataVisitPageJump.value = Number(dataVisitPagination.page || 1) || 1;
+        } catch (e) {
+          dataVisitItems.value = [];
+          dataVisitError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          dataVisitLoading.value = false;
+        }
+      }
+
+      function applyDataVisitFilters() {
+        dataVisitPagination.page = 1;
+        fetchDataVisits();
+      }
+
+      function dataVisitGoPage(p) {
+        const pageCount = Number(dataVisitPagination.pageCount || 1) || 1;
+        const next = Math.max(1, Math.min(Number(p || 1) || 1, pageCount));
+        dataVisitPagination.page = next;
+        fetchDataVisits();
+      }
+
+      async function fetchDataApi() {
+        dataApiLoading.value = true;
+        dataApiError.value = "";
+        try {
+          const data = await apiGet("data.api.list", {
+            page: dataApiPagination.page,
+            pageSize: dataApiPagination.pageSize,
+            keywords: dataApiFilters.keywords,
+          });
+          dataApiItems.value = Array.isArray(data?.items) ? data.items : [];
+          Object.assign(dataApiPagination, data?.pagination || {});
+          dataApiPageJump.value = Number(dataApiPagination.page || 1) || 1;
+        } catch (e) {
+          dataApiItems.value = [];
+          dataApiError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          dataApiLoading.value = false;
+        }
+      }
+
+      function applyDataApiFilters() {
+        dataApiPagination.page = 1;
+        fetchDataApi();
+      }
+
+      function dataApiGoPage(p) {
+        const pageCount = Number(dataApiPagination.pageCount || 1) || 1;
+        const next = Math.max(1, Math.min(Number(p || 1) || 1, pageCount));
+        dataApiPagination.page = next;
+        fetchDataApi();
+      }
+
+      async function refreshData() {
+        await Promise.all([fetchDataVisits(), fetchDataApi()]);
+      }
+
       // Users
       const usersLoading = ref(false);
       const usersError = ref("");
@@ -6313,6 +6421,9 @@
           if (p === "/users") {
             await fetchUsers();
           }
+          if (p === "/data") {
+            await refreshData();
+          }
           if (p === "/posts/taxonomy") {
             await fetchTaxonomy();
           }
@@ -6465,6 +6576,9 @@
         }
         if (routePath.value === "/users") {
           await fetchUsers();
+        }
+        if (routePath.value === "/data") {
+          await refreshData();
         }
         if (routePath.value === "/posts/taxonomy") {
           await fetchTaxonomy();
@@ -6680,6 +6794,22 @@
         onFileItemActivate,
         deleteSelectedFiles,
         refreshFiles,
+        dataVisitLoading,
+        dataVisitError,
+        dataVisitItems,
+        dataVisitFilters,
+        dataVisitPagination,
+        dataVisitPageJump,
+        dataApiLoading,
+        dataApiError,
+        dataApiItems,
+        dataApiPagination,
+        dataApiPageJump,
+        dataDeviceTone,
+        applyDataVisitFilters,
+        dataVisitGoPage,
+        dataApiGoPage,
+        refreshData,
         usersLoading,
         usersError,
         usersItems,
@@ -8447,45 +8577,121 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
                       <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                  <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
-                    <button class="v3a-btn" type="button">导出</button>
-                    <button class="v3a-btn primary" type="button">刷新</button>
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="dataVisitLoading || dataApiLoading" @click="refreshData()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
                   </div>
                 </div>
 
+                <div class="v3a-posts-search">
+                  <div class="v3a-searchbox">
+                    <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                    <input class="v3a-input" v-model="dataVisitFilters.keywords" @keyup.enter="applyDataVisitFilters()" placeholder="搜索 IP / 路径 / 来源..." />
+                  </div>
+                  <select class="v3a-select" v-model="dataVisitFilters.onlyPosts" @change="applyDataVisitFilters()" style="width: 140px;">
+                    <option :value="false">全部访问</option>
+                    <option :value="true">仅文章</option>
+                  </select>
+                  <button class="v3a-btn" type="button" @click="applyDataVisitFilters()" :disabled="dataVisitLoading">搜索</button>
+                  <div class="v3a-muted">{{ formatNumber(dataVisitPagination.total) }} 条</div>
+                </div>
+
                 <div class="v3a-grid two">
-                  <div class="v3a-card">
-                    <div class="hd"><div class="title">访问日志（v3a_visit_log）</div></div>
-                    <div class="bd">
-                      <table class="v3a-table">
-                        <thead><tr><th>IP</th><th>URI</th><th>时间</th></tr></thead>
-                        <tbody>
-                          <tr v-for="i in 5" :key="i">
-                            <td>127.0.0.{{ i }}</td>
-                            <td>/</td>
-                            <td>—</td>
-                          </tr>
-                        </tbody>
-                      </table>
+                  <div>
+                    <div class="v3a-card">
+                      <div class="hd"><div class="title">访问日志</div></div>
+                      <div class="bd" style="padding: 0;">
+                        <div v-if="dataVisitError" class="v3a-alert" style="margin: 16px;">{{ dataVisitError }}</div>
+                        <div v-else-if="dataVisitLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+
+                        <table v-else class="v3a-table v3a-posts-table">
+                          <thead>
+                            <tr>
+                              <th>IP</th>
+                              <th>路径</th>
+                              <th style="text-align:center;">设备</th>
+                              <th>时间</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="v in dataVisitItems" :key="v.id">
+                              <td><span class="v3a-muted" style="font-variant-numeric: tabular-nums;">{{ v.ip || '—' }}</span></td>
+                              <td style="word-break: break-all;">
+                                <a :href="v.uri" target="_blank" rel="noreferrer">{{ v.uri || '—' }}</a>
+                                <div v-if="v.type === 'post'" class="v3a-muted" style="font-size: 12px; margin-top: 2px;">
+                                  {{ v.title || ('#' + (v.cid || '')) }}
+                                </div>
+                              </td>
+                              <td style="text-align:center;">
+                                <span class="v3a-pill" :class="dataDeviceTone(v.device)">{{ v.device || '—' }}</span>
+                              </td>
+                              <td>{{ formatTime(v.created) }}</td>
+                            </tr>
+                            <tr v-if="!dataVisitItems.length">
+                              <td colspan="4" class="v3a-muted" style="padding: 16px;">暂无访问日志</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div class="v3a-pagination">
+                      <button class="v3a-pagebtn" type="button" @click="dataVisitGoPage(dataVisitPagination.page - 1)" :disabled="dataVisitPagination.page <= 1">
+                        <span class="v3a-icon" v-html="ICONS.collapse"></span>
+                      </button>
+                      <div class="v3a-pagecurrent">{{ dataVisitPagination.page }}</div>
+                      <button class="v3a-pagebtn" type="button" @click="dataVisitGoPage(dataVisitPagination.page + 1)" :disabled="dataVisitPagination.page >= dataVisitPagination.pageCount">
+                        <span class="v3a-icon" v-html="ICONS.expand"></span>
+                      </button>
+                      <span class="v3a-muted">跳至</span>
+                      <input class="v3a-pagejump" type="number" min="1" :max="dataVisitPagination.pageCount" v-model.number="dataVisitPageJump" @keyup.enter="dataVisitGoPage(dataVisitPageJump)" @blur="dataVisitGoPage(dataVisitPageJump)" />
                     </div>
                   </div>
 
-                  <div class="v3a-card">
-                    <div class="hd"><div class="title">API 日志（v3a_api_log）</div></div>
-                    <div class="bd">
-                      <table class="v3a-table">
-                        <thead><tr><th>方法</th><th>Path</th><th>时间</th></tr></thead>
-                        <tbody>
-                          <tr v-for="i in 5" :key="i">
-                            <td>GET</td>
-                            <td>/Vue3Admin/api.php</td>
-                            <td>—</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                      <div class="v3a-muted" style="margin-top: 10px;">当前已落库记录（仪表盘可见），列表接口待补充。</div>
+                  <div>
+                    <div class="v3a-card">
+                      <div class="hd"><div class="title">API 日志</div></div>
+                      <div class="bd" style="padding: 0;">
+                        <div v-if="dataApiError" class="v3a-alert" style="margin: 16px;">{{ dataApiError }}</div>
+                        <div v-else-if="dataApiLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+
+                        <table v-else class="v3a-table v3a-posts-table">
+                          <thead>
+                            <tr>
+                              <th style="width: 90px;">方法</th>
+                              <th>Path</th>
+                              <th style="width: 140px;">IP</th>
+                              <th style="width: 160px;">时间</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="a in dataApiItems" :key="a.id">
+                              <td><span class="v3a-pill">{{ a.method || '—' }}</span></td>
+                              <td style="word-break: break-all;">{{ a.path || '—' }}</td>
+                              <td><span class="v3a-muted" style="font-variant-numeric: tabular-nums;">{{ a.ip || '—' }}</span></td>
+                              <td>{{ formatTime(a.created) }}</td>
+                            </tr>
+                            <tr v-if="!dataApiItems.length">
+                              <td colspan="4" class="v3a-muted" style="padding: 16px;">暂无 API 日志</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div class="v3a-pagination">
+                      <button class="v3a-pagebtn" type="button" @click="dataApiGoPage(dataApiPagination.page - 1)" :disabled="dataApiPagination.page <= 1">
+                        <span class="v3a-icon" v-html="ICONS.collapse"></span>
+                      </button>
+                      <div class="v3a-pagecurrent">{{ dataApiPagination.page }}</div>
+                      <button class="v3a-pagebtn" type="button" @click="dataApiGoPage(dataApiPagination.page + 1)" :disabled="dataApiPagination.page >= dataApiPagination.pageCount">
+                        <span class="v3a-icon" v-html="ICONS.expand"></span>
+                      </button>
+                      <span class="v3a-muted">跳至</span>
+                      <input class="v3a-pagejump" type="number" min="1" :max="dataApiPagination.pageCount" v-model.number="dataApiPageJump" @keyup.enter="dataApiGoPage(dataApiPageJump)" @blur="dataApiGoPage(dataApiPageJump)" />
                     </div>
                   </div>
                 </div>

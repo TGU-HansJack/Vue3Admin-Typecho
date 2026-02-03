@@ -70,6 +70,38 @@ function v3a_truncate(string $value, int $max = 120): string
     return substr($value, 0, $max);
 }
 
+function v3a_device_from_ua(string $ua): string
+{
+    $u = strtolower(trim($ua));
+    if ($u === '') {
+        return '';
+    }
+
+    if (
+        strpos($u, 'bot') !== false
+        || strpos($u, 'spider') !== false
+        || strpos($u, 'crawler') !== false
+        || strpos($u, 'slurp') !== false
+    ) {
+        return '爬虫';
+    }
+
+    if (strpos($u, 'ipad') !== false || strpos($u, 'tablet') !== false) {
+        return '平板';
+    }
+
+    if (
+        strpos($u, 'mobile') !== false
+        || strpos($u, 'android') !== false
+        || strpos($u, 'iphone') !== false
+        || strpos($u, 'ipod') !== false
+    ) {
+        return '手机';
+    }
+
+    return '电脑';
+}
+
 function v3a_decode_rule(string $rule): string
 {
     return (string) preg_replace("/\\[([_a-z0-9-]+)[^\\]]*\\]/i", "{\\1}", $rule);
@@ -1161,29 +1193,7 @@ class V3A_CommentsEditProxy extends \Widget\Comments\Edit
 try {
     $db = \Typecho\Db::get();
 
-    // 记录 API 调用（尽量不影响主流程）
-    try {
-        $httpRequest = \Typecho\Request::getInstance();
-        $uri = (string) ($httpRequest->getRequestUri() ?? '');
-        $parsed = @parse_url($uri);
-        $path = is_array($parsed) && !empty($parsed['path']) ? (string) $parsed['path'] : $uri;
-        $query = is_array($parsed) && isset($parsed['query'])
-            ? (string) $parsed['query']
-            : (string) ($httpRequest->getServer('QUERY_STRING') ?? '');
-        $method = (string) ($httpRequest->getServer('REQUEST_METHOD', 'GET') ?? 'GET');
-
-        $db->query(
-            $db->insert('table.v3a_api_log')->rows([
-                'ip' => (string) $httpRequest->getIp(),
-                'method' => $method,
-                'path' => $path,
-                'query' => $query,
-                'created' => time(),
-            ]),
-            \Typecho\Db::WRITE
-        );
-    } catch (\Throwable $e) {
-    }
+    // API 调用日志：Vue3Admin 后台面板不写入 v3a_api_log（避免把后台请求计入统计/污染数据）。
 
     $do = trim((string) $request->get('do'));
 
@@ -3737,6 +3747,171 @@ try {
                 'mail' => $mail,
                 'url' => $url,
                 'group' => $group,
+            ],
+        ]);
+    }
+
+    if ($do === 'data.visit.list') {
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['data']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $page = max(1, (int) $request->get('page', 1));
+        $pageSize = (int) $request->get('pageSize', 20);
+        $pageSize = max(1, min(50, $pageSize));
+
+        $keywords = v3a_string($request->get('keywords', ''), '');
+        $onlyPosts = v3a_bool_int($request->get('onlyPosts', 0));
+
+        $select = $db->select(
+            'table.v3a_visit_log.id',
+            'table.v3a_visit_log.ip',
+            'table.v3a_visit_log.uri',
+            'table.v3a_visit_log.cid',
+            'table.v3a_visit_log.referer',
+            'table.v3a_visit_log.ua',
+            'table.v3a_visit_log.created',
+            'table.contents.title',
+            'table.contents.type'
+        )
+            ->from('table.v3a_visit_log')
+            ->join('table.contents', 'table.v3a_visit_log.cid = table.contents.cid', \Typecho\Db::LEFT_JOIN);
+
+        $countSelect = $db->select(['COUNT(table.v3a_visit_log.id)' => 'num'])
+            ->from('table.v3a_visit_log');
+
+        if ($keywords !== '') {
+            $kw = '%' . $keywords . '%';
+            $expr = '(table.v3a_visit_log.ip LIKE ? OR table.v3a_visit_log.uri LIKE ? OR table.v3a_visit_log.referer LIKE ?)';
+            $select->where($expr, $kw, $kw, $kw);
+            $countSelect->where($expr, $kw, $kw, $kw);
+        }
+
+        if ($onlyPosts) {
+            $select->where('table.contents.type = ?', 'post');
+            $countSelect->join('table.contents', 'table.v3a_visit_log.cid = table.contents.cid', \Typecho\Db::LEFT_JOIN);
+            $countSelect->where('table.contents.type = ?', 'post');
+        }
+
+        $total = 0;
+        try {
+            $total = (int) ($db->fetchObject($countSelect)->num ?? 0);
+        } catch (\Throwable $e) {
+        }
+
+        $rows = [];
+        try {
+            $rows = $db->fetchAll(
+                $select->order('table.v3a_visit_log.id', \Typecho\Db::SORT_DESC)->page($page, $pageSize)
+            );
+        } catch (\Throwable $e) {
+        }
+
+        $items = [];
+        foreach ($rows as $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+
+            $ua = isset($r['ua']) ? (string) ($r['ua'] ?? '') : '';
+            $items[] = [
+                'id' => (int) ($r['id'] ?? 0),
+                'ip' => (string) ($r['ip'] ?? ''),
+                'uri' => (string) ($r['uri'] ?? ''),
+                'cid' => isset($r['cid']) && $r['cid'] !== null ? (int) $r['cid'] : null,
+                'title' => (string) ($r['title'] ?? ''),
+                'type' => (string) ($r['type'] ?? ''),
+                'referer' => isset($r['referer']) && $r['referer'] !== null ? (string) $r['referer'] : '',
+                'ua' => $ua,
+                'device' => v3a_device_from_ua($ua),
+                'created' => (int) ($r['created'] ?? 0),
+            ];
+        }
+
+        $pageCount = $pageSize > 0 ? (int) ceil($total / $pageSize) : 1;
+
+        v3a_exit_json(0, [
+            'items' => $items,
+            'pagination' => [
+                'page' => $page,
+                'pageSize' => $pageSize,
+                'total' => $total,
+                'pageCount' => $pageCount,
+            ],
+        ]);
+    }
+
+    if ($do === 'data.api.list') {
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['data']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $page = max(1, (int) $request->get('page', 1));
+        $pageSize = (int) $request->get('pageSize', 20);
+        $pageSize = max(1, min(50, $pageSize));
+
+        $keywords = v3a_string($request->get('keywords', ''), '');
+
+        $select = $db->select(
+            'id',
+            'ip',
+            'method',
+            'path',
+            'query',
+            'created'
+        )->from('table.v3a_api_log');
+
+        $countSelect = $db->select(['COUNT(id)' => 'num'])->from('table.v3a_api_log');
+
+        if ($keywords !== '') {
+            $kw = '%' . $keywords . '%';
+            $expr = '(ip LIKE ? OR path LIKE ? OR query LIKE ?)';
+            $select->where($expr, $kw, $kw, $kw);
+            $countSelect->where($expr, $kw, $kw, $kw);
+        }
+
+        $total = 0;
+        try {
+            $total = (int) ($db->fetchObject($countSelect)->num ?? 0);
+        } catch (\Throwable $e) {
+        }
+
+        $rows = [];
+        try {
+            $rows = $db->fetchAll($select->order('id', \Typecho\Db::SORT_DESC)->page($page, $pageSize));
+        } catch (\Throwable $e) {
+        }
+
+        $items = [];
+        foreach ($rows as $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            $items[] = [
+                'id' => (int) ($r['id'] ?? 0),
+                'ip' => (string) ($r['ip'] ?? ''),
+                'method' => (string) ($r['method'] ?? 'GET'),
+                'path' => (string) ($r['path'] ?? ''),
+                'query' => isset($r['query']) && $r['query'] !== null ? (string) $r['query'] : '',
+                'created' => (int) ($r['created'] ?? 0),
+            ];
+        }
+
+        $pageCount = $pageSize > 0 ? (int) ceil($total / $pageSize) : 1;
+
+        v3a_exit_json(0, [
+            'items' => $items,
+            'pagination' => [
+                'page' => $page,
+                'pageSize' => $pageSize,
+                'total' => $total,
+                'pageCount' => $pageCount,
             ],
         ]);
     }

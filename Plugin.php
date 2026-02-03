@@ -33,6 +33,7 @@ class Plugin implements PluginInterface
             __DIR__ . '/admin/login.php',
             __DIR__ . '/admin/register.php',
             __DIR__ . '/admin/api.php',
+            __DIR__ . '/admin/track.php',
             __DIR__ . '/admin/common.php',
             __DIR__ . '/admin/bootstrap.php',
             __DIR__ . '/admin/plugin-config.php',
@@ -482,15 +483,35 @@ class Plugin implements PluginInterface
             $cid = (int) $archive->cid;
         }
 
+        $now = time();
+        $uriTruncated = self::truncate($uri, 255);
+
+        // Deduplicate: when both server-side hook and footer beacon run, they may double count.
+        try {
+            $since = $now - 10;
+            $dup = (int) ($db->fetchObject(
+                $db->select(['COUNT(id)' => 'num'])
+                    ->from('table.v3a_visit_log')
+                    ->where('ip = ?', $ip)
+                    ->where('uri = ?', $uriTruncated)
+                    ->where('created >= ?', $since)
+            )->num ?? 0);
+
+            if ($dup > 0) {
+                return;
+            }
+        } catch (\Throwable $e) {
+        }
+
         try {
             $db->query(
                 $db->insert('table.v3a_visit_log')->rows([
                     'ip' => $ip,
-                    'uri' => self::truncate($uri, 255),
+                    'uri' => $uriTruncated,
                     'cid' => $cid,
                     'referer' => $referer === '' ? null : self::truncate($referer, 255),
                     'ua' => $ua === '' ? null : self::truncate($ua, 255),
-                    'created' => time(),
+                    'created' => $now,
                 ]),
                 Db::WRITE
             );
@@ -781,6 +802,7 @@ HTML;
                 'login.php',
                 'register.php',
                 'api.php',
+                'track.php',
                 'bootstrap.php',
                 'common.php',
                 'plugin-config.php',
