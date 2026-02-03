@@ -3994,6 +3994,31 @@ try {
             $defaultRegisterGroup = 'subscriber';
         }
 
+        $userOptions = [
+            'markdown' => (int) ($options->markdown ?? 0),
+            'xmlrpcMarkdown' => (int) ($options->xmlrpcMarkdown ?? 0),
+            'autoSave' => (int) ($options->autoSave ?? 0),
+            'defaultAllowComment' => (int) ($options->defaultAllowComment ?? 0),
+            'defaultAllowPing' => (int) ($options->defaultAllowPing ?? 0),
+            'defaultAllowFeed' => (int) ($options->defaultAllowFeed ?? 0),
+        ];
+        try {
+            $uid = (int) ($user->uid ?? 0);
+            if ($uid > 0) {
+                $rows = $db->fetchAll(
+                    $db->select('name', 'value')->from('table.options')->where('user = ?', $uid)
+                );
+                foreach ((array) $rows as $row) {
+                    $name = (string) ($row['name'] ?? '');
+                    if ($name === '' || !array_key_exists($name, $userOptions)) {
+                        continue;
+                    }
+                    $userOptions[$name] = (int) ($row['value'] ?? 0);
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
         v3a_exit_json(0, [
             'isAdmin' => $isAdmin,
             'profile' => [
@@ -4011,14 +4036,7 @@ try {
                 ),
                 'group' => (string) ($user->group ?? ''),
             ],
-            'userOptions' => [
-                'markdown' => (int) ($options->markdown ?? 0),
-                'xmlrpcMarkdown' => (int) ($options->xmlrpcMarkdown ?? 0),
-                'autoSave' => (int) ($options->autoSave ?? 0),
-                'defaultAllowComment' => (int) ($options->defaultAllowComment ?? 0),
-                'defaultAllowPing' => (int) ($options->defaultAllowPing ?? 0),
-                'defaultAllowFeed' => (int) ($options->defaultAllowFeed ?? 0),
-            ],
+            'userOptions' => $userOptions,
             'site' => [
                 'siteUrl' => (string) ($options->siteUrl ?? ''),
                 'siteUrlLocked' => defined('__TYPECHO_SITE_URL__'),

@@ -4298,7 +4298,7 @@
           pageForm.allowComment = !!Number(p.allowComment || 0);
           pageForm.allowPing = !!Number(p.allowPing || 0);
           pageForm.allowFeed = !!Number(p.allowFeed || 0);
-          pageForm.markdown = !!p.isMarkdown;
+          pageForm.markdown = cid ? !!p.isMarkdown : !!V3A.markdownEnabled;
 
           pageForm.fields.splice(0, pageForm.fields.length);
           const fs = Array.isArray(p.fields) ? p.fields : [];
@@ -4659,6 +4659,7 @@
             settingsUserOptionsForm.defaultAllow = v3aUserOptionsAllowFromData(
               settingsData.userOptions
             );
+            V3A.markdownEnabled = !!Number(settingsData.userOptions.markdown || 0);
           }
           if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
@@ -7947,8 +7948,6 @@
                                   </div>
                                 </div>
 
-                                <div class="v3a-divider"></div>
-
                                 <div class="v3a-comments-info-grid">
                                   <div v-if="commentForm.ip" class="v3a-comments-info-item">
                                     <div class="v3a-comments-info-label">IP 地址</div>
@@ -8044,10 +8043,7 @@
                       <tbody>
                         <tr v-for="p in pagesItems" :key="p.cid">
                           <td>
-                            <div style="display:flex; align-items:center; gap: 8px;">
-                              <span :style="{ paddingLeft: (Number(p.levels || 0) * 12) + 'px' }">{{ p.title || ('#' + p.cid) }}</span>
-                              <span class="v3a-muted" style="font-size: 12px;">#{{ p.cid }}</span>
-                            </div>
+                            <a href="###" @click.prevent="openPageEditor(p.cid)" :style="{ display: 'inline-block', paddingLeft: (Number(p.levels || 0) * 12) + 'px' }">{{ p.title || ('#' + p.cid) }}</a>
                           </td>
                           <td>
                             <span class="v3a-pill" :class="getPageBadge(p).tone">{{ getPageBadge(p).text }}</span>
@@ -8055,7 +8051,6 @@
                           <td class="v3a-muted">{{ p.template || '—' }}</td>
                           <td>{{ formatTime(p.created) }}</td>
                           <td style="white-space: nowrap;">
-                            <button class="v3a-mini-btn" type="button" @click="openPageEditor(p.cid)">编辑</button>
                             <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deletePage(p.cid)">删除</button>
                           </td>
                         </tr>
