@@ -879,6 +879,7 @@
         categories: [],
         fields: [],
       });
+      const postDefaultFields = ref([]);
 
       const postTextEl = ref(null);
       const postEditorType = ref("vditor");
@@ -2415,6 +2416,7 @@
         markdown: true,
         fields: [],
       });
+      const pageDefaultFields = ref([]);
 
       // Settings
       const settingsLoading = ref(false);
@@ -3766,22 +3768,24 @@
           await ensureTagsLoaded();
           const cidRaw = routeQuery.value && routeQuery.value.cid;
           const cid = Number(cidRaw || 0);
-          if (!cid) {
-            resetPostForm();
-            postCapabilities.value = {
-              markdownEnabled: !!V3A.markdownEnabled,
-              canPublish: !!V3A.canPublish,
-            };
-            return;
-          }
 
-          const data = await apiGet("posts.get", { cid });
+          postDefaultFields.value = [];
+          const data = await apiGet("posts.get", { cid: cid || "" });
           const p = data.post || {};
           const cap = data.capabilities || {};
           postCapabilities.value = {
             markdownEnabled: !!cap.markdownEnabled,
             canPublish: !!cap.canPublish,
           };
+          postDefaultFields.value = Array.isArray(data.defaultFields) ? data.defaultFields : [];
+
+          if (!cid) {
+            resetPostForm();
+            if (!postCapabilities.value.markdownEnabled) {
+              postForm.markdown = false;
+            }
+            return;
+          }
 
           postForm.cid = Number(p.cid || cid) || cid;
           postForm.title = String(p.title || "");
@@ -3836,6 +3840,33 @@
         postMessage.value = "";
         try {
           syncPostTextFromEditor();
+
+          const postFieldsMap = new Map();
+          const postDefaults = Array.isArray(postDefaultFields.value) ? postDefaultFields.value : [];
+          for (const f of postDefaults) {
+            if (!f || typeof f !== "object") continue;
+            const name = String(f.name || "");
+            if (!name) continue;
+            const v = f.value;
+            const isObj = v !== null && typeof v === "object";
+            postFieldsMap.set(name, {
+              name,
+              type: isObj ? "json" : "str",
+              value: isObj ? v : String(v ?? ""),
+            });
+          }
+          for (const f of postForm.fields) {
+            if (!f || typeof f !== "object") continue;
+            const name = String(f.name || "");
+            if (!name) continue;
+            const type = String(f.type || "str");
+            postFieldsMap.set(name, {
+              name,
+              type,
+              value: type === "json" ? safeJsonParse(f.value) : f.value,
+            });
+          }
+
           const payload = {
             cid: postForm.cid || 0,
             title: postForm.title,
@@ -3849,11 +3880,7 @@
             allowFeed: postForm.allowFeed,
             markdown: postForm.markdown ? 1 : 0,
             category: postForm.categories,
-            fields: postForm.fields.map((f) => ({
-              name: f.name,
-              type: f.type,
-              value: f.type === "json" ? safeJsonParse(f.value) : f.value,
-            })),
+            fields: Array.from(postFieldsMap.values()),
           };
 
           const action = mode === "publish" ? "posts.publish" : "posts.save";
@@ -4644,6 +4671,7 @@
           const cid = Number(cidRaw || 0);
           const parent = Number(parentRaw || 0);
 
+          pageDefaultFields.value = [];
           const data = await apiGet("pages.get", {
             cid: cid ? cid : "",
             parent: parent ? parent : "",
@@ -4651,6 +4679,7 @@
 
           pageTemplates.value = data.templates || [];
           pageParentOptions.value = data.parentOptions || [];
+          pageDefaultFields.value = Array.isArray(data.defaultFields) ? data.defaultFields : [];
           const p = data.page || {};
           const cap = data.capabilities || {};
           pageCapabilities.value = {
@@ -4703,6 +4732,33 @@
         pageMessage.value = "";
         try {
           syncPageTextFromEditor();
+
+          const pageFieldsMap = new Map();
+          const pageDefaults = Array.isArray(pageDefaultFields.value) ? pageDefaultFields.value : [];
+          for (const f of pageDefaults) {
+            if (!f || typeof f !== "object") continue;
+            const name = String(f.name || "");
+            if (!name) continue;
+            const v = f.value;
+            const isObj = v !== null && typeof v === "object";
+            pageFieldsMap.set(name, {
+              name,
+              type: isObj ? "json" : "str",
+              value: isObj ? v : String(v ?? ""),
+            });
+          }
+          for (const f of pageForm.fields || []) {
+            if (!f || typeof f !== "object") continue;
+            const name = String(f.name || "").trim();
+            if (!name) continue;
+            const type = String(f.type || "str");
+            pageFieldsMap.set(name, {
+              name,
+              type,
+              value: type === "json" ? safeJsonParse(f.value) : f.value,
+            });
+          }
+
           const payload = {
             cid: pageForm.cid || 0,
             title: pageForm.title,
@@ -4716,13 +4772,7 @@
             allowPing: pageForm.allowPing ? 1 : 0,
             allowFeed: pageForm.allowFeed ? 1 : 0,
             markdown: pageForm.markdown ? 1 : 0,
-            fields: (pageForm.fields || [])
-              .map((f) => ({
-                name: String(f?.name || "").trim(),
-                type: String(f?.type || "str"),
-                value: safeJsonParse(f?.value ?? ""),
-              }))
-              .filter((f) => f.name),
+            fields: Array.from(pageFieldsMap.values()),
           };
           const data = await apiPost(m === "publish" ? "pages.publish" : "pages.save", payload);
           const newCid = Number(data?.cid || pageForm.cid || 0) || 0;
@@ -7013,6 +7063,7 @@
         postMessage,
         postCapabilities,
         postForm,
+        postDefaultFields,
         postSlugPrefix,
         postSlugSuffix,
         postSlugHasSlug,
@@ -7208,6 +7259,7 @@
         pageTemplates,
         pageParentOptions,
         pageForm,
+        pageDefaultFields,
         pageSlugPrefix,
         pageSlugSuffix,
         pageSlugHasSlug,
@@ -7998,7 +8050,45 @@
 
                       <div class="v3a-divider"></div>
 
-                      <div style="margin-top: calc(var(--spacing) * 6); display:flex; align-items: center; justify-content: space-between; gap: 8px;">
+                      <template v-if="postDefaultFields.length">
+                        <div class="v3a-write-section-head" style="margin-top: calc(var(--spacing) * 6);">
+                          <span class="v3a-icon" v-html="ICONS.settings"></span>
+                          <span class="v3a-write-section-title">主题字段</span>
+                        </div>
+
+                        <div v-for="f in postDefaultFields" :key="'post-df-' + f.name" class="v3a-write-formitem">
+                          <label class="v3a-write-label">{{ f.label || f.name }}</label>
+
+                          <input
+                            v-if="f.inputType === 'text' || f.inputType === 'url' || f.inputType === 'password' || f.inputType === 'number'"
+                            class="v3a-input"
+                            :type="f.inputType === 'number' ? 'number' : f.inputType"
+                            v-model="f.value"
+                            :placeholder="f.placeholder || ''"
+                          />
+                          <textarea
+                            v-else-if="f.inputType === 'textarea'"
+                            class="v3a-textarea v3a-modal-textarea"
+                            style="min-height: 90px;"
+                            v-model="f.value"
+                            :placeholder="f.placeholder || ''"
+                          ></textarea>
+                          <select v-else-if="f.inputType === 'select' || f.inputType === 'radio'" class="v3a-select" v-model="f.value">
+                            <option v-for="opt in (f.options || [])" :key="String(opt.value)" :value="opt.value">{{ opt.label }}</option>
+                          </select>
+                          <div v-else-if="f.inputType === 'checkbox'" style="display:flex; flex-direction: column; gap: 8px;">
+                            <label v-for="opt in (f.options || [])" :key="String(opt.value)" class="v3a-remember" style="justify-content:flex-start; margin: 0;">
+                              <input class="v3a-check" type="checkbox" :value="opt.value" v-model="f.value" />
+                              <span>{{ opt.label }}</span>
+                            </label>
+                          </div>
+                          <input v-else class="v3a-input" v-model="f.value" :placeholder="f.placeholder || ''" />
+
+                          <div v-if="f.description" class="v3a-muted" style="font-size: 12px;">{{ f.description }}</div>
+                        </div>
+                      </template>
+
+                      <div :style="{ marginTop: postDefaultFields.length ? '12px' : 'calc(var(--spacing) * 6)' }" style="display:flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <div class="v3a-write-section-head" style="margin: 0;">
                           <span class="v3a-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hash-icon lucide-hash"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg></span>
                           <span class="v3a-write-section-title">自定义字段</span>
@@ -8615,6 +8705,44 @@
 
                       <div class="v3a-divider"></div>
                       <div class="v3a-muted" style="margin: calc(var(--spacing) * 4) 0;">发布权限：{{ pageCapabilities.canPublish ? '可直接发布' : '无权限' }}</div>
+
+                      <template v-if="pageDefaultFields.length">
+                        <div class="v3a-write-section-head" style="margin-top: calc(var(--spacing) * 6);">
+                          <span class="v3a-icon" v-html="ICONS.settings"></span>
+                          <span class="v3a-write-section-title">主题字段</span>
+                        </div>
+
+                        <div v-for="f in pageDefaultFields" :key="'page-df-' + f.name" class="v3a-write-formitem">
+                          <label class="v3a-write-label">{{ f.label || f.name }}</label>
+
+                          <input
+                            v-if="f.inputType === 'text' || f.inputType === 'url' || f.inputType === 'password' || f.inputType === 'number'"
+                            class="v3a-input"
+                            :type="f.inputType === 'number' ? 'number' : f.inputType"
+                            v-model="f.value"
+                            :placeholder="f.placeholder || ''"
+                          />
+                          <textarea
+                            v-else-if="f.inputType === 'textarea'"
+                            class="v3a-textarea v3a-modal-textarea"
+                            style="min-height: 90px;"
+                            v-model="f.value"
+                            :placeholder="f.placeholder || ''"
+                          ></textarea>
+                          <select v-else-if="f.inputType === 'select' || f.inputType === 'radio'" class="v3a-select" v-model="f.value">
+                            <option v-for="opt in (f.options || [])" :key="String(opt.value)" :value="opt.value">{{ opt.label }}</option>
+                          </select>
+                          <div v-else-if="f.inputType === 'checkbox'" style="display:flex; flex-direction: column; gap: 8px;">
+                            <label v-for="opt in (f.options || [])" :key="String(opt.value)" class="v3a-remember" style="justify-content:flex-start; margin: 0;">
+                              <input class="v3a-check" type="checkbox" :value="opt.value" v-model="f.value" />
+                              <span>{{ opt.label }}</span>
+                            </label>
+                          </div>
+                          <input v-else class="v3a-input" v-model="f.value" :placeholder="f.placeholder || ''" />
+
+                          <div v-if="f.description" class="v3a-muted" style="font-size: 12px;">{{ f.description }}</div>
+                        </div>
+                      </template>
 
                       <div style="display:flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <div class="v3a-write-section-head" style="margin: 0;">

@@ -1005,6 +1005,278 @@ function v3a_layout_text($layout): string
     return v3a_string($out, '');
 }
 
+function v3a_plain_text(string $raw): string
+{
+    $s = trim(strip_tags($raw));
+    if ($s === '') {
+        return '';
+    }
+    try {
+        $s = html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    } catch (\Throwable $e) {
+    }
+    return trim($s);
+}
+
+function v3a_default_fields_for_editor($widget, $options, string $kind): array
+{
+    $layout = new \Typecho\Widget\Helper\Layout();
+
+    // Collect default field items from plugins + theme (same as old admin).
+    try {
+        ob_start();
+        \Widget\Base\Contents::pluginHandle()->call('getDefaultFieldItems', $layout);
+        $widget::pluginHandle()->call('getDefaultFieldItems', $layout);
+        ob_end_clean();
+    } catch (\Throwable $e) {
+        @ob_end_clean();
+    }
+
+    $configFile = $options->themeFile($options->theme, 'functions.php');
+    if (is_string($configFile) && $configFile !== '' && file_exists($configFile)) {
+        try {
+            ob_start();
+            require_once $configFile;
+
+            if (function_exists('themeFields')) {
+                themeFields($layout);
+            }
+            if ($kind === 'post' && function_exists('themePostFields')) {
+                themePostFields($layout);
+            }
+            if ($kind === 'page' && function_exists('themePageFields')) {
+                themePageFields($layout);
+            }
+            ob_end_clean();
+        } catch (\Throwable $e) {
+            @ob_end_clean();
+        }
+    }
+
+    $fields = null;
+    try {
+        $fields = $widget->fields ?? null;
+    } catch (\Throwable $e) {
+    }
+    if (!$fields) {
+        $fields = new \Typecho\Config();
+    }
+
+    $out = [];
+    $items = $layout->getItems();
+    foreach ($items as $item) {
+        if (!($item instanceof \Typecho\Widget\Helper\Form\Element)) {
+            continue;
+        }
+        if (empty($item->input)) {
+            continue;
+        }
+
+        $rawName = v3a_string($item->input->getAttribute('name') ?? '', '');
+        if ($rawName === '') {
+            continue;
+        }
+
+        $name = '';
+        if (preg_match('/^fields\\[(.+)\\]$/', $rawName, $m)) {
+            $name = v3a_string($m[1] ?? '', '');
+        } elseif (preg_match('/^(.+)\\[\\]$/', $rawName, $m)) {
+            $name = v3a_string($m[1] ?? '', '');
+        } else {
+            $name = $rawName;
+        }
+        $name = trim($name);
+        if ($name === '') {
+            continue;
+        }
+
+        // Skip read-only fields (old admin behavior).
+        $readOnly = false;
+        try {
+            $isFieldReadOnly = \Widget\Base\Contents::pluginHandle()
+                ->trigger($plugged)->call('isFieldReadOnly', $name);
+            if ($plugged && $isFieldReadOnly) {
+                $readOnly = true;
+            }
+        } catch (\Throwable $e) {
+        }
+        if ($readOnly) {
+            continue;
+        }
+        try {
+            $isFieldReadOnly = $widget::pluginHandle()
+                ->trigger($plugged)->call('isFieldReadOnly', $name);
+            if ($plugged && $isFieldReadOnly) {
+                $readOnly = true;
+            }
+        } catch (\Throwable $e) {
+        }
+        if ($readOnly) {
+            continue;
+        }
+
+        // Apply saved value (if exists).
+        try {
+            if (isset($fields->{$name})) {
+                $item->value($fields->{$name});
+            }
+        } catch (\Throwable $e) {
+        }
+
+        $inputType = 'text';
+        if ($item instanceof \Typecho\Widget\Helper\Form\Element\Textarea) {
+            $inputType = 'textarea';
+        } elseif ($item instanceof \Typecho\Widget\Helper\Form\Element\Select) {
+            $inputType = 'select';
+        } elseif ($item instanceof \Typecho\Widget\Helper\Form\Element\Radio) {
+            $inputType = 'radio';
+        } elseif ($item instanceof \Typecho\Widget\Helper\Form\Element\Checkbox) {
+            $inputType = 'checkbox';
+        } elseif ($item instanceof \Typecho\Widget\Helper\Form\Element\Number) {
+            $inputType = 'number';
+        } elseif ($item instanceof \Typecho\Widget\Helper\Form\Element\Url) {
+            $inputType = 'url';
+        } elseif ($item instanceof \Typecho\Widget\Helper\Form\Element\Password) {
+            $inputType = 'password';
+        } elseif ($item instanceof \Typecho\Widget\Helper\Form\Element\Hidden) {
+            continue;
+        } elseif ($item instanceof \Typecho\Widget\Helper\Form\Element\Submit) {
+            continue;
+        } elseif ($item instanceof \Typecho\Widget\Helper\Form\Element\Fake) {
+            continue;
+        }
+
+        $label = '';
+        try {
+            $label = v3a_plain_text(v3a_layout_text($item->label));
+        } catch (\Throwable $e) {
+        }
+        if ($label === '') {
+            $label = $name;
+        }
+
+        $description = '';
+        try {
+            if (!empty($item->container)) {
+                foreach ((array) $item->container->getItems() as $c) {
+                    if (!($c instanceof \Typecho\Widget\Helper\Layout)) {
+                        continue;
+                    }
+                    if ($c->getTagName() !== 'p') {
+                        continue;
+                    }
+                    $cls = v3a_string($c->getAttribute('class') ?? '', '');
+                    if (strpos($cls, 'description') === false) {
+                        continue;
+                    }
+                    $description = v3a_plain_text(v3a_layout_text($c));
+                    break;
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        $placeholder = '';
+        try {
+            $placeholder = v3a_string($item->input->getAttribute('placeholder') ?? '', '');
+        } catch (\Throwable $e) {
+        }
+
+        $choices = [];
+        if ($inputType === 'select') {
+            try {
+                foreach ((array) $item->input->getItems() as $opt) {
+                    if (!($opt instanceof \Typecho\Widget\Helper\Layout)) {
+                        continue;
+                    }
+                    if ($opt->getTagName() !== 'option') {
+                        continue;
+                    }
+                    $v = v3a_string($opt->getAttribute('value') ?? '', '');
+                    $t = v3a_plain_text(v3a_layout_text($opt));
+                    $choices[] = [
+                        'value' => $v,
+                        'label' => $t !== '' ? $t : $v,
+                    ];
+                }
+            } catch (\Throwable $e) {
+            }
+        } elseif ($inputType === 'radio' || $inputType === 'checkbox') {
+            try {
+                if (!empty($item->container)) {
+                    foreach ((array) $item->container->getItems() as $span) {
+                        if (!($span instanceof \Typecho\Widget\Helper\Layout)) {
+                            continue;
+                        }
+                        if ($span->getTagName() !== 'span') {
+                            continue;
+                        }
+
+                        $input = null;
+                        $lbl = null;
+                        foreach ((array) $span->getItems() as $node) {
+                            if (!($node instanceof \Typecho\Widget\Helper\Layout)) {
+                                continue;
+                            }
+                            if ($node->getTagName() === 'input') {
+                                $input = $node;
+                            } elseif ($node->getTagName() === 'label') {
+                                $lbl = $node;
+                            }
+                        }
+                        if (!$input) {
+                            continue;
+                        }
+                        $v = v3a_string($input->getAttribute('value') ?? '', '');
+                        if ($v === '') {
+                            continue;
+                        }
+                        $t = $lbl ? v3a_plain_text(v3a_layout_text($lbl)) : $v;
+                        $choices[] = [
+                            'value' => $v,
+                            'label' => $t !== '' ? $t : $v,
+                        ];
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $value = $item->value ?? '';
+        if ($inputType === 'checkbox') {
+            if (is_array($value)) {
+                $value = array_values(array_map('strval', $value));
+            } elseif ($value === null || $value === '') {
+                $value = [];
+            } else {
+                $value = [(string) $value];
+            }
+        } elseif ($inputType === 'select' || $inputType === 'radio') {
+            if (is_array($value) || is_object($value)) {
+                $value = '';
+            } else {
+                $value = $value === null ? '' : (string) $value;
+            }
+        } else {
+            if (!is_array($value) && !is_object($value)) {
+                $value = $value === null ? '' : (string) $value;
+            }
+        }
+
+        $out[$name] = [
+            'name' => $name,
+            'label' => $label,
+            'description' => $description,
+            'inputType' => $inputType,
+            'placeholder' => $placeholder,
+            'options' => $choices,
+            'value' => $value,
+        ];
+    }
+
+    return array_values($out);
+}
+
 /**
  * Post edit proxy: reuse Typecho internal publish/save logic without redirect.
  */
@@ -2390,18 +2662,25 @@ try {
     if ($do === 'posts.get') {
         v3a_require_role($user, 'contributor');
 
-        $acl = v3a_acl_for_user($db, $user);
-        if (empty($acl['posts']['manage'])) {
-            v3a_exit_json(403, null, 'Forbidden');
-        }
-
         $cid = (int) $request->get('cid', 0);
-        if ($cid <= 0) {
-            v3a_exit_json(400, null, 'Missing cid');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if ($cid > 0) {
+            if (empty($acl['posts']['manage'])) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+        } else {
+            if (empty($acl['posts']['write'])) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
         }
 
         try {
-            $post = \Widget\Contents\Post\Edit::alloc(null, ['cid' => $cid], false)->prepare();
+            if ($cid > 0) {
+                $post = \Widget\Contents\Post\Edit::alloc(null, ['cid' => $cid], false)->prepare();
+            } else {
+                $post = \Widget\Contents\Post\Edit::alloc(null, [], false)->prepare();
+            }
 
             $tags = [];
             foreach ((array) ($post->tags ?? []) as $t) {
@@ -2465,7 +2744,14 @@ try {
                 $visibility = (string) ($post->status ?? 'publish');
             }
 
+            $defaultFields = [];
+            try {
+                $defaultFields = v3a_default_fields_for_editor($post, $options, 'post');
+            } catch (\Throwable $e) {
+            }
+
             v3a_exit_json(0, [
+                'defaultFields' => $defaultFields,
                 'post' => [
                     'cid' => (int) $post->cid,
                     'title' => (string) ($post->title ?? ''),
@@ -3016,7 +3302,14 @@ try {
             } catch (\Throwable $e) {
             }
 
+            $defaultFields = [];
+            try {
+                $defaultFields = v3a_default_fields_for_editor($page, $options, 'page');
+            } catch (\Throwable $e) {
+            }
+
             v3a_exit_json(0, [
+                'defaultFields' => $defaultFields,
                 'page' => [
                     'cid' => (int) ($page->cid ?? 0),
                     'title' => (string) ($page->title ?? ''),
