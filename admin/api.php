@@ -755,6 +755,7 @@ function v3a_acl_default_config(): array
                 'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 1, 'maxSizeMb' => 0, 'types' => []],
                 'friends' => ['manage' => 1],
                 'data' => ['manage' => 1],
+                'subscribe' => ['manage' => 1],
                 'users' => ['manage' => 1],
                 'maintenance' => ['manage' => 1],
             ],
@@ -765,6 +766,7 @@ function v3a_acl_default_config(): array
                 'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 1, 'maxSizeMb' => 0, 'types' => []],
                 'friends' => ['manage' => 0],
                 'data' => ['manage' => 0],
+                'subscribe' => ['manage' => 0],
                 'users' => ['manage' => 0],
                 'maintenance' => ['manage' => 0],
             ],
@@ -775,6 +777,7 @@ function v3a_acl_default_config(): array
                 'files' => ['access' => 1, 'upload' => 1, 'scopeAll' => 0, 'maxSizeMb' => 5, 'types' => []],
                 'friends' => ['manage' => 0],
                 'data' => ['manage' => 0],
+                'subscribe' => ['manage' => 0],
                 'users' => ['manage' => 0],
                 'maintenance' => ['manage' => 0],
             ],
@@ -785,6 +788,7 @@ function v3a_acl_default_config(): array
                 'files' => ['access' => 0, 'upload' => 0, 'scopeAll' => 0, 'maxSizeMb' => 0, 'types' => []],
                 'friends' => ['manage' => 0],
                 'data' => ['manage' => 0],
+                'subscribe' => ['manage' => 0],
                 'users' => ['manage' => 0],
                 'maintenance' => ['manage' => 0],
             ],
@@ -795,6 +799,7 @@ function v3a_acl_default_config(): array
                 'files' => ['access' => 0, 'upload' => 0, 'scopeAll' => 0, 'maxSizeMb' => 0, 'types' => []],
                 'friends' => ['manage' => 0],
                 'data' => ['manage' => 0],
+                'subscribe' => ['manage' => 0],
                 'users' => ['manage' => 0],
                 'maintenance' => ['manage' => 0],
             ],
@@ -833,6 +838,7 @@ function v3a_acl_sanitize_group($group): array
     $files = isset($g['files']) && is_array($g['files']) ? $g['files'] : [];
     $friends = isset($g['friends']) && is_array($g['friends']) ? $g['friends'] : [];
     $data = isset($g['data']) && is_array($g['data']) ? $g['data'] : [];
+    $subscribe = isset($g['subscribe']) && is_array($g['subscribe']) ? $g['subscribe'] : [];
     $users = isset($g['users']) && is_array($g['users']) ? $g['users'] : [];
     $maintenance = isset($g['maintenance']) && is_array($g['maintenance']) ? $g['maintenance'] : [];
 
@@ -867,9 +873,140 @@ function v3a_acl_sanitize_group($group): array
         ],
         'friends' => ['manage' => v3a_bool_int($friends['manage'] ?? 0)],
         'data' => ['manage' => v3a_bool_int($data['manage'] ?? 0)],
+        'subscribe' => ['manage' => v3a_bool_int($subscribe['manage'] ?? 0)],
         'users' => ['manage' => v3a_bool_int($users['manage'] ?? 0)],
         'maintenance' => ['manage' => v3a_bool_int($maintenance['manage'] ?? 0)],
     ];
+}
+
+function v3a_acl_merge_group_with_base(array $baseGroup, $group): array
+{
+    $g = is_array($group) ? $group : [];
+    return array_replace_recursive($baseGroup, $g);
+}
+
+function v3a_upload_safe_name(string &$name): string
+{
+    $name = str_replace(['"', '<', '>'], '', $name);
+    $name = str_replace('\\', '/', $name);
+    $name = false === strpos($name, '/') ? ('a' . $name) : str_replace('/', '/a', $name);
+    $info = pathinfo($name);
+    $name = substr((string) ($info['basename'] ?? ''), 1);
+
+    $ext = isset($info['extension']) ? strtolower((string) $info['extension']) : '';
+    $ext = ltrim($ext, '.');
+    return $ext;
+}
+
+function v3a_make_upload_dir(string $path): bool
+{
+    $path = preg_replace('/\\\\+/', '/', $path);
+    $path = rtrim((string) $path, '/');
+    if ($path === '') {
+        return false;
+    }
+    if (is_dir($path)) {
+        return true;
+    }
+
+    @mkdir($path, 0755, true);
+    return is_dir($path);
+}
+
+function v3a_upload_handle_default(array $file)
+{
+    if (empty($file['name'])) {
+        return false;
+    }
+
+    $safeName = (string) $file['name'];
+    $ext = v3a_upload_safe_name($safeName);
+    $file['name'] = $safeName;
+
+    if ($ext === '') {
+        return false;
+    }
+
+    $date = new \Typecho\Date();
+    $uploadDir = defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : \Widget\Upload::UPLOAD_DIR;
+    $uploadRootDir = defined('__TYPECHO_UPLOAD_ROOT_DIR__') ? __TYPECHO_UPLOAD_ROOT_DIR__ : __TYPECHO_ROOT_DIR__;
+    $dir = \Typecho\Common::url($uploadDir, $uploadRootDir) . '/' . $date->year . '/' . $date->month;
+
+    if (!is_dir($dir)) {
+        if (!v3a_make_upload_dir($dir)) {
+            return false;
+        }
+    }
+
+    $fileName = sprintf('%u', crc32(uniqid())) . '.' . $ext;
+    $fullPath = $dir . '/' . $fileName;
+
+    if (isset($file['tmp_name'])) {
+        if (!@move_uploaded_file((string) $file['tmp_name'], $fullPath)) {
+            return false;
+        }
+    } elseif (isset($file['bytes'])) {
+        if (!file_put_contents($fullPath, $file['bytes'])) {
+            return false;
+        }
+    } elseif (isset($file['bits'])) {
+        if (!file_put_contents($fullPath, $file['bits'])) {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    if (!isset($file['size'])) {
+        $file['size'] = filesize($fullPath);
+    }
+
+    return [
+        'name' => $file['name'],
+        'path' => $uploadDir . '/' . $date->year . '/' . $date->month . '/' . $fileName,
+        'size' => $file['size'],
+        'type' => $ext,
+        'mime' => \Typecho\Common::mimeContentType($fullPath),
+    ];
+}
+
+function v3a_upload_handle_best($options, array $file)
+{
+    $handles = [];
+    try {
+        $plugins = $options ? ($options->plugins ?? null) : null;
+        $plugins = is_array($plugins) ? $plugins : [];
+        $handles = isset($plugins['handles']) && is_array($plugins['handles']) ? $plugins['handles'] : [];
+    } catch (\Throwable $e) {
+        $handles = [];
+    }
+
+    // Typecho plugin handle key: "Widget_Upload:uploadHandle"
+    $handleKey = \Typecho\Common::nativeClassName(\Widget\Upload::class) . ':uploadHandle';
+    $list = isset($handles[$handleKey]) && is_array($handles[$handleKey]) ? $handles[$handleKey] : [];
+
+    // Call the last registered handler only to avoid multiple handlers double-moving the same tmp file.
+    $callback = null;
+    $maxWeight = null;
+    foreach ($list as $w => $cb) {
+        $fw = (float) $w;
+        if ($maxWeight === null || $fw >= $maxWeight) {
+            $maxWeight = $fw;
+            $callback = $cb;
+        }
+    }
+
+    if ($callback) {
+        try {
+            $r = call_user_func($callback, $file);
+            if (is_array($r) && !empty($r)) {
+                return $r;
+            }
+        } catch (\Throwable $e) {
+        }
+    }
+
+    return v3a_upload_handle_default($file);
 }
 
 function v3a_acl_sanitize_config($config): array
@@ -889,7 +1026,8 @@ function v3a_acl_sanitize_config($config): array
 
     $groups = isset($cfg['groups']) && is_array($cfg['groups']) ? $cfg['groups'] : [];
     foreach (array_keys($base['groups']) as $k) {
-        $out['groups'][$k] = v3a_acl_sanitize_group($groups[$k] ?? $base['groups'][$k]);
+        $merged = v3a_acl_merge_group_with_base($base['groups'][$k], $groups[$k] ?? []);
+        $out['groups'][$k] = v3a_acl_sanitize_group($merged);
     }
 
     return $out;
@@ -924,7 +1062,17 @@ function v3a_acl_load($db): array
         }
     }
 
-    return v3a_acl_sanitize_config($decoded);
+    $sanitized = v3a_acl_sanitize_config($decoded);
+    try {
+        $rawDecoded = json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $rawSanitized = json_encode($sanitized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (is_string($rawDecoded) && is_string($rawSanitized) && $rawDecoded !== $rawSanitized) {
+            v3a_upsert_option($db, $name, $rawSanitized, 0);
+        }
+    } catch (\Throwable $e) {
+    }
+
+    return $sanitized;
 }
 
 function v3a_acl_for_user($db, $user): array
@@ -4148,6 +4296,175 @@ try {
                 'pageCount' => $pageCount,
             ],
         ]);
+    }
+
+    if ($do === 'files.upload') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['files']['access']) || empty($acl['files']['upload'])) {
+            v3a_exit_json(403, null, '当前用户组无上传权限');
+        }
+
+        if (empty($_FILES) || !is_array($_FILES)) {
+            v3a_exit_json(400, null, 'Missing file');
+        }
+
+        $file = null;
+        if (isset($_FILES['file']) && is_array($_FILES['file'])) {
+            $file = $_FILES['file'];
+        } else {
+            foreach ($_FILES as $f) {
+                if (is_array($f)) {
+                    $file = $f;
+                    break;
+                }
+            }
+        }
+
+        if (!$file || !is_array($file)) {
+            v3a_exit_json(400, null, 'Missing file');
+        }
+
+        // If multiple uploads in one field, take the first one.
+        if (is_array($file['name'] ?? null)) {
+            $idx = 0;
+            $file = [
+                'name' => (string) (($file['name'][$idx] ?? '') ?: ''),
+                'type' => (string) (($file['type'][$idx] ?? '') ?: ''),
+                'tmp_name' => (string) (($file['tmp_name'][$idx] ?? '') ?: ''),
+                'error' => (int) ($file['error'][$idx] ?? UPLOAD_ERR_NO_FILE),
+                'size' => (int) (($file['size'][$idx] ?? 0) ?: 0),
+            ];
+        }
+
+        $err = isset($file['error']) ? (int) $file['error'] : UPLOAD_ERR_NO_FILE;
+        if ($err !== UPLOAD_ERR_OK) {
+            v3a_exit_json(400, null, 'Upload failed');
+        }
+
+        $tmp = isset($file['tmp_name']) ? (string) $file['tmp_name'] : '';
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            v3a_exit_json(400, null, 'Upload failed');
+        }
+
+        // Match Typecho behavior for ajax filename.
+        if ($request->isAjax() && isset($file['name'])) {
+            $file['name'] = urldecode((string) $file['name']);
+        }
+
+        $name = trim((string) ($file['name'] ?? ''));
+        if ($name === '') {
+            v3a_exit_json(400, null, 'Upload failed');
+        }
+
+        $size = isset($file['size']) ? (int) $file['size'] : 0;
+        $maxSizeMb = (int) ($acl['files']['maxSizeMb'] ?? 0);
+        if ($maxSizeMb > 0 && $size > $maxSizeMb * 1024 * 1024) {
+            v3a_exit_json(413, null, '文件过大（上限 ' . $maxSizeMb . 'MB）');
+        }
+
+        $ext = strtolower((string) pathinfo($name, PATHINFO_EXTENSION));
+        $ext = ltrim($ext, '.');
+
+        if ($ext === '') {
+            v3a_exit_json(400, null, '不允许的文件类型');
+        }
+
+        // Always block dangerous extensions (even if misconfigured).
+        if (preg_match('/^(php|php\\d+|phtml|pht|phar|cgi|pl|py|rb|sh|bat|cmd|com|exe|dll|asp|aspx|jsp)$/i', $ext)) {
+            v3a_exit_json(400, null, '不允许的文件类型：.' . $ext);
+        }
+
+        $aclTypes = isset($acl['files']['types']) && is_array($acl['files']['types']) ? $acl['files']['types'] : [];
+        if (!empty($aclTypes) && !in_array($ext, $aclTypes, true)) {
+            v3a_exit_json(400, ['ext' => $ext, 'allowed' => $aclTypes], '当前用户组不允许上传：.' . $ext);
+        }
+
+        // Respect global attachmentTypes (Typecho setting).
+        $siteAllowedRaw = is_array($options->allowedAttachmentTypes ?? null) ? $options->allowedAttachmentTypes : [];
+        $siteAllowed = array_values(array_unique(array_filter(array_map(static function ($t) {
+            $v = strtolower(trim((string) $t));
+            return $v;
+        }, $siteAllowedRaw), static fn($v) => $v !== '')));
+
+        if (empty($siteAllowed)) {
+            v3a_exit_json(400, null, '站点未开启允许上传的附件类型，请在「设定-存储-附件类型」中配置');
+        }
+
+        if (!in_array($ext, $siteAllowed, true)) {
+            v3a_exit_json(400, ['ext' => $ext, 'allowed' => $siteAllowed], '不允许的文件类型：.' . $ext);
+        }
+
+        $result = null;
+        $result = v3a_upload_handle_best($options, $file);
+        if ($result === false || !is_array($result)) {
+            v3a_exit_json(500, null, '上传失败（权限/类型/目录不可写）');
+        }
+
+        // Insert attachment record (similar to Typecho core upload action)
+        try {
+            $struct = [
+                'title' => (string) ($result['name'] ?? $name),
+                'slug' => (string) ($result['name'] ?? $name),
+                'type' => 'attachment',
+                'status' => 'publish',
+                'text' => json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'allowComment' => 1,
+                'allowPing' => 0,
+                'allowFeed' => 1,
+            ];
+
+            if (isset($request->cid)) {
+                $parentCid = (int) $request->filter('int')->get('cid');
+                if ($parentCid > 0) {
+                    try {
+                        $w = \Widget\Upload::alloc();
+                        if ($w->isWriteable($db->sql()->where('cid = ?', $parentCid))) {
+                            $struct['parent'] = $parentCid;
+                        }
+                    } catch (\Throwable $e) {
+                    }
+                }
+            }
+
+            $w = \Widget\Upload::alloc();
+            $insertId = (int) $w->insert($struct);
+
+            $url = '';
+            $isImage = false;
+            try {
+                $cfg = new \Typecho\Config($result);
+                $url = \Widget\Upload::attachmentHandle($cfg);
+            } catch (\Throwable $e) {
+                $url = '';
+            }
+            $mime = (string) ($result['mime'] ?? '');
+            if ($mime !== '') {
+                $isImage = stripos($mime, 'image/') === 0;
+            }
+
+            v3a_exit_json(0, [
+                'url' => $url,
+                'file' => [
+                    'cid' => $insertId,
+                    'title' => (string) ($result['name'] ?? $name),
+                    'type' => (string) ($result['type'] ?? $ext),
+                    'size' => (int) ($result['size'] ?? $size),
+                    'bytes' => number_format(ceil(((int) ($result['size'] ?? $size)) / 1024)) . ' Kb',
+                    'isImage' => $isImage,
+                    'url' => $url,
+                    'permalink' => '',
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
     }
 
     if ($do === 'files.delete') {

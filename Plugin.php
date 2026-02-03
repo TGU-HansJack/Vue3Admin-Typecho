@@ -182,20 +182,37 @@ class Plugin implements PluginInterface
     {
         try {
             $db = Db::get();
-            $exists = (int) ($db->fetchObject(
-                $db->select(['COUNT(*)' => 'num'])
+            $row = $db->fetchObject(
+                $db->select(['value'])
                     ->from('table.options')
                     ->where('name = ? AND user = ?', 'v3a_acl_config', 0)
-            )->num ?? 0);
+                    ->limit(1)
+            );
 
-            if ($exists > 0) {
+            $default = self::defaultAclConfig();
+            $raw = trim((string) ($row->value ?? ''));
+            $decoded = $raw !== '' ? json_decode($raw, true) : null;
+            $merged = is_array($decoded) ? array_replace_recursive($default, $decoded) : $default;
+
+            $encoded = json_encode($merged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if (!is_string($encoded) || $encoded === '') {
+                return;
+            }
+
+            if ($row) {
+                if ($raw !== $encoded) {
+                    $db->query(
+                        $db->update('table.options')->rows(['value' => $encoded])->where('name = ? AND user = ?', 'v3a_acl_config', 0),
+                        Db::WRITE
+                    );
+                }
                 return;
             }
 
             $db->query(
                 $db->insert('table.options')->rows([
                     'name' => 'v3a_acl_config',
-                    'value' => json_encode(self::defaultAclConfig(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'value' => $encoded,
                     'user' => 0,
                 ]),
                 Db::WRITE
@@ -227,11 +244,19 @@ class Plugin implements PluginInterface
         }
 
         $g = strtolower(trim($group));
+        $defaults = self::defaultAclConfig();
+        $defaultFiles = [];
+        try {
+            $defaultFiles = (array) (($defaults['groups'][$g]['files'] ?? []) ?: []);
+        } catch (\Throwable $e) {
+        }
+
         $files = [];
         try {
             $files = (array) (($cached['groups'][$g]['files'] ?? []) ?: []);
         } catch (\Throwable $e) {
         }
+        $files = array_replace($defaultFiles, $files);
 
         $types = [];
         if (!empty($files['types']) && is_array($files['types'])) {
@@ -282,9 +307,6 @@ class Plugin implements PluginInterface
             $group = strtolower(trim((string) ($user->group ?? 'subscriber')));
             $rule = self::getAclFilesRule($group);
 
-            if (isset($rule['access']) && !(int) $rule['access']) {
-                return false;
-            }
             if (isset($rule['upload']) && !(int) $rule['upload']) {
                 return false;
             }

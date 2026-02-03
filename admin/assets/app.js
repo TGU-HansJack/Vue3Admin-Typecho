@@ -926,6 +926,21 @@
           const json = JSON.parse(raw);
           if (json === false) return fail("上传失败");
 
+          // Vue3Admin API: {code, message, data:{url}}
+          if (json && typeof json === "object" && json.code !== undefined) {
+            if (Number(json.code) === 0 && json.data && json.data.url) {
+              const url = String(json.data.url || "");
+              if (!url) return fail("上传失败");
+              const filename = names[0] || url;
+              return JSON.stringify({
+                code: 0,
+                msg: "",
+                data: { errFiles: [], succMap: { [filename]: url } },
+              });
+            }
+            return fail(json.message || "上传失败");
+          }
+
           // Typecho upload action returns: [url, meta]
           if (Array.isArray(json) && json[0]) {
             const url = String(json[0] || "");
@@ -1013,6 +1028,10 @@
           "https://cdn.jsdelivr.net/npm/vditor@3.11.2";
 
         try {
+          const canUpload =
+            !V3A.acl || !V3A.acl.files || Number(V3A.acl.files.upload || 0);
+          const uploadUrl = canUpload ? buildApiUrl("files.upload", { cid: postForm.cid || "" }, true) : "";
+
           postVditor = new VditorCtor("v3a-post-vditor", {
             height: "auto",
             mode: "ir",
@@ -1031,9 +1050,9 @@
               if (postVditorSyncing) return;
               postForm.text = String(value || "");
             },
-            upload: V3A.uploadUrl
+            upload: uploadUrl
               ? {
-                  url: String(V3A.uploadUrl || ""),
+                  url: String(uploadUrl || ""),
                   fieldName: "file",
                   multiple: false,
                   withCredentials: true,
@@ -1111,6 +1130,10 @@
           "https://cdn.jsdelivr.net/npm/vditor@3.11.2";
 
         try {
+          const canUpload =
+            !V3A.acl || !V3A.acl.files || Number(V3A.acl.files.upload || 0);
+          const uploadUrl = canUpload ? buildApiUrl("files.upload", { cid: pageForm.cid || "" }, true) : "";
+
           pageVditor = new VditorCtor("v3a-page-vditor", {
             height: "auto",
             mode: "ir",
@@ -1129,9 +1152,9 @@
               if (pageVditorSyncing) return;
               pageForm.text = String(value || "");
             },
-            upload: V3A.uploadUrl
+            upload: uploadUrl
               ? {
-                  url: String(V3A.uploadUrl || ""),
+                  url: String(uploadUrl || ""),
                   fieldName: "file",
                   multiple: false,
                   withCredentials: true,
@@ -4434,8 +4457,8 @@
       }
 
       async function uploadFiles(fileList) {
-        if (!V3A.uploadUrl) {
-          filesError.value = "缺少上传地址（uploadUrl）";
+        if (!V3A.apiUrl) {
+          filesError.value = "缺少上传地址（apiUrl）";
           return;
         }
         const files = Array.from(fileList || []);
@@ -4458,6 +4481,7 @@
 
         filesUploading.value = true;
         filesError.value = "";
+        const uploadUrl = buildApiUrl("files.upload", null, true);
         try {
           for (const file of files) {
             if (maxSizeMb > 0 && Number.isFinite(file.size) && file.size > maxSizeMb * 1024 * 1024) {
@@ -4475,7 +4499,7 @@
             const form = new FormData();
             form.append("file", file, file.name);
 
-            const res = await fetch(V3A.uploadUrl, {
+            const res = await fetch(uploadUrl, {
               method: "POST",
               credentials: "same-origin",
               headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
@@ -4483,7 +4507,14 @@
             });
 
             const json = await readApiJson(res);
-            if (json === false) {
+            if (json && typeof json === "object" && json.code !== undefined) {
+              if (Number(json.code) !== 0) {
+                throw new Error(json.message || "上传失败");
+              }
+              if (!json.data || !json.data.url) {
+                throw new Error("上传失败");
+              }
+            } else if (json === false) {
               throw new Error("上传失败（文件类型或权限）");
             }
             if (!json) {
