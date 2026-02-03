@@ -1724,6 +1724,103 @@
         }
       }
 
+      const userEditorOpen = ref(false);
+      const userEditorSaving = ref(false);
+      const userEditorError = ref("");
+      const userEditorForm = reactive({
+        uid: 0,
+        name: "",
+        screenName: "",
+        mail: "",
+        url: "",
+        group: "subscriber",
+        password: "",
+        confirm: "",
+      });
+
+      function openUserEditor(u) {
+        const item = u || {};
+        userEditorError.value = "";
+        userEditorForm.uid = Number(item.uid || 0) || 0;
+        userEditorForm.name = String(item.name || "");
+        userEditorForm.screenName = String(item.screenName || "");
+        userEditorForm.mail = String(item.mail || "");
+        userEditorForm.url = String(item.url || "");
+        userEditorForm.group = String(item.group || "subscriber");
+        userEditorForm.password = "";
+        userEditorForm.confirm = "";
+        userEditorOpen.value = true;
+      }
+
+      function closeUserEditor() {
+        userEditorOpen.value = false;
+        userEditorSaving.value = false;
+        userEditorError.value = "";
+        userEditorForm.password = "";
+        userEditorForm.confirm = "";
+      }
+
+      async function saveUserEditor() {
+        const uid = Number(userEditorForm.uid || 0) || 0;
+        if (!uid) return;
+
+        const mail = String(userEditorForm.mail || "").trim();
+        if (!mail) {
+          userEditorError.value = "邮箱不能为空";
+          return;
+        }
+
+        const password = String(userEditorForm.password || "");
+        const confirm = String(userEditorForm.confirm || "");
+        if (password) {
+          if (password.length < 6) {
+            userEditorError.value = "密码至少 6 位";
+            return;
+          }
+          if (confirm !== password) {
+            userEditorError.value = "两次输入的密码不一致";
+            return;
+          }
+        }
+
+        userEditorSaving.value = true;
+        userEditorError.value = "";
+        try {
+          const payload = {
+            uid,
+            screenName: String(userEditorForm.screenName || ""),
+            mail,
+            url: String(userEditorForm.url || ""),
+            group: String(userEditorForm.group || "subscriber"),
+            password,
+            confirm,
+          };
+          await apiPost("users.update", payload);
+          closeUserEditor();
+          toastSuccess("已保存");
+          fetchUsers();
+        } catch (e) {
+          userEditorError.value = e && e.message ? e.message : "保存失败";
+        } finally {
+          userEditorSaving.value = false;
+        }
+      }
+
+      async function deleteUser(uid) {
+        const id = Number(uid || 0) || 0;
+        if (!id) return;
+        if (!confirm("确认删除该用户吗？")) return;
+
+        usersError.value = "";
+        try {
+          await apiPost("users.delete", { uids: [id] });
+          toastSuccess("已删除");
+          fetchUsers();
+        } catch (e) {
+          usersError.value = e && e.message ? e.message : "删除失败";
+        }
+      }
+
       async function fetchUsers() {
         usersLoading.value = true;
         usersError.value = "";
@@ -2045,6 +2142,7 @@
           description: "",
           keywords: "",
           allowRegister: 0,
+          defaultRegisterGroup: "subscriber",
           allowXmlRpc: 0,
           lang: "zh_CN",
           timezone: 28800,
@@ -2090,6 +2188,7 @@
         description: "",
         keywords: "",
         allowRegister: 0,
+        defaultRegisterGroup: "subscriber",
         allowXmlRpc: 0,
         lang: "zh_CN",
         timezone: 28800,
@@ -4231,6 +4330,9 @@
           settingsSiteForm.allowRegister = Number(
             settingsData.site.allowRegister || 0
           );
+          settingsSiteForm.defaultRegisterGroup = String(
+            settingsData.site.defaultRegisterGroup || "subscriber"
+          );
           settingsSiteForm.allowXmlRpc = Number(settingsData.site.allowXmlRpc || 0);
           settingsSiteForm.lang = String(settingsData.site.lang || "zh_CN");
           settingsSiteForm.timezone = Number(settingsData.site.timezone || 28800);
@@ -4418,6 +4520,9 @@
             settingsSiteForm.description = String(settingsData.site.description || "");
             settingsSiteForm.keywords = String(settingsData.site.keywords || "");
             settingsSiteForm.allowRegister = Number(settingsData.site.allowRegister || 0);
+            settingsSiteForm.defaultRegisterGroup = String(
+              settingsData.site.defaultRegisterGroup || "subscriber"
+            );
             settingsSiteForm.allowXmlRpc = Number(settingsData.site.allowXmlRpc || 0);
             settingsSiteForm.lang = String(settingsData.site.lang || "zh_CN");
             settingsSiteForm.timezone = Number(settingsData.site.timezone || 28800);
@@ -5231,6 +5336,8 @@
           v3aNormStr(settingsSiteForm.description) !== v3aNormStr(site.description || "") ||
           v3aNormStr(settingsSiteForm.keywords) !== v3aNormStr(site.keywords || "") ||
           v3aNormNum(settingsSiteForm.allowRegister) !== v3aNormNum(site.allowRegister) ||
+          v3aNormStr(settingsSiteForm.defaultRegisterGroup) !==
+            v3aNormStr(site.defaultRegisterGroup || "subscriber") ||
           v3aNormNum(settingsSiteForm.allowXmlRpc) !== v3aNormNum(site.allowXmlRpc) ||
           v3aNormStr(settingsSiteForm.lang) !== v3aNormStr(site.lang || "zh_CN") ||
           v3aNormNum(settingsSiteForm.timezone, 28800) !== v3aNormNum(site.timezone, 28800);
@@ -6291,6 +6398,14 @@
         applyUsersFilters,
         usersGoPage,
         deleteSelectedUsers,
+        userEditorOpen,
+        userEditorSaving,
+        userEditorError,
+        userEditorForm,
+        openUserEditor,
+        closeUserEditor,
+        saveUserEditor,
+        deleteUser,
         isUserSelected,
         toggleUserSelection,
         toggleUsersSelectAll,
@@ -8143,6 +8258,7 @@
                           <th>昵称</th>
                           <th>邮箱</th>
                           <th>用户组</th>
+                          <th style="text-align:right;">操作</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -8162,9 +8278,13 @@
                           <td>
                             <span class="v3a-pill" :class="userGroupTone(u.group)">{{ userGroupLabel(u.group) }}</span>
                           </td>
+                          <td style="text-align:right; white-space: nowrap;">
+                            <button class="v3a-mini-btn" type="button" @click="openUserEditor(u)">设置</button>
+                            <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deleteUser(u.uid)">删除</button>
+                          </td>
                         </tr>
                         <tr v-if="!usersItems.length">
-                          <td colspan="6" class="v3a-muted" style="padding: 16px;">暂无用户</td>
+                          <td colspan="7" class="v3a-muted" style="padding: 16px;">暂无用户</td>
                         </tr>
                       </tbody>
                     </table>
@@ -8181,6 +8301,62 @@
                   </button>
                   <span class="v3a-muted">跳至</span>
                   <input class="v3a-pagejump" type="number" min="1" :max="usersPagination.pageCount" v-model.number="usersPageJump" @keyup.enter="usersGoPage(usersPageJump)" @blur="usersGoPage(usersPageJump)" />
+                </div>
+
+                <div v-if="userEditorOpen" class="v3a-modal-mask" @click.self="closeUserEditor()">
+                  <div class="v3a-modal-card" role="dialog" aria-modal="true">
+                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeUserEditor()">
+                      <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                    </button>
+                    <div class="v3a-modal-head">
+                      <div class="v3a-modal-title">用户设置</div>
+                    </div>
+                    <div class="v3a-modal-body">
+                      <div class="v3a-modal-form">
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">用户名</label>
+                          <input class="v3a-input v3a-modal-input" :value="userEditorForm.name" disabled />
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">昵称</label>
+                          <input class="v3a-input v3a-modal-input" v-model="userEditorForm.screenName" placeholder="可留空（默认同用户名）" />
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">邮箱<span class="v3a-required">*</span></label>
+                          <input class="v3a-input v3a-modal-input" v-model="userEditorForm.mail" placeholder="Email" />
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">主页</label>
+                          <input class="v3a-input v3a-modal-input" v-model="userEditorForm.url" placeholder="https://example.com" />
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">用户组</label>
+                          <select class="v3a-select v3a-modal-input" v-model="userEditorForm.group">
+                            <option value="administrator">管理员</option>
+                            <option value="editor">编辑</option>
+                            <option value="contributor">贡献者</option>
+                            <option value="subscriber">关注者</option>
+                            <option value="visitor">访问者</option>
+                          </select>
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">新密码</label>
+                          <input class="v3a-input v3a-modal-input" type="password" v-model="userEditorForm.password" placeholder="留空不修改" />
+                        </div>
+                        <div class="v3a-modal-item" v-if="userEditorForm.password">
+                          <label class="v3a-modal-label">确认密码</label>
+                          <input class="v3a-input v3a-modal-input" type="password" v-model="userEditorForm.confirm" placeholder="再次输入新密码" />
+                        </div>
+                      </div>
+
+                      <div v-if="userEditorError" class="v3a-alert" style="margin-top: 12px;">{{ userEditorError }}</div>
+
+                      <div class="v3a-modal-actions">
+                        <button class="v3a-btn v3a-modal-btn" type="button" @click="closeUserEditor()" :disabled="userEditorSaving">取消</button>
+                        <button class="v3a-btn primary v3a-modal-btn" type="button" @click="saveUserEditor()" :disabled="userEditorSaving">{{ userEditorSaving ? "保存中…" : "保存" }}</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </template>
@@ -8564,6 +8740,21 @@
                                   <input type="checkbox" v-model="settingsSiteForm.allowRegister" :true-value="1" :false-value="0" />
                                   <span class="v3a-switch-ui"></span>
                                 </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>默认注册用户组</label>
+                                <div class="v3a-settings-row-help">不包含管理员</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model="settingsSiteForm.defaultRegisterGroup">
+                                  <option value="subscriber">关注者</option>
+                                  <option value="contributor">贡献者</option>
+                                  <option value="editor">编辑</option>
+                                  <option value="visitor">访问者</option>
+                                </select>
                               </div>
                             </div>
 

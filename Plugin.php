@@ -58,11 +58,15 @@ class Plugin implements PluginInterface
     {
         self::deployAdminDirectory();
         self::installOrUpgradeSchema();
+        self::ensureDefaultRegisterGroupOption();
         self::switchAdminDir('/' . self::ADMIN_DIR . '/');
 
         // 运行时自愈：当后台目录被误删/覆盖/升级后缺文件时自动重新部署
         \Typecho\Plugin::factory('admin/common.php')->begin = __CLASS__ . '::ensureAdminDirectory';
         \Typecho\Plugin::factory('index.php')->begin = __CLASS__ . '::ensureAdminDirectory';
+
+        // Register: allow choosing default group for new users (exclude administrator).
+        \Typecho\Plugin::factory('Widget_Register')->register = __CLASS__ . '::filterRegisterGroup';
 
         // 访问统计（前台）：用于仪表盘“访问量/今日 IP”等数据
         \Typecho\Plugin::factory('Widget_Archive')->afterRender = __CLASS__ . '::trackVisit';
@@ -77,6 +81,50 @@ class Plugin implements PluginInterface
     {
         self::switchAdminDir('/admin/');
         return _t('Vue3Admin 已停用：后台路径已恢复为 /admin/');
+    }
+
+    private static function ensureDefaultRegisterGroupOption(): void
+    {
+        try {
+            $db = Db::get();
+            $exists = (int) ($db->fetchObject(
+                $db->select(['COUNT(*)' => 'num'])
+                    ->from('table.options')
+                    ->where('name = ? AND user = ?', 'defaultRegisterGroup', 0)
+            )->num ?? 0);
+
+            if ($exists > 0) {
+                return;
+            }
+
+            $db->query(
+                $db->insert('table.options')->rows([
+                    'name' => 'defaultRegisterGroup',
+                    'value' => 'subscriber',
+                    'user' => 0,
+                ]),
+                Db::WRITE
+            );
+        } catch (\Throwable $e) {
+        }
+    }
+
+    public static function filterRegisterGroup(array $dataStruct): array
+    {
+        $group = 'subscriber';
+        try {
+            $options = \Widget\Options::alloc();
+            $group = strtolower(trim((string) ($options->defaultRegisterGroup ?? 'subscriber')));
+        } catch (\Throwable $e) {
+        }
+
+        $allowed = ['visitor', 'subscriber', 'contributor', 'editor'];
+        if (!in_array($group, $allowed, true)) {
+            $group = 'subscriber';
+        }
+
+        $dataStruct['group'] = $group;
+        return $dataStruct;
     }
 
     public static function config(Form $form)
@@ -461,6 +509,13 @@ HTML;
     public static function ensureAdminDirectory(): void
     {
         try {
+            static $runtimeInit = false;
+            if (!$runtimeInit) {
+                $runtimeInit = true;
+                self::ensureDefaultRegisterGroupOption();
+                \Typecho\Plugin::factory('Widget_Register')->register = __CLASS__ . '::filterRegisterGroup';
+            }
+
             $target = rtrim(__TYPECHO_ROOT_DIR__, '/\\') . DIRECTORY_SEPARATOR . self::ADMIN_DIR;
             $expectedMarker = self::getDeployVersion();
 

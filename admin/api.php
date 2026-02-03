@@ -2802,6 +2802,7 @@ try {
             'table.users.name',
             'table.users.screenName',
             'table.users.mail',
+            'table.users.url',
             'table.users.group',
             'table.users.created'
         )->from('table.users');
@@ -2894,6 +2895,7 @@ try {
                 'name' => (string) ($r['name'] ?? ''),
                 'screenName' => (string) ($r['screenName'] ?? ''),
                 'mail' => (string) ($r['mail'] ?? ''),
+                'url' => (string) ($r['url'] ?? ''),
                 'group' => (string) ($r['group'] ?? ''),
                 'created' => (int) ($r['created'] ?? 0),
                 'postsNum' => $postsNumByUid[$uid] ?? 0,
@@ -2977,6 +2979,139 @@ try {
         }
 
         v3a_exit_json(0, ['deleted' => (int) $deleted]);
+    }
+
+    if ($do === 'users.update') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        v3a_security_protect($security, $request);
+
+        $payload = v3a_payload();
+        $uid = v3a_int($payload['uid'] ?? 0, 0);
+        if ($uid <= 0) {
+            v3a_exit_json(400, null, 'Missing uid');
+        }
+
+        $exists = null;
+        try {
+            $exists = $db->fetchRow(
+                $db->select('uid', 'name')
+                    ->from('table.users')
+                    ->where('uid = ?', $uid)
+                    ->limit(1)
+            );
+        } catch (\Throwable $e) {
+        }
+        if (!$exists) {
+            v3a_exit_json(404, null, 'User not found');
+        }
+
+        $name = (string) ($exists['name'] ?? '');
+
+        $screenName = trim(v3a_string($payload['screenName'] ?? '', ''));
+        if ($screenName === '') {
+            $screenName = $name;
+        }
+
+        $mail = trim(v3a_string($payload['mail'] ?? '', ''));
+        if ($mail === '') {
+            v3a_exit_json(400, null, 'Email required');
+        }
+        if (!filter_var($mail, FILTER_VALIDATE_EMAIL)) {
+            v3a_exit_json(400, null, 'Invalid email');
+        }
+
+        try {
+            $mailExists = $db->fetchRow(
+                $db->select('uid')
+                    ->from('table.users')
+                    ->where('mail = ?', $mail)
+                    ->where('uid <> ?', $uid)
+                    ->limit(1)
+            );
+            if ($mailExists) {
+                v3a_exit_json(400, null, 'Email exists');
+            }
+        } catch (\Throwable $e) {
+        }
+
+        try {
+            $snExists = $db->fetchRow(
+                $db->select('uid')
+                    ->from('table.users')
+                    ->where('screenName = ?', $screenName)
+                    ->where('uid <> ?', $uid)
+                    ->limit(1)
+            );
+            if ($snExists) {
+                v3a_exit_json(400, null, 'Screen name exists');
+            }
+        } catch (\Throwable $e) {
+        }
+
+        $url = trim(v3a_string($payload['url'] ?? '', ''));
+        if ($url !== '' && !filter_var($url, FILTER_VALIDATE_URL)) {
+            v3a_exit_json(400, null, 'Invalid url');
+        }
+
+        $group = strtolower(trim(v3a_string($payload['group'] ?? 'subscriber', 'subscriber')));
+        $allowedGroups = ['administrator', 'editor', 'contributor', 'subscriber', 'visitor'];
+        if (!in_array($group, $allowedGroups, true)) {
+            v3a_exit_json(400, null, 'Invalid group');
+        }
+
+        $update = [
+            'mail' => $mail,
+            'screenName' => $screenName,
+            'url' => $url,
+            'group' => $group,
+        ];
+
+        $password = v3a_string($payload['password'] ?? '', '');
+        $confirm = v3a_string($payload['confirm'] ?? '', '');
+        if ($password !== '') {
+            if (function_exists('mb_strlen')) {
+                if (mb_strlen($password) < 6) {
+                    v3a_exit_json(400, null, 'Password too short');
+                }
+            } elseif (strlen($password) < 6) {
+                v3a_exit_json(400, null, 'Password too short');
+            }
+
+            if ($confirm === '' || $confirm !== $password) {
+                v3a_exit_json(400, null, 'Password confirm mismatch');
+            }
+
+            $hasher = new \Utils\PasswordHash(8, true);
+            $update['password'] = $hasher->hashPassword($password);
+        }
+
+        try {
+            $db->query(
+                $db->update('table.users')->rows($update)->where('uid = ?', $uid),
+                \Typecho\Db::WRITE
+            );
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+
+        v3a_exit_json(0, [
+            'updated' => 1,
+            'user' => [
+                'uid' => $uid,
+                'name' => $name,
+                'screenName' => $screenName,
+                'mail' => $mail,
+                'url' => $url,
+                'group' => $group,
+            ],
+        ]);
     }
 
     if ($do === 'metas.categories') {
@@ -3415,6 +3550,26 @@ try {
         } catch (\Throwable $e) {
         }
 
+        $defaultRegisterGroup = 'subscriber';
+        try {
+            $row = $db->fetchObject(
+                $db->select('value')
+                    ->from('table.options')
+                    ->where('name = ? AND user = ?', 'defaultRegisterGroup', 0)
+                    ->limit(1)
+            );
+            $v = trim((string) ($row->value ?? ''));
+            if ($v !== '') {
+                $defaultRegisterGroup = $v;
+            }
+        } catch (\Throwable $e) {
+        }
+
+        $allowedRegisterGroups = ['visitor', 'subscriber', 'contributor', 'editor'];
+        if (!in_array($defaultRegisterGroup, $allowedRegisterGroups, true)) {
+            $defaultRegisterGroup = 'subscriber';
+        }
+
         v3a_exit_json(0, [
             'isAdmin' => $isAdmin,
             'profile' => [
@@ -3447,6 +3602,7 @@ try {
                 'description' => (string) ($options->description ?? ''),
                 'keywords' => (string) ($options->keywords ?? ''),
                 'allowRegister' => (int) ($options->allowRegister ?? 0),
+                'defaultRegisterGroup' => $defaultRegisterGroup,
                 'allowXmlRpc' => (int) ($options->allowXmlRpc ?? 0),
                 'lang' => (string) ($options->lang ?? 'zh_CN'),
                 'timezone' => (int) ($options->timezone ?? 28800),
@@ -3698,6 +3854,12 @@ try {
             'timezone' => v3a_int($payload['timezone'] ?? 28800, 28800),
         ];
 
+        $defaultRegisterGroup = strtolower(v3a_string($payload['defaultRegisterGroup'] ?? 'subscriber', 'subscriber'));
+        $allowedRegisterGroups = ['visitor', 'subscriber', 'contributor', 'editor'];
+        if (!in_array($defaultRegisterGroup, $allowedRegisterGroups, true)) {
+            $defaultRegisterGroup = 'subscriber';
+        }
+
         if (!defined('__TYPECHO_SITE_URL__') && isset($payload['siteUrl'])) {
             $settings['siteUrl'] = rtrim(v3a_string($payload['siteUrl'] ?? '', ''), '/');
         }
@@ -3716,6 +3878,9 @@ try {
                 \Typecho\Db::WRITE
             );
         }
+
+        v3a_upsert_option($db, 'defaultRegisterGroup', $defaultRegisterGroup, 0);
+        $settings['defaultRegisterGroup'] = $defaultRegisterGroup;
 
         v3a_exit_json(0, ['site' => $settings]);
     }
