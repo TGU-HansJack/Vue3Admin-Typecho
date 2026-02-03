@@ -4143,6 +4143,672 @@ try {
         }
     }
 
+    if ($do === 'friends.stateCount') {
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['friends']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $counts = [
+            'friends' => 0,
+            'audit' => 0,
+            'outdate' => 0,
+            'reject' => 0,
+            'banned' => 0,
+        ];
+
+        try {
+            $counts['friends'] = (int) ($db->fetchObject(
+                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link')->where('status = ?', 1)
+            )->num ?? 0);
+        } catch (\Throwable $e) {
+        }
+        try {
+            $counts['audit'] = (int) ($db->fetchObject(
+                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link_apply')->where('status = ?', 0)
+            )->num ?? 0);
+        } catch (\Throwable $e) {
+        }
+        try {
+            $counts['outdate'] = (int) ($db->fetchObject(
+                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link')->where('status = ?', 2)
+            )->num ?? 0);
+        } catch (\Throwable $e) {
+        }
+        try {
+            $counts['reject'] = (int) ($db->fetchObject(
+                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link_apply')->where('status = ?', 2)
+            )->num ?? 0);
+        } catch (\Throwable $e) {
+        }
+        try {
+            $counts['banned'] = (int) ($db->fetchObject(
+                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link')->where('status = ?', 3)
+            )->num ?? 0);
+        } catch (\Throwable $e) {
+        }
+
+        v3a_exit_json(0, $counts);
+    }
+
+    if ($do === 'friends.list') {
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['friends']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $state = (int) $request->get('state', 0);
+        $page = max(1, (int) $request->get('page', 1));
+        $pageSize = (int) $request->get('pageSize', 20);
+        $pageSize = max(1, min(50, $pageSize));
+        $keywords = v3a_string($request->get('keywords', ''), '');
+
+        $source = 'link';
+        $status = 1;
+
+        if ($state === 1) {
+            $source = 'apply';
+            $status = 0;
+        } elseif ($state === 2) {
+            $source = 'link';
+            $status = 2;
+        } elseif ($state === 3) {
+            $source = 'apply';
+            $status = 2;
+        } elseif ($state === 4) {
+            $source = 'link';
+            $status = 3;
+        }
+
+        $select = null;
+        if ($source === 'apply') {
+            $select = $db->select(
+                'id',
+                'name',
+                'url',
+                'avatar',
+                'description',
+                'type',
+                'email',
+                'message',
+                'status',
+                'created'
+            )->from('table.v3a_friend_link_apply')->where('status = ?', $status);
+        } else {
+            $select = $db->select(
+                'id',
+                'name',
+                'url',
+                'avatar',
+                'description',
+                'type',
+                'email',
+                'status',
+                'created'
+            )->from('table.v3a_friend_link')->where('status = ?', $status);
+        }
+
+        if ($keywords !== '') {
+            $words = preg_split('/\\s+/u', $keywords);
+            $whereParts = [];
+            $bind = [];
+            foreach ((array) $words as $w) {
+                $w = trim((string) $w);
+                if ($w === '') {
+                    continue;
+                }
+                try {
+                    $w = \Typecho\Common::filterSearchQuery($w);
+                } catch (\Throwable $e) {
+                }
+
+                if ($source === 'apply') {
+                    $whereParts[] = '(name LIKE ? OR url LIKE ? OR email LIKE ? OR description LIKE ? OR message LIKE ?)';
+                    $bind[] = '%' . $w . '%';
+                    $bind[] = '%' . $w . '%';
+                    $bind[] = '%' . $w . '%';
+                    $bind[] = '%' . $w . '%';
+                    $bind[] = '%' . $w . '%';
+                } else {
+                    $whereParts[] = '(name LIKE ? OR url LIKE ? OR email LIKE ? OR description LIKE ?)';
+                    $bind[] = '%' . $w . '%';
+                    $bind[] = '%' . $w . '%';
+                    $bind[] = '%' . $w . '%';
+                    $bind[] = '%' . $w . '%';
+                }
+            }
+            if (!empty($whereParts)) {
+                $select->where(implode(' AND ', $whereParts), ...$bind);
+            }
+        }
+
+        $countSelect = clone $select;
+        $countSelect->cleanAttribute('fields');
+        $countSelect->cleanAttribute('order');
+        $countSelect->cleanAttribute('limit');
+        $countSelect->cleanAttribute('offset');
+        $countSelect->select(['COUNT(id)' => 'num']);
+
+        $total = 0;
+        try {
+            $total = (int) ($db->fetchObject($countSelect)->num ?? 0);
+        } catch (\Throwable $e) {
+        }
+
+        $select->order('id', \Typecho\Db::SORT_DESC)->page($page, $pageSize);
+
+        $rows = [];
+        try {
+            $rows = $db->fetchAll($select);
+        } catch (\Throwable $e) {
+        }
+
+        $items = [];
+        foreach ((array) $rows as $r) {
+            $item = [
+                'id' => (int) ($r['id'] ?? 0),
+                'name' => (string) ($r['name'] ?? ''),
+                'url' => (string) ($r['url'] ?? ''),
+                'avatar' => (string) ($r['avatar'] ?? ''),
+                'description' => (string) ($r['description'] ?? ''),
+                'type' => (string) ($r['type'] ?? 'friend'),
+                'email' => (string) ($r['email'] ?? ''),
+                'status' => (int) ($r['status'] ?? 0),
+                'created' => (int) ($r['created'] ?? 0),
+                'source' => $source,
+            ];
+
+            if ($source === 'apply') {
+                $item['message'] = (string) ($r['message'] ?? '');
+            }
+
+            $items[] = $item;
+        }
+
+        $pageCount = $pageSize > 0 ? (int) ceil($total / $pageSize) : 1;
+
+        v3a_exit_json(0, [
+            'items' => $items,
+            'pagination' => [
+                'page' => $page,
+                'pageSize' => $pageSize,
+                'total' => $total,
+                'pageCount' => $pageCount,
+            ],
+        ]);
+    }
+
+    if ($do === 'friends.save') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['friends']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $id = (int) ($payload['id'] ?? 0);
+
+        $name = trim(v3a_string($payload['name'] ?? '', ''));
+        if ($name === '') {
+            v3a_exit_json(400, null, 'Name required');
+        }
+
+        $url = trim(v3a_string($payload['url'] ?? '', ''));
+        if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+            v3a_exit_json(400, null, 'Invalid url');
+        }
+
+        $avatar = trim(v3a_string($payload['avatar'] ?? '', ''));
+        $description = trim(v3a_string($payload['description'] ?? '', ''));
+
+        $type = strtolower(trim(v3a_string($payload['type'] ?? 'friend', 'friend')));
+        $allowedTypes = ['friend', 'collection'];
+        if (!in_array($type, $allowedTypes, true)) {
+            $type = 'friend';
+        }
+
+        $email = trim(v3a_string($payload['email'] ?? '', ''));
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            v3a_exit_json(400, null, 'Invalid email');
+        }
+
+        $status = (int) ($payload['status'] ?? 1);
+        if (!in_array($status, [1, 2, 3], true)) {
+            $status = 1;
+        }
+
+        $created = (int) ($payload['created'] ?? 0);
+        if ($created <= 0) {
+            $created = time();
+        }
+
+        $rows = [
+            'name' => $name,
+            'url' => $url,
+            'avatar' => $avatar,
+            'description' => $description,
+            'type' => $type,
+            'email' => $email,
+            'status' => $status,
+        ];
+
+        try {
+            if ($id > 0) {
+                // Keep created if not explicitly passed in.
+                if (!isset($payload['created'])) {
+                    unset($rows['created']);
+                } else {
+                    $rows['created'] = $created;
+                }
+
+                $db->query(
+                    $db->update('table.v3a_friend_link')->rows($rows)->where('id = ?', $id),
+                    \Typecho\Db::WRITE
+                );
+                v3a_exit_json(0, ['id' => $id]);
+            }
+
+            $rows['created'] = $created;
+            $newId = (int) $db->query(
+                $db->insert('table.v3a_friend_link')->rows($rows),
+                \Typecho\Db::WRITE
+            );
+            v3a_exit_json(0, ['id' => $newId]);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+    }
+
+    if ($do === 'friends.delete') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['friends']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $ids = $payload['ids'] ?? $payload['id'] ?? [];
+        if (is_numeric($ids)) {
+            $ids = [(int) $ids];
+        }
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn($v) => $v > 0)));
+        if (empty($ids)) {
+            v3a_exit_json(400, null, 'Missing id');
+        }
+
+        try {
+            $deleted = (int) $db->query(
+                $db->delete('table.v3a_friend_link')->where('id IN ?', $ids),
+                \Typecho\Db::WRITE
+            );
+            v3a_exit_json(0, ['deleted' => $deleted]);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+    }
+
+    if ($do === 'friends.apply.audit') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['friends']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $id = (int) ($payload['id'] ?? 0);
+        if ($id <= 0) {
+            v3a_exit_json(400, null, 'Missing id');
+        }
+
+        $action = strtolower(trim(v3a_string($payload['action'] ?? '', '')));
+        if (!in_array($action, ['pass', 'reject'], true)) {
+            v3a_exit_json(400, null, 'Invalid action');
+        }
+
+        try {
+            $apply = $db->fetchRow(
+                $db->select(
+                    'id',
+                    'name',
+                    'url',
+                    'avatar',
+                    'description',
+                    'type',
+                    'email',
+                    'message',
+                    'status',
+                    'created'
+                )
+                    ->from('table.v3a_friend_link_apply')
+                    ->where('id = ?', $id)
+                    ->limit(1)
+            );
+        } catch (\Throwable $e) {
+            $apply = null;
+        }
+
+        if (!is_array($apply)) {
+            v3a_exit_json(404, null, 'Not found');
+        }
+
+        $applyStatus = (int) ($apply['status'] ?? 0);
+        if ($action === 'pass') {
+            if ($applyStatus !== 0) {
+                v3a_exit_json(400, null, 'Not pending');
+            }
+
+            $name = trim(v3a_string($payload['name'] ?? ($apply['name'] ?? ''), ''));
+            if ($name === '') {
+                v3a_exit_json(400, null, 'Name required');
+            }
+
+            $url = trim(v3a_string($payload['url'] ?? ($apply['url'] ?? ''), ''));
+            if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+                v3a_exit_json(400, null, 'Invalid url');
+            }
+
+            $avatar = trim(v3a_string($payload['avatar'] ?? ($apply['avatar'] ?? ''), ''));
+            $description = trim(v3a_string($payload['description'] ?? ($apply['description'] ?? ''), ''));
+
+            $type = strtolower(trim(v3a_string($payload['type'] ?? ($apply['type'] ?? 'friend'), 'friend')));
+            $allowedTypes = ['friend', 'collection'];
+            if (!in_array($type, $allowedTypes, true)) {
+                $type = 'friend';
+            }
+
+            $email = trim(v3a_string($payload['email'] ?? ($apply['email'] ?? ''), ''));
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                v3a_exit_json(400, null, 'Invalid email');
+            }
+
+            $created = (int) ($apply['created'] ?? 0);
+            if ($created <= 0) {
+                $created = time();
+            }
+
+            $rows = [
+                'name' => $name,
+                'url' => $url,
+                'avatar' => $avatar,
+                'description' => $description,
+                'type' => $type,
+                'email' => $email,
+                'status' => 1,
+                'created' => $created,
+            ];
+
+            $newId = (int) $db->query(
+                $db->insert('table.v3a_friend_link')->rows($rows),
+                \Typecho\Db::WRITE
+            );
+
+            $db->query(
+                $db->update('table.v3a_friend_link_apply')->rows(['status' => 1])->where('id = ?', $id),
+                \Typecho\Db::WRITE
+            );
+
+            v3a_exit_json(0, ['id' => $newId]);
+        }
+
+        // reject
+        try {
+            $updated = (int) $db->query(
+                $db->update('table.v3a_friend_link_apply')->rows(['status' => 2])->where('id = ?', $id),
+                \Typecho\Db::WRITE
+            );
+            v3a_exit_json(0, ['updated' => $updated]);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+    }
+
+    if ($do === 'friends.checkHealth') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['friends']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $timeoutMs = (int) ($payload['timeoutMs'] ?? $payload['timeout'] ?? 8000);
+        $timeoutMs = max(1000, min(20000, $timeoutMs));
+        $limit = (int) ($payload['limit'] ?? 50);
+        $limit = max(1, min(200, $limit));
+
+        $rows = [];
+        try {
+            $rows = $db->fetchAll(
+                $db->select('id', 'url')
+                    ->from('table.v3a_friend_link')
+                    ->where('status = ?', 1)
+                    ->order('id', \Typecho\Db::SORT_DESC)
+                    ->limit($limit)
+            );
+        } catch (\Throwable $e) {
+        }
+
+        $result = [];
+        foreach ((array) $rows as $r) {
+            $id = (int) ($r['id'] ?? 0);
+            $url = trim((string) ($r['url'] ?? ''));
+            if ($id <= 0) {
+                continue;
+            }
+
+            $status = 0;
+            $message = '';
+
+            if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+                $message = 'Invalid URL';
+            } elseif (function_exists('curl_init')) {
+                try {
+                    $ch = curl_init($url);
+                    curl_setopt_array($ch, [
+                        CURLOPT_NOBODY => true,
+                        CURLOPT_FOLLOWLOCATION => true,
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_TIMEOUT_MS => $timeoutMs,
+                        CURLOPT_CONNECTTIMEOUT_MS => min(4000, $timeoutMs),
+                        CURLOPT_MAXREDIRS => 5,
+                        CURLOPT_USERAGENT => 'Vue3Admin/1.0 (+Typecho)',
+                        CURLOPT_SSL_VERIFYPEER => false,
+                        CURLOPT_SSL_VERIFYHOST => 0,
+                    ]);
+
+                    curl_exec($ch);
+                    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    $err = (string) curl_error($ch);
+                    curl_close($ch);
+
+                    $message = $err !== '' ? $err : ('HTTP ' . $status);
+                } catch (\Throwable $e) {
+                    $message = $e->getMessage();
+                }
+            } else {
+                try {
+                    $ctx = stream_context_create([
+                        'http' => [
+                            'method' => 'HEAD',
+                            'timeout' => (int) ceil($timeoutMs / 1000),
+                            'ignore_errors' => true,
+                        ],
+                        'ssl' => [
+                            'verify_peer' => false,
+                            'verify_peer_name' => false,
+                        ],
+                    ]);
+
+                    $headers = @get_headers($url, 1, $ctx);
+                    if (is_array($headers) && isset($headers[0]) && preg_match('/\\s(\\d{3})\\s/', (string) $headers[0], $m)) {
+                        $status = (int) $m[1];
+                        $message = 'HTTP ' . $status;
+                    } else {
+                        $message = 'Unknown';
+                    }
+                } catch (\Throwable $e) {
+                    $message = $e->getMessage();
+                }
+            }
+
+            $result[(string) $id] = [
+                'id' => $id,
+                'status' => $status,
+                'message' => $message,
+            ];
+        }
+
+        v3a_exit_json(0, $result);
+    }
+
+    if ($do === 'friends.migrateAvatars') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['friends']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        if (!function_exists('curl_init')) {
+            v3a_exit_json(400, null, 'cURL not available');
+        }
+
+        $payload = v3a_payload();
+        $timeoutMs = (int) ($payload['timeoutMs'] ?? $payload['timeout'] ?? 10000);
+        $timeoutMs = max(1000, min(60000, $timeoutMs));
+        $limit = (int) ($payload['limit'] ?? 200);
+        $limit = max(1, min(500, $limit));
+        $maxBytes = (int) ($payload['maxBytes'] ?? 60000);
+        $maxBytes = max(4096, min(200000, $maxBytes));
+
+        $rows = [];
+        try {
+            $rows = $db->fetchAll(
+                $db->select('id', 'avatar')
+                    ->from('table.v3a_friend_link')
+                    ->where('status = ?', 1)
+                    ->order('id', \Typecho\Db::SORT_DESC)
+                    ->limit($limit)
+            );
+        } catch (\Throwable $e) {
+        }
+
+        $migrated = 0;
+        $skipped = 0;
+        foreach ((array) $rows as $r) {
+            $id = (int) ($r['id'] ?? 0);
+            $avatar = trim((string) ($r['avatar'] ?? ''));
+            if ($id <= 0) {
+                continue;
+            }
+
+            if ($avatar === '' || stripos($avatar, 'data:') === 0) {
+                $skipped++;
+                continue;
+            }
+
+            if (!preg_match('/^https?:\\/\\//i', $avatar) || !filter_var($avatar, FILTER_VALIDATE_URL)) {
+                $skipped++;
+                continue;
+            }
+
+            $data = '';
+            $tooLarge = false;
+
+            try {
+                $ch = curl_init($avatar);
+                curl_setopt_array($ch, [
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_RETURNTRANSFER => false,
+                    CURLOPT_TIMEOUT_MS => $timeoutMs,
+                    CURLOPT_CONNECTTIMEOUT_MS => min(5000, $timeoutMs),
+                    CURLOPT_MAXREDIRS => 5,
+                    CURLOPT_USERAGENT => 'Vue3Admin/1.0 (+Typecho)',
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_SSL_VERIFYHOST => 0,
+                    CURLOPT_WRITEFUNCTION => function ($ch, string $chunk) use (&$data, $maxBytes, &$tooLarge): int {
+                        $len = strlen($chunk);
+                        $remain = $maxBytes - strlen($data);
+                        if ($remain <= 0) {
+                            $tooLarge = true;
+                            return 0;
+                        }
+                        if ($len > $remain) {
+                            $data .= substr($chunk, 0, $remain);
+                            $tooLarge = true;
+                            return 0;
+                        }
+                        $data .= $chunk;
+                        return $len;
+                    },
+                ]);
+
+                curl_exec($ch);
+                $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $contentType = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+                curl_close($ch);
+
+                if ($tooLarge || $code < 200 || $code >= 400 || $data === '') {
+                    $skipped++;
+                    continue;
+                }
+
+                $mime = trim(strtolower(preg_replace('/;.*/', '', $contentType)));
+                if ($mime === '' || stripos($mime, 'image/') !== 0) {
+                    $skipped++;
+                    continue;
+                }
+
+                $dataUri = 'data:' . $mime . ';base64,' . base64_encode($data);
+
+                $db->query(
+                    $db->update('table.v3a_friend_link')->rows(['avatar' => $dataUri])->where('id = ?', $id),
+                    \Typecho\Db::WRITE
+                );
+                $migrated++;
+            } catch (\Throwable $e) {
+                $skipped++;
+            }
+        }
+
+        v3a_exit_json(0, ['migrated' => $migrated, 'skipped' => $skipped]);
+    }
+
     if ($do === 'users.list') {
         if (!$user->pass('administrator', true)) {
             v3a_exit_json(403, null, 'Forbidden');

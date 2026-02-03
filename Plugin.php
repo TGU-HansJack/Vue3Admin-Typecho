@@ -861,6 +861,7 @@ HTML;
             static $runtimeInit = false;
             if (!$runtimeInit) {
                 $runtimeInit = true;
+                self::installOrUpgradeSchema();
                 self::ensureDefaultRegisterGroupOption();
                 self::ensureAclConfigOption();
                 \Typecho\Plugin::factory('Widget_Register')->register = __CLASS__ . '::filterRegisterGroup';
@@ -998,11 +999,238 @@ HTML;
         foreach (self::getSchemaSql($driver, $prefix) as $sql) {
             $db->query($sql, Db::WRITE);
         }
+
+        // Friend links: extend schema for mx-admin like fields.
+        try {
+            self::ensureFriendLinkSchema($db, $driver, $prefix);
+        } catch (\Throwable $e) {
+        }
     }
 
     /**
      * @return string[]
      */
+    private static function ensureFriendLinkSchema($db, string $driver, string $prefix): void
+    {
+        $driver = strtolower($driver);
+
+        $linkTable = $prefix . 'v3a_friend_link';
+        $applyTable = $prefix . 'v3a_friend_link_apply';
+
+        $linkColumns = self::getTableColumns($db, $driver, $linkTable);
+        $applyColumns = self::getTableColumns($db, $driver, $applyTable);
+
+        $linkMissing = [
+            'avatar' => true,
+            'description' => true,
+            'type' => true,
+            'email' => true,
+        ];
+        foreach ($linkColumns as $col) {
+            unset($linkMissing[$col]);
+        }
+
+        $applyMissing = [
+            'avatar' => true,
+            'description' => true,
+            'type' => true,
+            'email' => true,
+        ];
+        foreach ($applyColumns as $col) {
+            unset($applyMissing[$col]);
+        }
+
+        if (!empty($linkMissing)) {
+            foreach (self::friendLinkAlterStatements($driver, $linkTable, $linkMissing) as $sql) {
+                try {
+                    $db->query($sql, Db::WRITE);
+                } catch (\Throwable $e) {
+                }
+            }
+        }
+
+        if (!empty($applyMissing)) {
+            foreach (self::friendLinkApplyAlterStatements($driver, $applyTable, $applyMissing) as $sql) {
+                try {
+                    $db->query($sql, Db::WRITE);
+                } catch (\Throwable $e) {
+                }
+            }
+        }
+    }
+
+    /**
+     * @return string[]
+     */
+    private static function getTableColumns($db, string $driver, string $table): array
+    {
+        $driver = strtolower($driver);
+
+        if ($driver === 'sqlite') {
+            $rows = [];
+            try {
+                $rows = $db->fetchAll('PRAGMA table_info(' . $table . ')');
+            } catch (\Throwable $e) {
+            }
+            $out = [];
+            foreach ($rows as $r) {
+                $name = isset($r['name']) ? (string) $r['name'] : '';
+                if ($name !== '') {
+                    $out[] = $name;
+                }
+            }
+            return array_values(array_unique($out));
+        }
+
+        if ($driver === 'pgsql') {
+            $table = strtolower(preg_replace('/[^a-z0-9_]/i', '', $table));
+            $rows = [];
+            try {
+                $rows = $db->fetchAll(
+                    "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = '{$table}'"
+                );
+            } catch (\Throwable $e) {
+            }
+            $out = [];
+            foreach ($rows as $r) {
+                $name = isset($r['column_name']) ? (string) $r['column_name'] : '';
+                if ($name !== '') {
+                    $out[] = $name;
+                }
+            }
+            return array_values(array_unique($out));
+        }
+
+        // MySQL
+        $rows = [];
+        try {
+            $rows = $db->fetchAll('SHOW COLUMNS FROM `' . str_replace('`', '', $table) . '`');
+        } catch (\Throwable $e) {
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $name = isset($r['Field']) ? (string) $r['Field'] : '';
+            if ($name !== '') {
+                $out[] = $name;
+            }
+        }
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * @param array<string,bool> $missing
+     * @return string[]
+     */
+    private static function friendLinkAlterStatements(string $driver, string $table, array $missing): array
+    {
+        if ($driver === 'sqlite') {
+            $sql = [];
+            if (isset($missing['avatar'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN avatar TEXT NULL";
+            }
+            if (isset($missing['description'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN description TEXT NULL";
+            }
+            if (isset($missing['type'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN type TEXT NOT NULL DEFAULT 'friend'";
+            }
+            if (isset($missing['email'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN email TEXT NOT NULL DEFAULT ''";
+            }
+            return $sql;
+        }
+
+        if ($driver === 'pgsql') {
+            $sql = [];
+            if (isset($missing['avatar'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN avatar TEXT NULL";
+            }
+            if (isset($missing['description'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN description TEXT NULL";
+            }
+            if (isset($missing['type'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'friend'";
+            }
+            if (isset($missing['email'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN email VARCHAR(190) NOT NULL DEFAULT ''";
+            }
+            return $sql;
+        }
+
+        $t = '`' . str_replace('`', '', $table) . '`';
+        $sql = [];
+        if (isset($missing['avatar'])) {
+            $sql[] = "ALTER TABLE {$t} ADD COLUMN `avatar` TEXT NULL";
+        }
+        if (isset($missing['description'])) {
+            $sql[] = "ALTER TABLE {$t} ADD COLUMN `description` TEXT NULL";
+        }
+        if (isset($missing['type'])) {
+            $sql[] = "ALTER TABLE {$t} ADD COLUMN `type` VARCHAR(20) NOT NULL DEFAULT 'friend'";
+        }
+        if (isset($missing['email'])) {
+            $sql[] = "ALTER TABLE {$t} ADD COLUMN `email` VARCHAR(190) NOT NULL DEFAULT ''";
+        }
+        return $sql;
+    }
+
+    /**
+     * @param array<string,bool> $missing
+     * @return string[]
+     */
+    private static function friendLinkApplyAlterStatements(string $driver, string $table, array $missing): array
+    {
+        if ($driver === 'sqlite') {
+            $sql = [];
+            if (isset($missing['avatar'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN avatar TEXT NULL";
+            }
+            if (isset($missing['description'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN description TEXT NULL";
+            }
+            if (isset($missing['type'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN type TEXT NOT NULL DEFAULT 'friend'";
+            }
+            if (isset($missing['email'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN email TEXT NOT NULL DEFAULT ''";
+            }
+            return $sql;
+        }
+
+        if ($driver === 'pgsql') {
+            $sql = [];
+            if (isset($missing['avatar'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN avatar TEXT NULL";
+            }
+            if (isset($missing['description'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN description TEXT NULL";
+            }
+            if (isset($missing['type'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'friend'";
+            }
+            if (isset($missing['email'])) {
+                $sql[] = "ALTER TABLE {$table} ADD COLUMN email VARCHAR(190) NOT NULL DEFAULT ''";
+            }
+            return $sql;
+        }
+
+        $t = '`' . str_replace('`', '', $table) . '`';
+        $sql = [];
+        if (isset($missing['avatar'])) {
+            $sql[] = "ALTER TABLE {$t} ADD COLUMN `avatar` TEXT NULL";
+        }
+        if (isset($missing['description'])) {
+            $sql[] = "ALTER TABLE {$t} ADD COLUMN `description` TEXT NULL";
+        }
+        if (isset($missing['type'])) {
+            $sql[] = "ALTER TABLE {$t} ADD COLUMN `type` VARCHAR(20) NOT NULL DEFAULT 'friend'";
+        }
+        if (isset($missing['email'])) {
+            $sql[] = "ALTER TABLE {$t} ADD COLUMN `email` VARCHAR(190) NOT NULL DEFAULT ''";
+        }
+        return $sql;
+    }
+
     private static function getSchemaSql(string $driver, string $prefix): array
     {
         $driver = strtolower($driver);
@@ -1030,6 +1258,10 @@ HTML;
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL DEFAULT '',
                     url TEXT NOT NULL DEFAULT '',
+                    avatar TEXT NULL,
+                    description TEXT NULL,
+                    type TEXT NOT NULL DEFAULT 'friend',
+                    email TEXT NOT NULL DEFAULT '',
                     status INTEGER NOT NULL DEFAULT 0,
                     created INTEGER NOT NULL DEFAULT 0
                 );",
@@ -1037,6 +1269,10 @@ HTML;
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL DEFAULT '',
                     url TEXT NOT NULL DEFAULT '',
+                    avatar TEXT NULL,
+                    description TEXT NULL,
+                    type TEXT NOT NULL DEFAULT 'friend',
+                    email TEXT NOT NULL DEFAULT '',
                     message TEXT NULL,
                     status INTEGER NOT NULL DEFAULT 0,
                     created INTEGER NOT NULL DEFAULT 0
@@ -1080,6 +1316,10 @@ HTML;
                     id BIGSERIAL PRIMARY KEY,
                     name VARCHAR(100) NOT NULL DEFAULT '',
                     url VARCHAR(255) NOT NULL DEFAULT '',
+                    avatar TEXT NULL,
+                    description TEXT NULL,
+                    type VARCHAR(20) NOT NULL DEFAULT 'friend',
+                    email VARCHAR(190) NOT NULL DEFAULT '',
                     status SMALLINT NOT NULL DEFAULT 0,
                     created INTEGER NOT NULL DEFAULT 0
                 );",
@@ -1087,6 +1327,10 @@ HTML;
                     id BIGSERIAL PRIMARY KEY,
                     name VARCHAR(100) NOT NULL DEFAULT '',
                     url VARCHAR(255) NOT NULL DEFAULT '',
+                    avatar TEXT NULL,
+                    description TEXT NULL,
+                    type VARCHAR(20) NOT NULL DEFAULT 'friend',
+                    email VARCHAR(190) NOT NULL DEFAULT '',
                     message TEXT NULL,
                     status SMALLINT NOT NULL DEFAULT 0,
                     created INTEGER NOT NULL DEFAULT 0
@@ -1137,6 +1381,10 @@ HTML;
                 `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                 `name` VARCHAR(100) NOT NULL DEFAULT '',
                 `url` VARCHAR(255) NOT NULL DEFAULT '',
+                `avatar` TEXT NULL,
+                `description` TEXT NULL,
+                `type` VARCHAR(20) NOT NULL DEFAULT 'friend',
+                `email` VARCHAR(190) NOT NULL DEFAULT '',
                 `status` TINYINT NOT NULL DEFAULT 0,
                 `created` INT UNSIGNED NOT NULL DEFAULT 0,
                 PRIMARY KEY (`id`),
@@ -1146,6 +1394,10 @@ HTML;
                 `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                 `name` VARCHAR(100) NOT NULL DEFAULT '',
                 `url` VARCHAR(255) NOT NULL DEFAULT '',
+                `avatar` TEXT NULL,
+                `description` TEXT NULL,
+                `type` VARCHAR(20) NOT NULL DEFAULT 'friend',
+                `email` VARCHAR(190) NOT NULL DEFAULT '',
                 `message` TEXT NULL,
                 `status` TINYINT NOT NULL DEFAULT 0,
                 `created` INT UNSIGNED NOT NULL DEFAULT 0,

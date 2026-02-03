@@ -1740,6 +1740,268 @@
         uploadFilesFromModal(files);
       }
 
+      // Friends (mx-admin like)
+      const friendsLoading = ref(false);
+      const friendsError = ref("");
+      const friendsItems = ref([]);
+      const friendsPagination = reactive({
+        page: 1,
+        pageSize: 50,
+        total: 0,
+        pageCount: 1,
+      });
+      const friendsPageJump = ref(1);
+
+      const friendsState = ref(0); // 0=friends,1=audit,2=outdate,3=reject,4=banned
+      const friendsStateCount = reactive({
+        friends: 0,
+        audit: 0,
+        outdate: 0,
+        reject: 0,
+        banned: 0,
+      });
+
+      const friendsHealth = ref({});
+      const friendsHealthChecking = ref(false);
+      const friendsMigrateWorking = ref(false);
+
+      function normalizeFriendsState(v) {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return 0;
+        const i = Math.floor(n);
+        if (i < 0 || i > 4) return 0;
+        return i;
+      }
+
+      function friendTypeLabel(type) {
+        const t = String(type || "");
+        if (t === "friend") return "朋友";
+        if (t === "collection") return "收藏";
+        return t || "—";
+      }
+
+      function friendInitial(name) {
+        const s = String(name || "").trim();
+        if (!s) return "—";
+        return s.slice(0, 1);
+      }
+
+      async function fetchFriendsStateCount() {
+        try {
+          const data = await apiGet("friends.stateCount");
+          Object.assign(friendsStateCount, data || {});
+
+          // Keep dashboard badges in sync (best-effort)
+          summary.value.friendLinks = Number(friendsStateCount.friends || 0) || 0;
+          summary.value.friendLinkApply = Number(friendsStateCount.audit || 0) || 0;
+        } catch (e) {
+        }
+      }
+
+      async function fetchFriends() {
+        friendsLoading.value = true;
+        friendsError.value = "";
+        try {
+          const data = await apiGet("friends.list", {
+            state: friendsState.value,
+            page: friendsPagination.page,
+            pageSize: friendsPagination.pageSize,
+          });
+          friendsItems.value = Array.isArray(data?.items) ? data.items : [];
+          Object.assign(friendsPagination, data?.pagination || {});
+          friendsPageJump.value = Number(friendsPagination.page || 1) || 1;
+        } catch (e) {
+          friendsItems.value = [];
+          friendsError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          friendsLoading.value = false;
+        }
+      }
+
+      async function initFriendsFromRoute() {
+        const nextState = normalizeFriendsState(routeQuery.value?.state);
+        const shouldOpenNew = String(routeQuery.value?.new || "") === "1";
+
+        if (friendsState.value !== nextState) {
+          friendsState.value = nextState;
+          friendsPagination.page = 1;
+          friendsPageJump.value = 1;
+        }
+
+        await fetchFriendsStateCount();
+        await fetchFriends();
+
+        if (shouldOpenNew) {
+          openFriendEditor(null);
+        }
+      }
+
+      function setFriendsState(state) {
+        const s = normalizeFriendsState(state);
+        navTo(`/friends?state=${s}`);
+      }
+
+      function friendsGoPage(page) {
+        const p = Number(page || 1);
+        if (!Number.isFinite(p)) return;
+        const next = Math.max(1, Math.min(friendsPagination.pageCount || 1, p));
+        if (next === friendsPagination.page) return;
+        friendsPagination.page = next;
+        friendsPageJump.value = next;
+        fetchFriends();
+      }
+
+      const friendEditorOpen = ref(false);
+      const friendEditorSaving = ref(false);
+      const friendEditorError = ref("");
+      const friendEditorForm = reactive({
+        id: 0,
+        name: "",
+        url: "",
+        avatar: "",
+        description: "",
+        type: "friend",
+        email: "",
+        status: 1,
+      });
+
+      function resetFriendEditorForm() {
+        friendEditorForm.id = 0;
+        friendEditorForm.name = "";
+        friendEditorForm.url = "";
+        friendEditorForm.avatar = "";
+        friendEditorForm.description = "";
+        friendEditorForm.type = "friend";
+        friendEditorForm.email = "";
+        friendEditorForm.status = 1;
+      }
+
+      function openFriendEditor(row) {
+        friendEditorError.value = "";
+        resetFriendEditorForm();
+
+        if (row && typeof row === "object") {
+          friendEditorForm.id = Number(row.id || 0) || 0;
+          friendEditorForm.name = String(row.name || "");
+          friendEditorForm.url = String(row.url || "");
+          friendEditorForm.avatar = String(row.avatar || "");
+          friendEditorForm.description = String(row.description || "");
+          friendEditorForm.type = String(row.type || "friend") || "friend";
+          friendEditorForm.email = String(row.email || "");
+          friendEditorForm.status = Number(row.status || 1) || 1;
+        }
+
+        friendEditorOpen.value = true;
+      }
+
+      function closeFriendEditor() {
+        friendEditorOpen.value = false;
+        friendEditorError.value = "";
+      }
+
+      async function submitFriendEditor() {
+        friendEditorSaving.value = true;
+        friendEditorError.value = "";
+        try {
+          const payload = {
+            id: friendEditorForm.id,
+            name: friendEditorForm.name,
+            url: friendEditorForm.url,
+            avatar: friendEditorForm.avatar,
+            description: friendEditorForm.description,
+            type: friendEditorForm.type,
+            email: friendEditorForm.email,
+            status: friendEditorForm.status,
+          };
+
+          await apiPost("friends.save", payload);
+          friendEditorOpen.value = false;
+          toastSuccess("保存成功");
+          await fetchFriendsStateCount();
+          await fetchFriends();
+        } catch (e) {
+          friendEditorError.value = e && e.message ? e.message : "保存失败";
+        } finally {
+          friendEditorSaving.value = false;
+        }
+      }
+
+      async function deleteFriend(row) {
+        const id = Number(row && row.id ? row.id : 0);
+        if (!id) return;
+        if (!confirm(`确认移除友链「${String(row?.name || "") || "#" + id}」吗？`)) return;
+
+        friendsError.value = "";
+        try {
+          await apiPost("friends.delete", { id });
+          toastSuccess("已移除");
+          await fetchFriendsStateCount();
+          await fetchFriends();
+        } catch (e) {
+          friendsError.value = e && e.message ? e.message : "移除失败";
+        }
+      }
+
+      async function auditFriendApply(row, action) {
+        const id = Number(row && row.id ? row.id : 0);
+        if (!id) return;
+        const name = String(row?.name || "") || "#" + id;
+        const act = String(action || "");
+        if (act === "pass") {
+          if (!confirm(`确认通过「${name}」的友链申请吗？`)) return;
+        } else if (act === "reject") {
+          if (!confirm(`确认拒绝「${name}」的友链申请吗？`)) return;
+        } else {
+          return;
+        }
+
+        friendsError.value = "";
+        try {
+          await apiPost("friends.apply.audit", { id, action: act });
+          toastSuccess("操作成功");
+          await fetchFriendsStateCount();
+          await fetchFriends();
+        } catch (e) {
+          friendsError.value = e && e.message ? e.message : "操作失败";
+        }
+      }
+
+      async function checkFriendsHealth() {
+        friendsHealthChecking.value = true;
+        friendsError.value = "";
+        try {
+          const data = await apiPost("friends.checkHealth", {
+            timeoutMs: 8000,
+            limit: 200,
+          });
+          friendsHealth.value = data && typeof data === "object" ? data : {};
+          toastSuccess("检查完成");
+        } catch (e) {
+          friendsError.value = e && e.message ? e.message : "检查失败";
+        } finally {
+          friendsHealthChecking.value = false;
+        }
+      }
+
+      async function migrateFriendAvatars() {
+        if (!confirm("迁移头像会把远程头像转为内嵌数据，是否继续？")) return;
+        friendsMigrateWorking.value = true;
+        friendsError.value = "";
+        try {
+          const data = await apiPost("friends.migrateAvatars", {
+            timeoutMs: 15000,
+            limit: 200,
+            maxBytes: 60000,
+          });
+          toastSuccess(`迁移完成：${Number(data?.migrated || 0) || 0} 个`);
+          await fetchFriends();
+        } catch (e) {
+          friendsError.value = e && e.message ? e.message : "迁移失败";
+        } finally {
+          friendsMigrateWorking.value = false;
+        }
+      }
+
       // Data (IP / PV)
       const dataVisitLoading = ref(false);
       const dataVisitError = ref("");
@@ -6733,6 +6995,9 @@
           if (p === "/files") {
             await fetchFiles();
           }
+          if (p === "/friends") {
+            await initFriendsFromRoute();
+          }
           if (p === "/users") {
             await fetchUsers();
           }
@@ -6892,6 +7157,9 @@
         if (routePath.value === "/files") {
           await fetchFiles();
         }
+        if (routePath.value === "/friends") {
+          await initFriendsFromRoute();
+        }
         if (routePath.value === "/users") {
           await fetchUsers();
         }
@@ -6957,6 +7225,7 @@
         pagesError,
         pageError,
         filesError,
+        friendsError,
         settingsError,
         themesError,
         pluginsError,
@@ -7122,6 +7391,31 @@
         onFileItemActivate,
         deleteSelectedFiles,
         refreshFiles,
+        friendsLoading,
+        friendsError,
+        friendsItems,
+        friendsPagination,
+        friendsPageJump,
+        friendsState,
+        friendsStateCount,
+        friendsHealth,
+        friendsHealthChecking,
+        friendsMigrateWorking,
+        setFriendsState,
+        friendsGoPage,
+        friendTypeLabel,
+        friendInitial,
+        checkFriendsHealth,
+        migrateFriendAvatars,
+        friendEditorOpen,
+        friendEditorSaving,
+        friendEditorError,
+        friendEditorForm,
+        openFriendEditor,
+        closeFriendEditor,
+        submitFriendEditor,
+        deleteFriend,
+        auditFriendApply,
         dataVisitLoading,
         dataVisitError,
         dataVisitItems,
@@ -7591,7 +7885,7 @@
                       </div>
                       <div class="v3a-quick-count">{{ formatNumber(summary.friendLinks) }}</div>
                       <div class="v3a-quick-btns">
-                        <button class="v3a-mini-btn primary" type="button" @click="navTo('/friends')">新增</button>
+                        <button class="v3a-mini-btn primary" type="button" @click="navTo('/friends?new=1')">新增</button>
                         <button class="v3a-mini-btn" type="button" @click="navTo('/friends')">管理</button>
                       </div>
                     </div>
@@ -7646,7 +7940,7 @@
                         <div class="v3a-metric-value">{{ formatNumber(summary.friendLinks) }}</div>
                       </div>
                     </div>
-                    <div class="v3a-metric-item" @click="navTo('/friends')">
+                    <div class="v3a-metric-item" @click="navTo('/friends?state=1')">
                       <span class="v3a-metric-icon" v-html="ICONS.link"></span>
                       <div class="v3a-metric-meta">
                         <div class="v3a-metric-label">友链申请</div>
@@ -8947,7 +9241,7 @@
             </template>
 
             <template v-else-if="routePath === '/friends'">
-              <div class="v3a-container">
+              <div class="v3a-container v3a-container-friends">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
@@ -8956,43 +9250,173 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
-                    <button class="v3a-btn primary" type="button">新增友链</button>
+                    <button class="v3a-iconaction primary" type="button" title="新增友链" @click="openFriendEditor(null)">
+                      <span class="v3a-icon" v-html="ICONS.plus"></span>
+                    </button>
+                    <button class="v3a-actionbtn primary" type="button" title="检查友链可用性" :disabled="friendsHealthChecking" @click="checkFriendsHealth()">
+                      <span class="v3a-icon" v-html="ICONS.check"></span>
+                    </button>
+                    <button class="v3a-actionbtn primary" type="button" title="迁移头像" :disabled="friendsMigrateWorking" @click="migrateFriendAvatars()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
                   </div>
                 </div>
 
-                <div class="v3a-grid two">
-                  <div class="v3a-card">
-                    <div class="hd"><div class="title">友链列表（UI 占位）</div></div>
-                    <div class="bd">
-                      <table class="v3a-table">
-                        <thead><tr><th>名称</th><th>URL</th><th>状态</th><th>操作</th></tr></thead>
-                        <tbody>
-                          <tr v-for="i in 5" :key="i">
-                            <td>站点 #{{ i }}</td>
-                            <td>https://example.com</td>
-                            <td><span class="v3a-pill success">已通过</span></td>
-                            <td><span class="v3a-muted">编辑</span></td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                <div class="v3a-friends-tabs">
+                  <button class="v3a-friends-tab" :class="{ active: friendsState === 0 }" type="button" @click="setFriendsState(0)">
+                    <span>朋友们</span>
+                    <span class="v3a-friends-count">{{ formatNumber(friendsStateCount.friends || 0) }}</span>
+                  </button>
+                  <button class="v3a-friends-tab" :class="{ active: friendsState === 1 }" type="button" @click="setFriendsState(1)">
+                    <span>待审核</span>
+                    <span class="v3a-friends-count danger">{{ formatNumber(friendsStateCount.audit || 0) }}</span>
+                  </button>
+                  <button class="v3a-friends-tab" :class="{ active: friendsState === 2 }" type="button" @click="setFriendsState(2)">
+                    <span>过时的</span>
+                    <span class="v3a-friends-count">{{ formatNumber(friendsStateCount.outdate || 0) }}</span>
+                  </button>
+                  <button class="v3a-friends-tab" :class="{ active: friendsState === 3 }" type="button" @click="setFriendsState(3)">
+                    <span>已拒绝</span>
+                    <span class="v3a-friends-count">{{ formatNumber(friendsStateCount.reject || 0) }}</span>
+                  </button>
+                  <button class="v3a-friends-tab" :class="{ active: friendsState === 4 }" type="button" @click="setFriendsState(4)">
+                    <span>封禁的</span>
+                    <span class="v3a-friends-count">{{ formatNumber(friendsStateCount.banned || 0) }}</span>
+                  </button>
+                </div>
 
-                  <div class="v3a-card">
-                    <div class="hd"><div class="title">友链申请（UI 占位）</div></div>
-                    <div class="bd">
-                      <table class="v3a-table">
-                        <thead><tr><th>名称</th><th>URL</th><th>留言</th><th>操作</th></tr></thead>
-                        <tbody>
-                          <tr v-for="i in 3" :key="i">
-                            <td>申请者 #{{ i }}</td>
-                            <td>https://example.com</td>
-                            <td>请添加友链</td>
-                            <td><span class="v3a-muted">通过 / 拒绝</span></td>
-                          </tr>
-                        </tbody>
-                      </table>
-                      <div class="v3a-muted" style="margin-top: 10px;">该模块后续将对接 <code>v3a_friend_link*</code> 数据表。</div>
+                <div class="v3a-card v3a-friends-tablecard">
+                  <div class="bd" style="padding: 0;">
+                    <div v-if="friendsError" class="v3a-alert" style="margin: 16px;">{{ friendsError }}</div>
+                    <div v-else-if="friendsLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+
+                    <table v-else class="v3a-table v3a-friends-table">
+                      <thead>
+                        <tr>
+                          <th style="width: 80px;">头像</th>
+                          <th>名称</th>
+                          <th style="width: 250px;">描述</th>
+                          <th>网址</th>
+                          <th style="width: 80px;">类型</th>
+                          <th>对方邮箱</th>
+                          <th style="width: 80px;">结识时间</th>
+                          <th style="width: 150px; text-align: right;">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="row in friendsItems" :key="row.source + '-' + row.id">
+                          <td style="width: 80px;">
+                            <div class="v3a-friends-avatar">
+                              <img v-if="row.avatar" :src="row.avatar" alt="" loading="eager" />
+                              <span v-else class="v3a-friends-avatar-text">{{ friendInitial(row.name) }}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <a v-if="row.url" :href="row.url" target="_blank" rel="noreferrer" class="v3a-friends-name">{{ row.name || '—' }}</a>
+                            <span v-else>{{ row.name || '—' }}</span>
+                          </td>
+                          <td style="width: 250px;">
+                            <div class="v3a-friends-desc">{{ row.description || '—' }}</div>
+                            <div v-if="row.source === 'apply' && row.message" class="v3a-muted v3a-friends-message">{{ row.message }}</div>
+                          </td>
+                          <td style="word-break: break-all;">
+                            <a v-if="row.url" :href="row.url" target="_blank" rel="noreferrer">{{ row.url }}</a>
+                            <span v-else class="v3a-muted">—</span>
+                            <div v-if="friendsHealth && friendsHealth[row.id]" class="v3a-muted v3a-friends-health">{{ friendsHealth[row.id].message || '' }}</div>
+                          </td>
+                          <td style="width: 80px;">{{ friendTypeLabel(row.type) }}</td>
+                          <td>
+                            <a v-if="row.email" :href="'mailto:' + row.email" class="v3a-muted">{{ row.email }}</a>
+                            <span v-else class="v3a-muted">—</span>
+                          </td>
+                          <td style="width: 80px;"><span>{{ formatTimeAgo(row.created) }}</span></td>
+                          <td style="width: 150px; text-align: right;">
+                            <template v-if="row.source === 'link'">
+                              <button class="v3a-mini-btn" type="button" @click="openFriendEditor(row)">编辑</button>
+                              <a href="###" class="v3a-link-danger" @click.prevent="deleteFriend(row)">移除</a>
+                            </template>
+                            <template v-else>
+                              <template v-if="friendsState === 1">
+                                <button class="v3a-mini-btn primary" type="button" @click="auditFriendApply(row, 'pass')">通过</button>
+                                <a href="###" class="v3a-link-danger" @click.prevent="auditFriendApply(row, 'reject')">拒绝</a>
+                              </template>
+                              <span v-else class="v3a-muted">—</span>
+                            </template>
+                          </td>
+                        </tr>
+                        <tr v-if="!friendsItems.length">
+                          <td colspan="8" class="v3a-muted" style="padding: 16px;">暂无数据</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="v3a-pagination">
+                  <button class="v3a-pagebtn" type="button" @click="friendsGoPage(friendsPagination.page - 1)" :disabled="friendsPagination.page <= 1">
+                    <span class="v3a-icon" v-html="ICONS.collapse"></span>
+                  </button>
+                  <div class="v3a-pagecurrent">{{ friendsPagination.page }}</div>
+                  <button class="v3a-pagebtn" type="button" @click="friendsGoPage(friendsPagination.page + 1)" :disabled="friendsPagination.page >= friendsPagination.pageCount">
+                    <span class="v3a-icon" v-html="ICONS.expand"></span>
+                  </button>
+                  <span class="v3a-muted">跳至</span>
+                  <input class="v3a-pagejump" type="number" min="1" :max="friendsPagination.pageCount" v-model.number="friendsPageJump" @keyup.enter="friendsGoPage(friendsPageJump)" @blur="friendsGoPage(friendsPageJump)" />
+                </div>
+
+                <div v-if="friendEditorOpen" class="v3a-modal-mask" @click.self="closeFriendEditor()">
+                  <div class="v3a-modal-card" role="dialog" aria-modal="true">
+                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeFriendEditor()">
+                      <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                    </button>
+                    <div class="v3a-modal-head">
+                      <div class="v3a-modal-title">{{ friendEditorForm.id ? '编辑友链' : '新增友链' }}</div>
+                    </div>
+                    <div class="v3a-modal-body">
+                      <div class="v3a-modal-form">
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">名称<span class="v3a-required">*</span></label>
+                          <input class="v3a-input v3a-modal-input" v-model="friendEditorForm.name" placeholder="输入名称..." />
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">网址<span class="v3a-required">*</span></label>
+                          <input class="v3a-input v3a-modal-input" v-model="friendEditorForm.url" placeholder="https://example.com" />
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">描述</label>
+                          <input class="v3a-input v3a-modal-input" v-model="friendEditorForm.description" placeholder="可留空..." />
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">头像</label>
+                          <input class="v3a-input v3a-modal-input" v-model="friendEditorForm.avatar" placeholder="https://... 或 data:image/..." />
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">邮箱</label>
+                          <input class="v3a-input v3a-modal-input" v-model="friendEditorForm.email" placeholder="可留空..." />
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">类型</label>
+                          <select class="v3a-select v3a-modal-input" v-model="friendEditorForm.type">
+                            <option value="friend">朋友</option>
+                            <option value="collection">收藏</option>
+                          </select>
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">状态</label>
+                          <select class="v3a-select v3a-modal-input" v-model.number="friendEditorForm.status">
+                            <option :value="1">朋友们</option>
+                            <option :value="2">过时的</option>
+                            <option :value="3">封禁的</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div v-if="friendEditorError" class="v3a-feedback" style="margin-top: 12px;">{{ friendEditorError }}</div>
+
+                      <div class="v3a-modal-actions">
+                        <button class="v3a-btn v3a-modal-btn" type="button" @click="closeFriendEditor()" :disabled="friendEditorSaving">取消</button>
+                        <button class="v3a-btn primary v3a-modal-btn" type="button" @click="submitFriendEditor()" :disabled="friendEditorSaving">{{ friendEditorSaving ? '保存中…' : '确定' }}</button>
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -834,6 +834,18 @@ a {
   height: 18px;
 }
 
+.v3a-iconaction.v3a-iconaction-lg {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.v3a-iconaction.v3a-iconaction-lg .v3a-icon,
+.v3a-iconaction.v3a-iconaction-lg .v3a-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
 .v3a-content {
   padding: 0;
   overflow: auto;
@@ -2977,6 +2989,120 @@ a {
 .v3a-pill.danger {
   border-color: rgba(208, 48, 80, 0.25);
   background: rgba(208, 48, 80, 0.08);
+}
+
+/* Friends */
+.v3a-friends-tabs {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: transparent;
+  border-bottom: 0;
+  margin-bottom: calc(var(--spacing) * 4);
+  height: 44px;
+}
+
+.v3a-friends-tab {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: #171717;
+  padding: 0;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  position: relative;
+}
+
+.v3a-friends-tab:hover {
+  background: transparent;
+}
+
+.v3a-friends-tab.active {
+  font-weight: 500;
+}
+
+.v3a-friends-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: #171717;
+}
+
+.v3a-friends-count {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.06);
+  color: #737373;
+  font-variant-numeric: tabular-nums;
+}
+
+.v3a-friends-count.danger {
+  background: rgba(208, 48, 80, 0.12);
+  color: var(--v3a-danger);
+}
+
+.v3a-friends-tablecard .bd {
+  overflow-x: auto;
+}
+
+.v3a-friends-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.06);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.v3a-friends-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.v3a-friends-avatar-text {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.v3a-friends-name {
+  color: rgba(0, 0, 0, 0.82);
+}
+
+.v3a-friends-name:hover {
+  text-decoration: underline;
+}
+
+.v3a-friends-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.v3a-friends-message,
+.v3a-friends-health {
+  font-size: 12px;
+  margin-top: 2px;
 }
 
 .v3a-kv {
