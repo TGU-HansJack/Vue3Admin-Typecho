@@ -673,6 +673,142 @@ class V3A_PostEditProxy extends \Widget\Contents\Post\Edit
 
         return $deleteCount;
     }
+
+    /**
+     * Override Typecho default meta count update to avoid UNSIGNED underflow.
+     *
+     * @throws \Typecho\Db\Exception
+     */
+    protected function setCategories(int $cid, array $categories, bool $beforeCount = true, bool $afterCount = true)
+    {
+        $categories = array_unique(array_map('trim', $categories));
+
+        /** Get existing categories */
+        $existCategories = array_column(
+            $this->db->fetchAll(
+                $this->db->select('table.metas.mid')
+                    ->from('table.metas')
+                    ->join('table.relationships', 'table.relationships.mid = table.metas.mid')
+                    ->where('table.relationships.cid = ?', $cid)
+                    ->where('table.metas.type = ?', 'category')
+            ),
+            'mid'
+        );
+
+        /** Delete existing categories */
+        if ($existCategories) {
+            foreach ($existCategories as $category) {
+                $this->db->query(
+                    $this->db->delete('table.relationships')
+                        ->where('cid = ?', $cid)
+                        ->where('mid = ?', $category)
+                );
+
+                if ($beforeCount) {
+                    $this->db->query(
+                        $this->db->update('table.metas')
+                            ->expression('count', 'CASE WHEN count > 0 THEN count - 1 ELSE 0 END', false)
+                            ->where('mid = ?', $category)
+                    );
+                }
+            }
+        }
+
+        /** Insert categories */
+        if ($categories) {
+            foreach ($categories as $category) {
+                if (
+                    !$this->db->fetchRow(
+                        $this->db->select('mid')->from('table.metas')->where('mid = ?', $category)->limit(1)
+                    )
+                ) {
+                    continue;
+                }
+
+                $this->db->query(
+                    $this->db->insert('table.relationships')->rows(['mid' => $category, 'cid' => $cid])
+                );
+
+                if ($afterCount) {
+                    $this->db->query(
+                        $this->db->update('table.metas')
+                            ->expression('count', 'count + 1')
+                            ->where('mid = ?', $category)
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Override Typecho default meta count update to avoid UNSIGNED underflow.
+     *
+     * @throws \Typecho\Db\Exception
+     */
+    protected function setTags(int $cid, ?string $tags, bool $beforeCount = true, bool $afterCount = true)
+    {
+        $tags = str_replace('，', ',', $tags ?? '');
+        $tags = array_unique(array_map('trim', explode(',', $tags)));
+        $tags = array_filter($tags, [\Typecho\Validate::class, 'xssCheck']);
+
+        /** Get existing tags */
+        $existTags = array_column(
+            $this->db->fetchAll(
+                $this->db->select('table.metas.mid')
+                    ->from('table.metas')
+                    ->join('table.relationships', 'table.relationships.mid = table.metas.mid')
+                    ->where('table.relationships.cid = ?', $cid)
+                    ->where('table.metas.type = ?', 'tag')
+            ),
+            'mid'
+        );
+
+        /** Delete existing tags */
+        if ($existTags) {
+            foreach ($existTags as $tag) {
+                if (0 == strlen($tag)) {
+                    continue;
+                }
+
+                $this->db->query(
+                    $this->db->delete('table.relationships')
+                        ->where('cid = ?', $cid)
+                        ->where('mid = ?', $tag)
+                );
+
+                if ($beforeCount) {
+                    $this->db->query(
+                        $this->db->update('table.metas')
+                            ->expression('count', 'CASE WHEN count > 0 THEN count - 1 ELSE 0 END', false)
+                            ->where('mid = ?', $tag)
+                    );
+                }
+            }
+        }
+
+        /** Scan & insert tags */
+        $insertTags = \Widget\Base\Metas::alloc()->scanTags($tags);
+
+        if ($insertTags) {
+            foreach ($insertTags as $tag) {
+                if (0 == strlen($tag)) {
+                    continue;
+                }
+
+                $this->db->query(
+                    $this->db->insert('table.relationships')->rows(['mid' => $tag, 'cid' => $cid])
+                );
+
+                if ($afterCount) {
+                    $this->db->query(
+                        $this->db->update('table.metas')
+                            ->expression('count', 'count + 1')
+                            ->where('mid = ?', $tag)
+                    );
+                }
+            }
+        }
+    }
 }
 
 class V3A_AttachmentEditProxy extends \Widget\Contents\Attachment\Edit
@@ -2102,6 +2238,45 @@ try {
         }
 
         try {
+            $isEditor = (bool) $user->pass('editor', true);
+
+            $itemsQuery = $db->select('cid', 'status')
+                ->from('table.contents')
+                ->where('type = ?', 'post')
+                ->where('cid IN ?', $cids);
+            if (!$isEditor) {
+                $itemsQuery->where('authorId = ?', $uid);
+            }
+
+            $items = $db->fetchAll($itemsQuery);
+            if (empty($items)) {
+                v3a_exit_json(0, ['updated' => 0]);
+            }
+
+            $allowedCids = array_values(array_unique(array_filter(array_map(
+                fn($row) => (int) ($row['cid'] ?? 0),
+                (array) $items
+            ), fn($v) => $v > 0)));
+
+            if (empty($allowedCids)) {
+                v3a_exit_json(0, ['updated' => 0]);
+            }
+
+            $cidOps = [];
+            foreach ($items as $row) {
+                $cid = (int) ($row['cid'] ?? 0);
+                if ($cid <= 0) {
+                    continue;
+                }
+
+                $oldStatus = (string) ($row['status'] ?? '');
+                if ($status === 'publish' && $oldStatus !== 'publish') {
+                    $cidOps[$cid] = '+';
+                } elseif ($status !== 'publish' && $oldStatus === 'publish') {
+                    $cidOps[$cid] = '-';
+                }
+            }
+
             $rows = [
                 'status' => $status,
                 'modified' => (int) ($options->time ?? time()),
@@ -2110,13 +2285,57 @@ try {
             $update = $db->update('table.contents')
                 ->rows($rows)
                 ->where('type = ?', 'post')
-                ->where('cid IN ?', $cids);
-
-            if (!$user->pass('editor', true)) {
+                ->where('cid IN ?', $allowedCids);
+            if (!$isEditor) {
                 $update->where('authorId = ?', $uid);
             }
 
             $updated = (int) $db->query($update);
+
+            if (!empty($cidOps)) {
+                $relRows = $db->fetchAll(
+                    $db->select('cid', 'mid')
+                        ->from('table.relationships')
+                        ->where('cid IN ?', array_keys($cidOps))
+                );
+
+                $midDelta = [];
+                foreach ((array) $relRows as $rel) {
+                    $cid = (int) ($rel['cid'] ?? 0);
+                    $mid = (int) ($rel['mid'] ?? 0);
+                    if ($cid <= 0 || $mid <= 0) {
+                        continue;
+                    }
+                    $op = $cidOps[$cid] ?? null;
+                    if ($op === '+') {
+                        $midDelta[$mid] = ($midDelta[$mid] ?? 0) + 1;
+                    } elseif ($op === '-') {
+                        $midDelta[$mid] = ($midDelta[$mid] ?? 0) - 1;
+                    }
+                }
+
+                foreach ($midDelta as $mid => $delta) {
+                    $delta = (int) $delta;
+                    if ($delta === 0) {
+                        continue;
+                    }
+
+                    if ($delta > 0) {
+                        $expr = 'count + ' . $delta;
+                    } else {
+                        $n = abs($delta);
+                        $expr = 'CASE WHEN count >= ' . $n . ' THEN count - ' . $n . ' ELSE 0 END';
+                    }
+
+                    $db->query(
+                        $db->update('table.metas')
+                            ->expression('count', $expr, false)
+                            ->where('mid = ? AND (type = ? OR type = ?)', (int) $mid, 'category', 'tag'),
+                        \Typecho\Db::WRITE
+                    );
+                }
+            }
+
             v3a_exit_json(0, ['updated' => $updated]);
         } catch (\Throwable $e) {
             v3a_exit_json(500, null, $e->getMessage());
