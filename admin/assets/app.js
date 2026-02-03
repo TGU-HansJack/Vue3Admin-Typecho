@@ -7783,6 +7783,11 @@
                       <div class="v3a-divider"></div>
 
                       <div class="v3a-kv">
+                        <div class="v3a-write-section-head" style="grid-column: 1 / -1;">
+                          <span class="v3a-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings-icon lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span>
+                          <span class="v3a-write-section-title">内容选项</span>
+                        </div>
+
                         <div class="v3a-muted">可见性</div>
                         <select class="v3a-select" v-model="postForm.visibility">
                           <option value="publish">公开</option>
@@ -7822,48 +7827,52 @@
 
                       <div class="v3a-divider"></div>
 
-                      <div style="display:flex; align-items:center; justify-content:space-between; gap: 8px;">
-                        <div class="title" style="font-weight: 600;">自定义字段</div>
+                      <div style="margin-top: calc(var(--spacing) * 6); display:flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <div class="v3a-write-section-head" style="margin: 0;">
+                          <span class="v3a-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hash-icon lucide-hash"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg></span>
+                          <span class="v3a-write-section-title">自定义字段</span>
+                        </div>
                         <button class="v3a-mini-btn" type="button" @click="addPostField()">新增字段</button>
                       </div>
 
-                      <div style="margin-top: 12px;">
-                        <table class="v3a-table">
-                          <thead>
-                            <tr>
-                              <th>名称</th>
-                              <th style="width: 90px;">类型</th>
-                              <th>值</th>
-                              <th style="width: 80px;">操作</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr v-for="(f, idx) in postForm.fields" :key="idx">
-                              <td><input class="v3a-input" v-model="f.name" placeholder="字段名（a-z0-9_）" /></td>
-                              <td>
-                                <select class="v3a-select" v-model="f.type">
-                                  <option value="str">文本</option>
-                                  <option value="int">整数</option>
-                                  <option value="float">小数</option>
-                                  <option value="json">JSON</option>
-                                </select>
-                              </td>
-                              <td>
-                                <input class="v3a-input" v-model="f.value" :placeholder="f.type === 'json' ? jsonExample : ''" />
-                              </td>
-                              <td>
-                                <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="removePostField(idx)">删除</button>
-                              </td>
-                            </tr>
-                            <tr v-if="!postForm.fields.length">
-                              <td colspan="4" class="v3a-muted">暂无自定义字段</td>
-                            </tr>
-                          </tbody>
-                        </table>
+                      <div class="v3a-card" style="margin-top: 12px;">
+                        <div class="bd" style="padding: 0;">
+                          <table class="v3a-table">
+                            <thead>
+                              <tr>
+                                <th>名称</th>
+                                <th style="width: 90px;">类型</th>
+                                <th>值</th>
+                                <th style="width: 80px;">操作</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr v-for="(f, idx) in postForm.fields" :key="idx">
+                                <td><input class="v3a-input" v-model="f.name" placeholder="字段名（a-z0-9_）" /></td>
+                                <td>
+                                  <select class="v3a-select" v-model="f.type">
+                                    <option value="str">文本</option>
+                                    <option value="int">整数</option>
+                                    <option value="float">小数</option>
+                                    <option value="json">JSON</option>
+                                  </select>
+                                </td>
+                                <td>
+                                  <input class="v3a-input" v-model="f.value" :placeholder="f.type === 'json' ? jsonExample : ''" />
+                                </td>
+                                <td>
+                                  <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="removePostField(idx)">删除</button>
+                                </td>
+                              </tr>
+                              <tr v-if="!postForm.fields.length">
+                                <td colspan="4" class="v3a-muted">暂无自定义字段</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
 
-                      <div class="v3a-divider"></div>
-                      <div class="v3a-muted">发布权限：{{ postCapabilities.canPublish ? '可直接发布' : '将以待审核方式提交' }}</div>
+                      <div class="v3a-muted" style="margin: calc(var(--spacing) * 4) 0;">发布权限：{{ postCapabilities.canPublish ? '可直接发布' : '将以待审核方式提交' }}</div>
                     </div>
                   </div>
               </div>
@@ -8397,6 +8406,11 @@
                       <div class="v3a-divider"></div>
 
                       <div class="v3a-kv">
+                        <div class="v3a-write-section-head" style="grid-column: 1 / -1;">
+                          <span class="v3a-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings-icon lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span>
+                          <span class="v3a-write-section-title">内容选项</span>
+                        </div>
+
                         <div class="v3a-muted">可见性</div>
                         <select class="v3a-select" v-model="pageForm.visibility">
                           <option value="publish">公开</option>
@@ -8429,48 +8443,51 @@
                       </div>
 
                       <div class="v3a-divider"></div>
-                      <div class="v3a-muted">发布权限：{{ pageCapabilities.canPublish ? '可直接发布' : '无权限' }}</div>
+                      <div class="v3a-muted" style="margin: calc(var(--spacing) * 4) 0;">发布权限：{{ pageCapabilities.canPublish ? '可直接发布' : '无权限' }}</div>
 
-                      <div class="v3a-divider"></div>
-
-                      <div style="display:flex; align-items:center; justify-content:space-between; gap: 8px;">
-                        <div class="title" style="font-weight: 600;">自定义字段</div>
+                      <div style="display:flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <div class="v3a-write-section-head" style="margin: 0;">
+                          <span class="v3a-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hash-icon lucide-hash"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg></span>
+                          <span class="v3a-write-section-title">自定义字段</span>
+                        </div>
                         <button class="v3a-mini-btn" type="button" @click="addPageField()">新增字段</button>
                       </div>
 
-                      <div style="margin-top: 12px;">
-                        <table class="v3a-table">
-                          <thead>
-                            <tr>
-                              <th>名称</th>
-                              <th style="width: 90px;">类型</th>
-                              <th>值</th>
-                              <th style="width: 80px;">操作</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr v-for="(f, idx) in pageForm.fields" :key="idx">
-                              <td><input class="v3a-input" v-model="f.name" placeholder="字段名（a-z0-9_）" /></td>
-                              <td>
-                                <select class="v3a-select" v-model="f.type">
-                                  <option value="str">文本</option>
-                                  <option value="int">整数</option>
-                                  <option value="float">小数</option>
-                                  <option value="json">JSON</option>
-                                </select>
-                              </td>
-                              <td>
-                                <input class="v3a-input" v-model="f.value" :placeholder="f.type === 'json' ? jsonExample : ''" />
-                              </td>
-                              <td>
-                                <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="removePageField(idx)">删除</button>
-                              </td>
-                            </tr>
-                            <tr v-if="!pageForm.fields.length">
-                              <td colspan="4" class="v3a-muted">暂无自定义字段</td>
-                            </tr>
-                          </tbody>
-                        </table>
+                      <div class="v3a-card" style="margin-top: 12px;">
+                        <div class="bd" style="padding: 0;">
+                          <table class="v3a-table">
+                            <thead>
+                              <tr>
+                                <th>名称</th>
+                                <th style="width: 90px;">类型</th>
+                                <th>值</th>
+                                <th style="width: 80px;">操作</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr v-for="(f, idx) in pageForm.fields" :key="idx">
+                                <td><input class="v3a-input" v-model="f.name" placeholder="字段名（a-z0-9_）" /></td>
+                                <td>
+                                  <select class="v3a-select" v-model="f.type">
+                                    <option value="str">文本</option>
+                                    <option value="int">整数</option>
+                                    <option value="float">小数</option>
+                                    <option value="json">JSON</option>
+                                  </select>
+                                </td>
+                                <td>
+                                  <input class="v3a-input" v-model="f.value" :placeholder="f.type === 'json' ? jsonExample : ''" />
+                                </td>
+                                <td>
+                                  <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="removePageField(idx)">删除</button>
+                                </td>
+                              </tr>
+                              <tr v-if="!pageForm.fields.length">
+                                <td colspan="4" class="v3a-muted">暂无自定义字段</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   </div>
