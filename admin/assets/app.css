@@ -1528,6 +1528,30 @@ a {
   min-height: 90px;
 }
 
+.v3a-json-field-editor {
+  height: 320px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #fff;
+}
+
+.v3a-json-field-editor .cm-editor {
+  height: 100%;
+}
+
+.v3a-json-field-editor .cm-scroller {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.v3a-json-field-editor .cm-gutters {
+  background: rgba(0, 0, 0, 0.02);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+
 .v3a-modal-feedback {
   font-size: 12px;
   color: var(--v3a-danger);

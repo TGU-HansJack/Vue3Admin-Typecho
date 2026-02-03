@@ -4469,6 +4469,171 @@
         pageForm.fields.splice(i, 1);
       }
 
+      // Custom field editor: JSON (CodeMirror 6 modal)
+      const jsonFieldEditorOpen = ref(false);
+      const jsonFieldEditorKind = ref(""); // post|page
+      const jsonFieldEditorIndex = ref(-1);
+      const jsonFieldEditorValueType = ref(""); // str|int|float|json
+      const jsonFieldEditorDraft = ref("");
+      const jsonFieldEditorError = ref("");
+      const jsonFieldEditorEl = ref(null);
+      let jsonFieldEditorView = null;
+      let jsonFieldEditorApplying = false;
+
+      function getJsonFieldEditorTarget() {
+        const kind = String(jsonFieldEditorKind.value || "");
+        const idx = Number(jsonFieldEditorIndex.value || 0);
+        const list = kind === "page" ? pageForm.fields : postForm.fields;
+        if (!Array.isArray(list) || idx < 0 || idx >= list.length) return null;
+        const f = list[idx];
+        if (!f || typeof f !== "object") return null;
+        return f;
+      }
+
+      function destroyJsonFieldEditor() {
+        try {
+          if (jsonFieldEditorView) jsonFieldEditorView.destroy();
+        } catch (e) {}
+        jsonFieldEditorView = null;
+      }
+
+      async function initJsonFieldEditor() {
+        if (jsonFieldEditorView) return;
+        const el = jsonFieldEditorEl.value;
+        if (!el) return;
+        try {
+          const cm = await ensureCodeMirror6();
+          const { EditorView, EditorState } = cm;
+
+          const updateListener = EditorView.updateListener.of((update) => {
+            if (!update || !update.docChanged) return;
+            if (jsonFieldEditorApplying) return;
+            jsonFieldEditorApplying = true;
+            try {
+              jsonFieldEditorDraft.value = update.state.doc.toString();
+              jsonFieldEditorError.value = "";
+            } finally {
+              jsonFieldEditorApplying = false;
+            }
+          });
+
+          const editorTheme = EditorView.theme({
+            "&": { height: "100%" },
+            ".cm-scroller": { overflow: "auto" },
+          });
+
+          const valueType = String(jsonFieldEditorValueType.value || "");
+          const langExt = valueType === "json" ? cm.json() : null;
+
+          const state = EditorState.create({
+            doc: String(jsonFieldEditorDraft.value ?? ""),
+            extensions: [
+              cm.basicSetup,
+              EditorView.lineWrapping,
+              cm.syntaxHighlighting(cm.defaultHighlightStyle, { fallback: true }),
+              ...(langExt ? [langExt] : []),
+              cm.keymap.of([
+                {
+                  key: "Mod-s",
+                  preventDefault: true,
+                  run: () => {
+                    applyJsonFieldEditor();
+                    return true;
+                  },
+                },
+              ]),
+              updateListener,
+              editorTheme,
+            ],
+          });
+
+          jsonFieldEditorView = new EditorView({
+            state,
+            parent: el,
+          });
+        } catch (e) {
+          console.error(e);
+          destroyJsonFieldEditor();
+        }
+      }
+
+      function updateJsonFieldEditorContent() {
+        const view = jsonFieldEditorView;
+        if (!view) return;
+        if (jsonFieldEditorApplying) return;
+
+        const next = String(jsonFieldEditorDraft.value ?? "");
+        const current = view.state.doc.toString();
+        if (next === current) return;
+
+        jsonFieldEditorApplying = true;
+        try {
+          view.dispatch({
+            changes: { from: 0, to: current.length, insert: next },
+          });
+        } finally {
+          jsonFieldEditorApplying = false;
+        }
+      }
+
+      async function openJsonFieldEditor(kind, index) {
+        const k = kind === "page" ? "page" : "post";
+        const idx = Number(index || 0);
+        const list = k === "page" ? pageForm.fields : postForm.fields;
+        if (!Array.isArray(list) || idx < 0 || idx >= list.length) return;
+        const f = list[idx];
+        if (!f || typeof f !== "object") return;
+
+        jsonFieldEditorKind.value = k;
+        jsonFieldEditorIndex.value = idx;
+        jsonFieldEditorValueType.value = String(f.type || "str");
+        jsonFieldEditorDraft.value = String(f.value ?? "");
+        jsonFieldEditorError.value = "";
+        jsonFieldEditorOpen.value = true;
+
+        await nextTick();
+        await initJsonFieldEditor();
+        updateJsonFieldEditorContent();
+        try {
+          if (jsonFieldEditorView) jsonFieldEditorView.focus();
+        } catch (e) {}
+      }
+
+      function closeJsonFieldEditor() {
+        jsonFieldEditorOpen.value = false;
+        jsonFieldEditorKind.value = "";
+        jsonFieldEditorIndex.value = -1;
+        jsonFieldEditorValueType.value = "";
+        jsonFieldEditorDraft.value = "";
+        jsonFieldEditorError.value = "";
+        destroyJsonFieldEditor();
+      }
+
+      function applyJsonFieldEditor() {
+        const target = getJsonFieldEditorTarget();
+        if (!target) {
+          closeJsonFieldEditor();
+          return;
+        }
+
+        const raw = String(jsonFieldEditorDraft.value ?? "");
+        const s = raw.trim();
+
+        if (String(target.type || "") === "json") {
+          if (s && (s.startsWith("{") || s.startsWith("["))) {
+            try {
+              JSON.parse(s);
+            } catch (e) {
+              jsonFieldEditorError.value = "JSON 格式错误，请检查后再保存。";
+              return;
+            }
+          }
+        }
+
+        target.value = raw;
+        closeJsonFieldEditor();
+      }
+
       async function loadPageEditorFromRoute() {
         pageLoading.value = true;
         pageError.value = "";
@@ -6790,6 +6955,12 @@
         SETTINGS,
         settingsItems,
         jsonExample,
+        jsonFieldEditorOpen,
+        jsonFieldEditorError,
+        jsonFieldEditorEl,
+        openJsonFieldEditor,
+        closeJsonFieldEditor,
+        applyJsonFieldEditor,
         toasts,
         toastIcon,
         dismissToast,
@@ -7858,7 +8029,7 @@
                                   </select>
                                 </td>
                                 <td>
-                                  <input class="v3a-input" v-model="f.value" :placeholder="f.type === 'json' ? jsonExample : ''" />
+                                  <button class="v3a-mini-btn" type="button" @click="openJsonFieldEditor('post', idx)">编辑</button>
                                 </td>
                                 <td>
                                   <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="removePostField(idx)">删除</button>
@@ -8476,7 +8647,7 @@
                                   </select>
                                 </td>
                                 <td>
-                                  <input class="v3a-input" v-model="f.value" :placeholder="f.type === 'json' ? jsonExample : ''" />
+                                  <button class="v3a-mini-btn" type="button" @click="openJsonFieldEditor('page', idx)">编辑</button>
                                 </td>
                                 <td>
                                   <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="removePageField(idx)">删除</button>
@@ -10737,6 +10908,32 @@
             </template>
           </section>
         </main>
+
+        <div v-if="jsonFieldEditorOpen" class="v3a-modal-mask" @click.self="closeJsonFieldEditor()">
+          <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 860px;">
+            <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeJsonFieldEditor()">
+              <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+            </button>
+
+            <div class="v3a-modal-head">
+              <div class="v3a-modal-title">编辑字段值</div>
+            </div>
+
+            <div class="v3a-modal-body">
+              <div class="v3a-modal-form">
+                <div class="v3a-modal-item">
+                  <div ref="jsonFieldEditorEl" class="v3a-json-field-editor"></div>
+                  <div v-if="jsonFieldEditorError" class="v3a-modal-feedback">{{ jsonFieldEditorError }}</div>
+                </div>
+              </div>
+
+              <div class="v3a-modal-actions">
+                <button class="v3a-btn v3a-modal-btn" type="button" @click="closeJsonFieldEditor()">取消</button>
+                <button class="v3a-btn primary v3a-modal-btn" type="button" @click="applyJsonFieldEditor()">确定</button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div v-if="permissionInfoOpen" class="v3a-modal-mask" @click.self="closePermissionInfo()">
           <div class="v3a-modal-card v3a-permission-info-modal" role="dialog" aria-modal="true">
