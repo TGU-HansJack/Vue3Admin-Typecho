@@ -104,6 +104,9 @@
     if (k === "maintenance-backup") {
       return v3aAclEnabled("maintenance.manage", true);
     }
+    if (k === "maintenance-upgrade") {
+      return v3aAclEnabled("maintenance.manage", true);
+    }
 
     return true;
   }
@@ -242,6 +245,8 @@
     info: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>`,
     home: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-house-icon lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
     logout: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-door-open-icon lucide-door-open"><path d="M11 20H2"/><path d="M11 4.562v16.157a1 1 0 0 0 1.242.97L19 20V5.562a2 2 0 0 0-1.515-1.94l-4-1A2 2 0 0 0 11 4.561z"/><path d="M11 4H8a2 2 0 0 0-2 2v14"/><path d="M14 12h.01"/><path d="M22 20h-3"/></svg>`,
+    hardDriveDownload: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hard-drive-download-icon lucide-hard-drive-download"><path d="M12 2v8"/><path d="m16 6-4 4-4-4"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 18h.01"/><path d="M10 18h.01"/></svg>`,
+    wifiCog: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wifi-cog-icon lucide-wifi-cog"><path d="m14.305 19.53.923-.382"/><path d="m15.228 16.852-.923-.383"/><path d="m16.852 15.228-.383-.923"/><path d="m16.852 20.772-.383.924"/><path d="m19.148 15.228.383-.923"/><path d="m19.53 21.696-.382-.924"/><path d="M2 7.82a15 15 0 0 1 20 0"/><path d="m20.772 16.852.924-.383"/><path d="m20.772 19.148.924.383"/><path d="M5 11.858a10 10 0 0 1 11.5-1.785"/><path d="M8.5 15.429a5 5 0 0 1 2.413-1.31"/><circle cx="18" cy="18" r="3"/></svg>`,
   };
 
   const SETTINGS = [
@@ -340,6 +345,7 @@
       access: "administrator",
       children: [
         { key: "maintenance-backup", label: "备份", to: "/maintenance/backup", access: "administrator" },
+        { key: "maintenance-upgrade", label: "升级", to: "/maintenance/upgrade", access: "administrator" },
       ],
     },
   ];
@@ -3871,6 +3877,155 @@
           toastError(backupError.value);
         } finally {
           backupWorking.value = false;
+        }
+      }
+
+      // Upgrade (maintenance)
+      const upgradeLoading = ref(false);
+      const upgradeWorking = ref(false);
+      const upgradeError = ref("");
+      const upgradeCurrent = ref(null);
+      const upgradeLatest = ref(null);
+      const upgradeReleases = ref([]);
+      const upgradeUpdateAvailable = ref(0);
+      const upgradeLatestCommit = ref(null);
+      const upgradeStrictUpdateAvailable = ref(0);
+
+      const upgradeSettingsOpen = ref(false);
+      const upgradeSettingsLoading = ref(false);
+      const upgradeSettingsSaving = ref(false);
+      const upgradeSettingsForm = reactive({
+        strict: 0,
+        globalReplace: 0,
+      });
+
+      async function fetchUpgradeSettings() {
+        if (upgradeSettingsLoading.value) return;
+        upgradeSettingsLoading.value = true;
+        try {
+          const data = await apiGet("upgrade.settings.get");
+          upgradeSettingsForm.strict = Number(data?.strict || 0) ? 1 : 0;
+          upgradeSettingsForm.globalReplace = Number(data?.globalReplace || 0) ? 1 : 0;
+        } catch (e) {
+          // ignore, keep defaults
+        } finally {
+          upgradeSettingsLoading.value = false;
+        }
+      }
+
+      async function fetchUpgradeInfo() {
+        if (upgradeLoading.value) return;
+        upgradeLoading.value = true;
+        upgradeError.value = "";
+        try {
+          const data = await apiGet("upgrade.releases", {
+            strict: upgradeSettingsForm.strict ? 1 : 0,
+          });
+          upgradeCurrent.value = data?.current || null;
+          upgradeLatest.value = data?.latest || null;
+          upgradeReleases.value = Array.isArray(data?.releases) ? data.releases : [];
+          upgradeUpdateAvailable.value = Number(data?.updateAvailable || 0) ? 1 : 0;
+          upgradeLatestCommit.value = data?.latestCommit || null;
+          upgradeStrictUpdateAvailable.value = Number(data?.strictUpdateAvailable || 0) ? 1 : 0;
+        } catch (e) {
+          upgradeError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          upgradeLoading.value = false;
+        }
+      }
+
+      function isoToTs(iso) {
+        const s = String(iso || "").trim();
+        if (!s) return 0;
+        const ms = Date.parse(s);
+        if (!Number.isFinite(ms)) return 0;
+        return Math.floor(ms / 1000);
+      }
+
+      function openExternal(url) {
+        const u = String(url || "").trim();
+        if (!u) return;
+        try {
+          window.open(u, "_blank", "noreferrer");
+        } catch (e) {}
+      }
+
+      async function runUpgrade() {
+        if (upgradeWorking.value) return;
+
+        const hasUpdate = upgradeSettingsForm.strict
+          ? !!upgradeStrictUpdateAvailable.value
+          : !!upgradeUpdateAvailable.value;
+        if (!hasUpdate) {
+          toastInfo("当前已是最新版本");
+          return;
+        }
+
+        const strict = upgradeSettingsForm.strict ? 1 : 0;
+        const globalReplace = upgradeSettingsForm.globalReplace ? 1 : 0;
+        const modeLabel = strict ? "严格升级（commit）" : "Release 升级";
+        const replaceLabel = globalReplace ? "开启全局替换" : "关闭全局替换";
+
+        if (!confirm(`确认开始升级？\\n\\n模式：${modeLabel}\\n${replaceLabel}\\n\\n升级过程中请勿关闭页面。`)) {
+          return;
+        }
+
+        upgradeWorking.value = true;
+        try {
+          const data = await apiPost("upgrade.run", {
+            strict,
+            globalReplace,
+          });
+
+          toastSuccess("升级完成", {
+            actionLabel: "刷新页面",
+            action: () => {
+              try {
+                location.reload();
+              } catch (e) {}
+            },
+            duration: 0,
+          });
+
+          if (data?.message) {
+            toastInfo(String(data.message || ""), { duration: 6000 });
+          }
+
+          await fetchUpgradeSettings();
+          await fetchUpgradeInfo();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "升级失败", { duration: 0 });
+        } finally {
+          upgradeWorking.value = false;
+        }
+      }
+
+      async function openUpgradeSettings() {
+        upgradeSettingsOpen.value = true;
+        await fetchUpgradeSettings();
+      }
+
+      function closeUpgradeSettings() {
+        upgradeSettingsOpen.value = false;
+      }
+
+      async function saveUpgradeSettings() {
+        if (upgradeSettingsSaving.value) return;
+        upgradeSettingsSaving.value = true;
+        try {
+          const data = await apiPost("upgrade.settings.save", {
+            strict: upgradeSettingsForm.strict ? 1 : 0,
+            globalReplace: upgradeSettingsForm.globalReplace ? 1 : 0,
+          });
+          upgradeSettingsForm.strict = Number(data?.strict || 0) ? 1 : 0;
+          upgradeSettingsForm.globalReplace = Number(data?.globalReplace || 0) ? 1 : 0;
+          toastSuccess("已保存");
+          upgradeSettingsOpen.value = false;
+          await fetchUpgradeInfo();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "保存失败");
+        } finally {
+          upgradeSettingsSaving.value = false;
         }
       }
 
@@ -8901,6 +9056,10 @@
           if (p === "/maintenance/backup") {
             await fetchBackups();
           }
+          if (p === "/maintenance/upgrade") {
+            await fetchUpgradeSettings();
+            await fetchUpgradeInfo();
+          }
           if (p === "/extras/shoutu") {
             await fetchShouTuTaStats();
             startShouTuTaPolling();
@@ -9064,6 +9223,10 @@
         }
         if (routePath.value === "/maintenance/backup") {
           await fetchBackups();
+        }
+        if (routePath.value === "/maintenance/upgrade") {
+          await fetchUpgradeSettings();
+          await fetchUpgradeInfo();
         }
         if (routePath.value === "/extras/shoutu") {
           await fetchShouTuTaStats();
@@ -9360,6 +9523,26 @@
         restoreBackupFromServer,
         onBackupUploadChange,
         restoreBackupFromUpload,
+        upgradeLoading,
+        upgradeWorking,
+        upgradeError,
+        upgradeCurrent,
+        upgradeLatest,
+        upgradeReleases,
+        upgradeUpdateAvailable,
+        upgradeLatestCommit,
+        upgradeStrictUpdateAvailable,
+        upgradeSettingsOpen,
+        upgradeSettingsLoading,
+        upgradeSettingsSaving,
+        upgradeSettingsForm,
+        fetchUpgradeInfo,
+        isoToTs,
+        openExternal,
+        runUpgrade,
+        openUpgradeSettings,
+        closeUpgradeSettings,
+        saveUpgradeSettings,
         usersLoading,
         usersError,
         usersItems,
@@ -12325,6 +12508,171 @@
                         </tr>
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/maintenance/upgrade'">
+              <div class="v3a-container">
+                <div class="v3a-pagehead">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
+                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    </button>
+                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="upgradeLoading" @click="fetchUpgradeInfo()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                    <button class="v3a-actionbtn" type="button" title="设置" @click="openUpgradeSettings()">
+                      <span class="v3a-icon" v-html="ICONS.wifiCog"></span>
+                    </button>
+                    <button
+                      class="v3a-actionbtn primary"
+                      type="button"
+                      :title="upgradeWorking ? '升级中…' : '升级到最新'"
+                      :disabled="upgradeWorking || upgradeLoading || !(upgradeSettingsForm.strict ? upgradeStrictUpdateAvailable : upgradeUpdateAvailable)"
+                      @click="runUpgrade()"
+                    >
+                      <span class="v3a-icon" v-html="ICONS.hardDriveDownload"></span>
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="upgradeError" class="v3a-alert" style="margin-bottom: 12px;">{{ upgradeError }}</div>
+
+                <div v-if="upgradeLoading" class="v3a-muted">正在加载…</div>
+
+                <template v-else>
+                  <div class="v3a-grid two">
+                    <div class="v3a-card">
+                      <div class="hd"><div class="title">当前版本</div></div>
+                      <div class="bd v3a-muted" style="line-height: 1.8;">
+                        <div>
+                          版本：<span style="font-variant-numeric: tabular-nums;">{{ (upgradeCurrent && (upgradeCurrent.rawVersion || upgradeCurrent.version)) || '—' }}</span>
+                        </div>
+                        <div v-if="upgradeCurrent && upgradeCurrent.deployVersion">部署标记：<code>{{ upgradeCurrent.deployVersion }}</code></div>
+                        <div v-if="upgradeCurrent && upgradeCurrent.build">构建时间：{{ formatTime(upgradeCurrent.build, settingsData.site.timezone) }}</div>
+                      </div>
+                    </div>
+
+                    <div class="v3a-card">
+                      <div class="hd" style="display:flex; align-items:center; justify-content: space-between; gap: 12px;">
+                        <div class="title">最新版本</div>
+                        <span v-if="upgradeSettingsForm.strict ? upgradeStrictUpdateAvailable : upgradeUpdateAvailable" class="v3a-pill warn">有更新</span>
+                        <span v-else class="v3a-pill success">已是最新</span>
+                      </div>
+                      <div class="bd v3a-muted" style="line-height: 1.8;">
+                        <template v-if="upgradeSettingsForm.strict && upgradeLatestCommit">
+                          <div>最新 commit：<span style="font-variant-numeric: tabular-nums;">{{ upgradeLatestCommit.short }}</span></div>
+                          <div v-if="upgradeLatestCommit.date">提交时间：{{ formatTime(isoToTs(upgradeLatestCommit.date), settingsData.site.timezone) }}</div>
+                          <div v-if="upgradeLatestCommit.message" style="margin-top: 6px; white-space: pre-wrap;">{{ upgradeLatestCommit.message }}</div>
+                        </template>
+                        <template v-else>
+                          <div>最新 Release：<span style="font-variant-numeric: tabular-nums;">{{ (upgradeLatest && upgradeLatest.tag) || '—' }}</span></div>
+                          <div v-if="upgradeLatest && upgradeLatest.publishedAt">发布时间：{{ formatTime(isoToTs(upgradeLatest.publishedAt), settingsData.site.timezone) }}</div>
+                          <div v-if="upgradeLatest && upgradeLatest.name" style="margin-top: 6px;">{{ upgradeLatest.name }}</div>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-if="upgradeSettingsForm.strict ? upgradeStrictUpdateAvailable : upgradeUpdateAvailable" class="v3a-card" style="margin-top: calc(var(--spacing) * 4);">
+                    <div class="hd"><div class="title">更新内容</div></div>
+                    <div class="bd">
+                      <template v-if="upgradeSettingsForm.strict && upgradeLatestCommit">
+                        <pre class="mono" style="margin: 0; white-space: pre-wrap;">{{ upgradeLatestCommit.message || '—' }}</pre>
+                        <div v-if="upgradeLatestCommit.url" style="margin-top: 10px;">
+                          <button class="v3a-mini-btn" type="button" @click="openExternal(upgradeLatestCommit.url)">在 GitHub 查看</button>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <pre class="mono" style="margin: 0; white-space: pre-wrap;">{{ (upgradeLatest && upgradeLatest.body) ? upgradeLatest.body : '（该 release 暂无说明）' }}</pre>
+                      </template>
+                    </div>
+                  </div>
+
+                  <div class="v3a-card" style="margin-top: calc(var(--spacing) * 4);">
+                    <div class="hd"><div class="title">Release 列表</div></div>
+                    <div class="bd" style="padding: 0;">
+                      <table class="v3a-table v3a-posts-table">
+                        <thead>
+                          <tr>
+                            <th style="width: 140px;">版本</th>
+                            <th>标题</th>
+                            <th style="text-align:center; width: 160px;">发布时间</th>
+                            <th style="text-align:right; width: 90px;">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="r in upgradeReleases" :key="r.tag">
+                            <td style="white-space: nowrap;">
+                              <span style="font-variant-numeric: tabular-nums;">{{ r.tag }}</span>
+                              <span v-if="r.isPrerelease" class="v3a-pill warn" style="margin-left: 6px;">pre</span>
+                              <span v-if="r.isDraft" class="v3a-pill" style="margin-left: 6px;">draft</span>
+                            </td>
+                            <td style="word-break: break-all;">{{ r.name || '—' }}</td>
+                            <td style="text-align:center; white-space: nowrap;">{{ r.publishedAt ? formatTime(isoToTs(r.publishedAt), settingsData.site.timezone) : '—' }}</td>
+                            <td style="text-align:right; white-space: nowrap;">
+                              <button class="v3a-mini-btn" type="button" @click="openExternal(r.url)">查看</button>
+                            </td>
+                          </tr>
+                          <tr v-if="!upgradeReleases.length">
+                            <td colspan="4" class="v3a-muted" style="padding: 16px;">暂无 release 数据</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </template>
+
+                <div v-if="upgradeSettingsOpen" class="v3a-modal-mask" @click.self="closeUpgradeSettings()">
+                  <div class="v3a-modal-card" role="dialog" aria-modal="true">
+                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeUpgradeSettings()">
+                      <span class="v3a-icon" v-html="ICONS.close"></span>
+                    </button>
+                    <div class="v3a-modal-head">
+                      <div class="v3a-modal-title">升级设置</div>
+                      <div class="v3a-modal-subtitle">默认关闭，按需开启</div>
+                    </div>
+                    <div class="v3a-modal-body">
+                      <div class="v3a-settings-fields" style="border-top: 0; border-bottom: 0;">
+                        <div class="v3a-settings-row">
+                          <div class="v3a-settings-row-label">
+                            <label>严格升级</label>
+                            <div class="v3a-settings-row-help">不以 release 为准，直接对比 GitHub 默认分支最新 commit。</div>
+                          </div>
+                          <div class="v3a-settings-row-control">
+                            <label class="v3a-switch">
+                              <input type="checkbox" v-model="upgradeSettingsForm.strict" :true-value="1" :false-value="0" :disabled="upgradeSettingsSaving" />
+                              <span class="v3a-switch-ui"></span>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div class="v3a-settings-row">
+                          <div class="v3a-settings-row-label">
+                            <label>全局替换</label>
+                            <div class="v3a-settings-row-help">升级时同步替换站点根目录 <code>/Vue3Admin/</code>（无需停用/启用插件）。</div>
+                          </div>
+                          <div class="v3a-settings-row-control">
+                            <label class="v3a-switch">
+                              <input type="checkbox" v-model="upgradeSettingsForm.globalReplace" :true-value="1" :false-value="0" :disabled="upgradeSettingsSaving" />
+                              <span class="v3a-switch-ui"></span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="v3a-modal-actions">
+                        <button class="v3a-btn v3a-modal-btn" type="button" @click="closeUpgradeSettings()" :disabled="upgradeSettingsSaving">取消</button>
+                        <button class="v3a-btn primary v3a-modal-btn" type="button" @click="saveUpgradeSettings()" :disabled="upgradeSettingsSaving">
+                          {{ upgradeSettingsSaving ? "保存中…" : "保存" }}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

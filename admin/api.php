@@ -97,6 +97,385 @@ function v3a_gravatar_mirror_url(string $mail, int $size = 64, string $default =
     return $qs !== '' ? ($base . '?' . $qs) : $base;
 }
 
+function v3a_normalize_semver(string $ver): string
+{
+    $ver = trim($ver);
+    if ($ver === '') {
+        return '';
+    }
+
+    // v1.2.3 => 1.2.3
+    $ver = preg_replace('/^[vV]/', '', $ver);
+    $ver = preg_replace('/[^0-9A-Za-z.+-]/', '', $ver);
+    return trim($ver);
+}
+
+/**
+ * @return array{rawVersion:string,version:string,deployVersion:string,build:int}
+ */
+function v3a_vue3admin_version_info(): array
+{
+    $deployVersion = '';
+    $build = 0;
+
+    try {
+        $adminDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'Vue3Admin';
+        $markerPath = $adminDir . DIRECTORY_SEPARATOR . '.v3a_deploy_version';
+        if (is_file($markerPath)) {
+            $deployVersion = trim((string) @file_get_contents($markerPath));
+            if ($deployVersion !== '') {
+                $parts = explode('+', $deployVersion, 2);
+                $build = isset($parts[1]) ? (int) $parts[1] : 0;
+            }
+        }
+    } catch (\Throwable $e) {
+    }
+
+    $rawVersion = '';
+    if ($deployVersion !== '') {
+        $parts = explode('+', $deployVersion, 2);
+        $rawVersion = trim((string) ($parts[0] ?? ''));
+    }
+
+    if ($rawVersion === '') {
+        // Fallback: parse from plugin file (usr/plugins/Vue3Admin/Plugin.php)
+        try {
+            $pluginFile = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'Vue3Admin' . DIRECTORY_SEPARATOR . 'Plugin.php';
+            if (is_file($pluginFile)) {
+                $raw = (string) @file_get_contents($pluginFile);
+                if ($raw !== '' && preg_match('/private\\s+const\\s+VERSION\\s*=\\s*[\\\'\\"]([^\\\'\\"]+)[\\\'\\"]\\s*;/', $raw, $m)) {
+                    $rawVersion = (string) ($m[1] ?? '');
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+    }
+
+    $rawVersion = trim($rawVersion);
+    $version = v3a_normalize_semver($rawVersion);
+
+    return [
+        'rawVersion' => $rawVersion,
+        'version' => $version,
+        'deployVersion' => $deployVersion,
+        'build' => (int) $build,
+    ];
+}
+
+/**
+ * @return array{status:int,body:string}
+ */
+function v3a_http_get(string $url, array $headers = [], int $timeout = 8): array
+{
+    $timeout = max(3, min(30, (int) $timeout));
+
+    $headerLines = [];
+    foreach ($headers as $k => $v) {
+        $k = trim((string) $k);
+        if ($k === '') {
+            continue;
+        }
+        $headerLines[] = $k . ': ' . trim((string) $v);
+    }
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headerLines);
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = (string) curl_error($ch);
+        curl_close($ch);
+
+        if (!is_string($body)) {
+            throw new \RuntimeException('HTTP request failed');
+        }
+        if ($status >= 400) {
+            throw new \RuntimeException('HTTP ' . $status . ($err !== '' ? (': ' . $err) : ''));
+        }
+        return ['status' => $status, 'body' => $body];
+    }
+
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => $timeout,
+            'header' => implode("\r\n", $headerLines),
+        ],
+    ]);
+    $body = @file_get_contents($url, false, $ctx);
+    if (!is_string($body)) {
+        throw new \RuntimeException('HTTP request failed');
+    }
+    return ['status' => 200, 'body' => $body];
+}
+
+/**
+ * @return mixed
+ */
+function v3a_http_get_json(string $url, array $headers = [], int $timeout = 8)
+{
+    $res = v3a_http_get($url, $headers, $timeout);
+    $decoded = json_decode((string) ($res['body'] ?? ''), true);
+    if ($decoded === null) {
+        throw new \RuntimeException('Invalid JSON response');
+    }
+    return $decoded;
+}
+
+function v3a_mkdir_p(string $dir): void
+{
+    if ($dir === '') {
+        return;
+    }
+    if (is_dir($dir)) {
+        return;
+    }
+    @mkdir($dir, 0755, true);
+}
+
+function v3a_rmdir_recursive(string $dir): void
+{
+    $dir = rtrim($dir, '/\\');
+    if ($dir === '' || !is_dir($dir)) {
+        return;
+    }
+
+    try {
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($it as $item) {
+            if ($item->isDir()) {
+                @rmdir($item->getPathname());
+            } else {
+                @unlink($item->getPathname());
+            }
+        }
+    } catch (\Throwable $e) {
+    }
+
+    @rmdir($dir);
+}
+
+function v3a_copy_directory(string $source, string $target): void
+{
+    $source = rtrim($source, '/\\');
+    $target = rtrim($target, '/\\');
+    if ($source === '' || $target === '' || !is_dir($source)) {
+        throw new \RuntimeException('Copy source dir not found');
+    }
+
+    v3a_mkdir_p($target);
+    if (!is_dir($target)) {
+        throw new \RuntimeException('Cannot create dir: ' . $target);
+    }
+
+    $iterator = new \RecursiveIteratorIterator(
+        new \RecursiveDirectoryIterator($source, \FilesystemIterator::SKIP_DOTS),
+        \RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $subPath = $iterator->getSubPathName();
+        $destPath = $target . DIRECTORY_SEPARATOR . $subPath;
+
+        if ($item->isDir()) {
+            if (!is_dir($destPath)) {
+                @mkdir($destPath, 0755, true);
+            }
+            continue;
+        }
+
+        $dir = dirname($destPath);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        if (!@copy($item->getPathname(), $destPath)) {
+            throw new \RuntimeException('Cannot copy file: ' . $destPath);
+        }
+    }
+}
+
+function v3a_http_download_to_file(string $url, string $destPath, array $headers = [], int $timeout = 30): void
+{
+    $timeout = max(5, min(120, (int) $timeout));
+    $destDir = dirname($destPath);
+    v3a_mkdir_p($destDir);
+
+    $headerLines = [];
+    foreach ($headers as $k => $v) {
+        $k = trim((string) $k);
+        if ($k === '') {
+            continue;
+        }
+        $headerLines[] = $k . ': ' . trim((string) $v);
+    }
+
+    $fp = @fopen($destPath, 'wb');
+    if (!$fp) {
+        throw new \RuntimeException('Cannot write file: ' . $destPath);
+    }
+
+    try {
+        if (function_exists('curl_init')) {
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_FILE, $fp);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout);
+            curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headerLines);
+            $ok = curl_exec($ch);
+            $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err = (string) curl_error($ch);
+            curl_close($ch);
+            if (!$ok || $status >= 400) {
+                throw new \RuntimeException('HTTP ' . $status . ($err !== '' ? (': ' . $err) : ''));
+            }
+            return;
+        }
+
+        $ctx = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => $timeout,
+                'header' => implode("\r\n", $headerLines),
+            ],
+        ]);
+        $in = @fopen($url, 'rb', false, $ctx);
+        if (!$in) {
+            throw new \RuntimeException('HTTP request failed');
+        }
+        while (!feof($in)) {
+            $buf = fread($in, 8192);
+            if ($buf === false) {
+                break;
+            }
+            fwrite($fp, $buf);
+        }
+        fclose($in);
+    } finally {
+        fclose($fp);
+    }
+}
+
+function v3a_extract_zip_to(string $zipPath, string $destDir): void
+{
+    v3a_mkdir_p($destDir);
+    if (!class_exists('\\ZipArchive')) {
+        throw new \RuntimeException('Missing ZipArchive extension');
+    }
+    $zip = new \ZipArchive();
+    $code = $zip->open($zipPath);
+    if ($code !== true) {
+        throw new \RuntimeException('Open zip failed');
+    }
+    if (!$zip->extractTo($destDir)) {
+        $zip->close();
+        throw new \RuntimeException('Extract zip failed');
+    }
+    $zip->close();
+}
+
+function v3a_find_vue3admin_plugin_root(string $baseDir): string
+{
+    $baseDir = rtrim($baseDir, '/\\');
+    if ($baseDir === '' || !is_dir($baseDir)) {
+        return '';
+    }
+
+    try {
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($baseDir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($it as $item) {
+            if (!$item->isFile()) {
+                continue;
+            }
+            if (strtolower($item->getFilename()) !== 'plugin.php') {
+                continue;
+            }
+            $path = $item->getPathname();
+            $raw = @file_get_contents($path);
+            if (!is_string($raw) || $raw === '') {
+                continue;
+            }
+            if (strpos($raw, 'namespace TypechoPlugin\\Vue3Admin') === false) {
+                continue;
+            }
+            if (strpos($raw, 'class Plugin') === false) {
+                continue;
+            }
+            return dirname($path);
+        }
+    } catch (\Throwable $e) {
+    }
+
+    return '';
+}
+
+function v3a_vue3admin_read_plugin_version(string $pluginRoot): string
+{
+    $pluginRoot = rtrim($pluginRoot, '/\\');
+    $file = $pluginRoot . DIRECTORY_SEPARATOR . 'Plugin.php';
+    if (!is_file($file)) {
+        return '';
+    }
+    $raw = (string) @file_get_contents($file);
+    if ($raw === '') {
+        return '';
+    }
+    if (preg_match('/private\\s+const\\s+VERSION\\s*=\\s*[\\\'\\"]([^\\\'\\"]+)[\\\'\\"]\\s*;/', $raw, $m)) {
+        return trim((string) ($m[1] ?? ''));
+    }
+    return '';
+}
+
+function v3a_vue3admin_deploy_version_from_plugin(string $pluginRoot): string
+{
+    $ver = v3a_vue3admin_read_plugin_version($pluginRoot);
+    $ver = trim($ver);
+    if ($ver === '') {
+        return '';
+    }
+
+    $paths = [
+        $pluginRoot . '/admin/index.php',
+        $pluginRoot . '/admin/login.php',
+        $pluginRoot . '/admin/register.php',
+        $pluginRoot . '/admin/api.php',
+        $pluginRoot . '/admin/track.php',
+        $pluginRoot . '/admin/extending.php',
+        $pluginRoot . '/admin/common.php',
+        $pluginRoot . '/admin/bootstrap.php',
+        $pluginRoot . '/admin/plugin-config.php',
+        $pluginRoot . '/admin/theme-config.php',
+        $pluginRoot . '/admin/options-plugin.php',
+        $pluginRoot . '/admin/options-theme.php',
+        $pluginRoot . '/admin/assets/app.js',
+        $pluginRoot . '/admin/assets/app.css',
+    ];
+
+    $build = 0;
+    foreach ($paths as $p) {
+        $mtime = @filemtime($p);
+        if ($mtime !== false) {
+            $build = max($build, (int) $mtime);
+        }
+    }
+
+    return $ver . '+' . (string) $build;
+}
+
 /**
  * @return array{type:string,name:string}
  */
@@ -2194,6 +2573,439 @@ try {
     // API 调用日志：Vue3Admin 后台面板不写入 v3a_api_log（避免把后台请求计入统计/污染数据）。
 
     $do = trim((string) $request->get('do'));
+
+    if ($do === 'upgrade.settings.get') {
+        v3a_require_role($user, 'administrator');
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $value = '';
+        try {
+            $value = (string) ($db->fetchObject(
+                $db->select('value')->from('table.options')->where('name = ? AND user = ?', 'v3a_upgrade_settings', 0)->limit(1)
+            )->value ?? '');
+        } catch (\Throwable $e) {
+            $value = '';
+        }
+
+        $cfg = v3a_json_assoc($value);
+        v3a_exit_json(0, [
+            'strict' => !empty($cfg['strict']) ? 1 : 0,
+            'globalReplace' => !empty($cfg['globalReplace']) ? 1 : 0,
+        ]);
+    }
+
+    if ($do === 'upgrade.settings.save') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $strict = !empty($payload['strict']) ? 1 : 0;
+        $globalReplace = !empty($payload['globalReplace']) ? 1 : 0;
+
+        $cfg = [
+            'strict' => $strict,
+            'globalReplace' => $globalReplace,
+            'updatedAt' => time(),
+        ];
+        v3a_upsert_option($db, 'v3a_upgrade_settings', json_encode($cfg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0);
+
+        v3a_exit_json(0, [
+            'strict' => $strict,
+            'globalReplace' => $globalReplace,
+        ]);
+    }
+
+    if ($do === 'upgrade.releases') {
+        v3a_require_role($user, 'administrator');
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $strict = 0;
+        try {
+            $strict = !empty($request->get('strict')) ? 1 : 0;
+        } catch (\Throwable $e) {
+            $strict = 0;
+        }
+
+        $headers = [
+            'Accept' => 'application/vnd.github+json',
+            'User-Agent' => 'Vue3Admin-Typecho',
+        ];
+
+        $now = time();
+        $cacheName = $strict ? 'v3a_upgrade_releases_cache_strict' : 'v3a_upgrade_releases_cache';
+        $cacheTtl = 300;
+        $cached = null;
+        try {
+            $raw = (string) ($db->fetchObject(
+                $db->select('value')->from('table.options')->where('name = ? AND user = ?', $cacheName, 0)->limit(1)
+            )->value ?? '');
+            $obj = v3a_json_assoc($raw);
+            $ts = (int) ($obj['time'] ?? 0);
+            $data = $obj['data'] ?? null;
+            if ($ts > 0 && ($now - $ts) < $cacheTtl && is_array($data)) {
+                $cached = $data;
+            }
+        } catch (\Throwable $e) {
+            $cached = null;
+        }
+
+        $remote = $cached;
+        if (!is_array($remote)) {
+            $remote = [
+                'fetchedAt' => $now,
+                'releases' => [],
+                'latest' => null,
+                'latestCommit' => null,
+            ];
+
+            $releasesUrl = 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/releases?per_page=20';
+            $rows = v3a_http_get_json($releasesUrl, $headers, 8);
+            $out = [];
+            if (is_array($rows)) {
+                foreach ($rows as $r) {
+                    if (!is_array($r)) {
+                        continue;
+                    }
+                    $tag = trim((string) ($r['tag_name'] ?? ''));
+                    if ($tag === '') {
+                        continue;
+                    }
+                    $out[] = [
+                        'tag' => $tag,
+                        'version' => v3a_normalize_semver($tag),
+                        'name' => (string) ($r['name'] ?? ''),
+                        'body' => (string) ($r['body'] ?? ''),
+                        'url' => (string) ($r['html_url'] ?? ''),
+                        'publishedAt' => (string) ($r['published_at'] ?? ''),
+                        'isPrerelease' => !empty($r['prerelease']) ? 1 : 0,
+                        'isDraft' => !empty($r['draft']) ? 1 : 0,
+                    ];
+                }
+            }
+
+            $latest = null;
+            foreach ($out as $r) {
+                if (!empty($r['isDraft'])) {
+                    continue;
+                }
+                $latest = $r;
+                break;
+            }
+
+            $remote['releases'] = $out;
+            $remote['latest'] = $latest;
+
+            if ($strict) {
+                try {
+                    $commitsUrl = 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/commits?per_page=1';
+                    $rows = v3a_http_get_json($commitsUrl, $headers, 8);
+                    $commitRow = null;
+                    if (is_array($rows) && isset($rows[0]) && is_array($rows[0])) {
+                        $commitRow = $rows[0];
+                    } elseif (is_array($rows) && isset($rows['sha'])) {
+                        $commitRow = $rows;
+                    }
+
+                    if (is_array($commitRow)) {
+                        $sha = (string) ($commitRow['sha'] ?? '');
+                        $msg = '';
+                        $date = '';
+                        try {
+                            $msg = (string) ($commitRow['commit']['message'] ?? '');
+                            $date = (string) ($commitRow['commit']['author']['date'] ?? '');
+                        } catch (\Throwable $e) {
+                        }
+                        $remote['latestCommit'] = [
+                            'sha' => $sha,
+                            'short' => $sha !== '' ? substr($sha, 0, 7) : '',
+                            'message' => $msg,
+                            'date' => $date,
+                            'url' => (string) ($commitRow['html_url'] ?? ''),
+                        ];
+                    }
+                } catch (\Throwable $e) {
+                    $remote['latestCommit'] = null;
+                }
+            }
+
+            try {
+                v3a_upsert_option($db, $cacheName, json_encode(['time' => $now, 'data' => $remote], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0);
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $cur = v3a_vue3admin_version_info();
+        $currentVersion = (string) ($cur['version'] ?? '');
+        $currentBuild = (int) ($cur['build'] ?? 0);
+
+        $latest = is_array($remote['latest'] ?? null) ? (array) $remote['latest'] : null;
+        $latestVer = $latest ? (string) ($latest['version'] ?? '') : '';
+
+        $updateAvailable = 0;
+        if ($currentVersion !== '' && $latestVer !== '' && function_exists('version_compare')) {
+            $updateAvailable = version_compare($latestVer, $currentVersion, '>') ? 1 : 0;
+        }
+
+        $strictUpdateAvailable = 0;
+        if ($strict && $currentBuild > 0 && is_array($remote['latestCommit'] ?? null)) {
+            $date = (string) ($remote['latestCommit']['date'] ?? '');
+            $ts = $date !== '' ? (int) strtotime($date) : 0;
+            if ($ts > 0 && $ts > $currentBuild) {
+                $strictUpdateAvailable = 1;
+            }
+        }
+
+        v3a_exit_json(0, [
+            'current' => $cur,
+            'latest' => $latest,
+            'updateAvailable' => $updateAvailable,
+            'releases' => $remote['releases'] ?? [],
+            'strict' => $strict ? 1 : 0,
+            'latestCommit' => $remote['latestCommit'] ?? null,
+            'strictUpdateAvailable' => $strictUpdateAvailable,
+        ]);
+    }
+
+    if ($do === 'upgrade.run') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $strict = !empty($payload['strict']) ? 1 : 0;
+        $globalReplace = !empty($payload['globalReplace']) ? 1 : 0;
+
+        $headers = [
+            'Accept' => 'application/vnd.github+json',
+            'User-Agent' => 'Vue3Admin-Typecho',
+        ];
+
+        $cur = v3a_vue3admin_version_info();
+        $currentVersion = (string) ($cur['version'] ?? '');
+        $currentBuild = (int) ($cur['build'] ?? 0);
+
+        $zipUrl = '';
+        $targetLabel = '';
+        $targetKind = $strict ? 'commit' : 'release';
+
+        $latestVer = '';
+        $latestCommitTs = 0;
+
+        try {
+            if ($strict) {
+                $commitsUrl = 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/commits?per_page=1';
+                $rows = v3a_http_get_json($commitsUrl, $headers, 12);
+                $commitRow = null;
+                if (is_array($rows) && isset($rows[0]) && is_array($rows[0])) {
+                    $commitRow = $rows[0];
+                } elseif (is_array($rows) && isset($rows['sha'])) {
+                    $commitRow = $rows;
+                }
+
+                if (!is_array($commitRow)) {
+                    v3a_exit_json(502, null, '获取最新 commit 失败');
+                }
+
+                $sha = trim((string) ($commitRow['sha'] ?? ''));
+                if ($sha === '') {
+                    v3a_exit_json(502, null, '获取最新 commit 失败');
+                }
+
+                $date = '';
+                try {
+                    $date = (string) ($commitRow['commit']['author']['date'] ?? '');
+                } catch (\Throwable $e) {
+                }
+                $latestCommitTs = $date !== '' ? (int) strtotime($date) : 0;
+
+                $targetLabel = substr($sha, 0, 7);
+                $zipUrl = 'https://codeload.github.com/TGU-HansJack/Vue3Admin-Typecho/zip/' . rawurlencode($sha);
+            } else {
+                $releasesUrl = 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/releases?per_page=20';
+                $rows = v3a_http_get_json($releasesUrl, $headers, 12);
+                $latestRow = null;
+                if (is_array($rows)) {
+                    foreach ($rows as $r) {
+                        if (!is_array($r)) {
+                            continue;
+                        }
+                        if (!empty($r['draft'])) {
+                            continue;
+                        }
+                        $tag = trim((string) ($r['tag_name'] ?? ''));
+                        if ($tag === '') {
+                            continue;
+                        }
+                        $latestRow = $r;
+                        break;
+                    }
+                }
+
+                if (!is_array($latestRow)) {
+                    v3a_exit_json(502, null, '未找到可用的 release');
+                }
+
+                $tag = trim((string) ($latestRow['tag_name'] ?? ''));
+                if ($tag === '') {
+                    v3a_exit_json(502, null, '未找到可用的 release');
+                }
+
+                $latestVer = v3a_normalize_semver($tag);
+                $targetLabel = $tag;
+                $zipUrl = 'https://codeload.github.com/TGU-HansJack/Vue3Admin-Typecho/zip/refs/tags/' . rawurlencode($tag);
+            }
+        } catch (\Throwable $e) {
+            v3a_exit_json(502, null, $e->getMessage() !== '' ? $e->getMessage() : '获取升级源失败');
+        }
+
+        // Server-side safety check: allow repeated runs but give a friendly message when already latest.
+        if ($strict) {
+            if ($currentBuild > 0 && $latestCommitTs > 0 && $latestCommitTs <= $currentBuild) {
+                v3a_exit_json(0, [
+                    'updated' => 0,
+                    'strict' => 1,
+                    'globalReplace' => $globalReplace ? 1 : 0,
+                    'target' => $targetLabel,
+                    'kind' => $targetKind,
+                    'message' => '当前已是最新版本（commit）',
+                ]);
+            }
+        } else {
+            if (
+                $currentVersion !== ''
+                && $latestVer !== ''
+                && function_exists('version_compare')
+                && !version_compare($latestVer, $currentVersion, '>')
+            ) {
+                v3a_exit_json(0, [
+                    'updated' => 0,
+                    'strict' => 0,
+                    'globalReplace' => $globalReplace ? 1 : 0,
+                    'target' => $targetLabel,
+                    'kind' => $targetKind,
+                    'message' => '当前已是最新版本（release）',
+                ]);
+            }
+        }
+
+        $tmpDir = '';
+        try {
+            $tmpRoot = rtrim((string) @sys_get_temp_dir(), '/\\');
+            if ($tmpRoot === '') {
+                $tmpRoot = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr' . DIRECTORY_SEPARATOR . 'uploads';
+            }
+            $tmpDir = $tmpRoot . DIRECTORY_SEPARATOR . 'v3a_upgrade_' . date('Ymd_His') . '_' . substr(md5((string) mt_rand()), 0, 8);
+            $zipPath = $tmpDir . DIRECTORY_SEPARATOR . 'package.zip';
+            $extractDir = $tmpDir . DIRECTORY_SEPARATOR . 'extract';
+            v3a_mkdir_p($extractDir);
+
+            $downloadHeaders = [
+                'Accept' => 'application/octet-stream',
+                'User-Agent' => 'Vue3Admin-Typecho',
+            ];
+
+            v3a_http_download_to_file($zipUrl, $zipPath, $downloadHeaders, 60);
+            if (!is_file($zipPath) || (int) (@filesize($zipPath) ?: 0) < 1024) {
+                throw new \RuntimeException('下载升级包失败');
+            }
+            $sig = @file_get_contents($zipPath, false, null, 0, 4);
+            if (!is_string($sig) || substr($sig, 0, 2) !== 'PK') {
+                throw new \RuntimeException('升级包不是有效的 ZIP 文件');
+            }
+
+            v3a_extract_zip_to($zipPath, $extractDir);
+            $pkgRoot = v3a_find_vue3admin_plugin_root($extractDir);
+            if ($pkgRoot === '') {
+                throw new \RuntimeException('升级包结构异常：未找到 Vue3Admin 插件目录');
+            }
+
+            $pluginDir = '';
+            try {
+                $pluginDir = (string) ($options->pluginDir('Vue3Admin') ?? '');
+            } catch (\Throwable $e) {
+                $pluginDir = '';
+            }
+            if ($pluginDir === '') {
+                $pluginDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                    . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'Vue3Admin';
+            }
+            $pluginDir = rtrim($pluginDir, '/\\');
+
+            if (!is_dir($pluginDir)) {
+                throw new \RuntimeException('插件目录不存在：' . $pluginDir);
+            }
+
+            v3a_copy_directory($pkgRoot, $pluginDir);
+
+            $deployed = 0;
+            if ($globalReplace) {
+                $adminSource = rtrim($pkgRoot, '/\\') . DIRECTORY_SEPARATOR . 'admin';
+                if (!is_dir($adminSource)) {
+                    throw new \RuntimeException('升级包缺少 admin 目录');
+                }
+
+                $deployDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'Vue3Admin';
+                $deployDir = rtrim($deployDir, '/\\');
+
+                v3a_copy_directory($adminSource, $deployDir);
+
+                $deployVersion = v3a_vue3admin_deploy_version_from_plugin($pluginDir);
+                if ($deployVersion !== '') {
+                    @file_put_contents($deployDir . DIRECTORY_SEPARATOR . '.v3a_deploy_version', $deployVersion);
+                }
+
+                $deployed = 1;
+            }
+
+            // Clear release cache so the UI can reflect the updated state immediately.
+            try {
+                v3a_upsert_option($db, 'v3a_upgrade_releases_cache', '', 0);
+                v3a_upsert_option($db, 'v3a_upgrade_releases_cache_strict', '', 0);
+            } catch (\Throwable $e) {
+            }
+
+            $message = $globalReplace
+                ? '已完成升级，并已同步更新站点 /Vue3Admin/ 目录。'
+                : '已完成升级（未开启全局替换，站点 /Vue3Admin/ 目录未更新）。';
+
+            v3a_rmdir_recursive($tmpDir);
+            $tmpDir = '';
+
+            v3a_exit_json(0, [
+                'updated' => 1,
+                'strict' => $strict ? 1 : 0,
+                'globalReplace' => $globalReplace ? 1 : 0,
+                'deployed' => $deployed,
+                'target' => $targetLabel,
+                'kind' => $targetKind,
+                'message' => $message,
+            ]);
+        } catch (\Throwable $e) {
+            if ($tmpDir !== '') {
+                v3a_rmdir_recursive($tmpDir);
+            }
+            v3a_exit_json(500, null, $e->getMessage() !== '' ? $e->getMessage() : '升级失败');
+        }
+    }
 
     if ($do === 'shoutu.stats') {
         v3a_require_role($user, 'administrator');
