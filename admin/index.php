@@ -50,12 +50,12 @@ $vditorCdnBase = $pluginOptions->vditorCdnBase ?? 'https://cdn.jsdelivr.net/npm/
 
 $assetCssVer = @filemtime(__DIR__ . '/assets/app.css');
 if ($assetCssVer === false) {
-    $assetCssVer = '1.0.0';
+    $assetCssVer = '1.1.0';
 }
 
 $assetJsVer = @filemtime(__DIR__ . '/assets/app.js');
 if ($assetJsVer === false) {
-    $assetJsVer = '1.0.0';
+    $assetJsVer = '1.1.0';
 }
 
 $routingTable = [];
@@ -169,7 +169,7 @@ try {
     <link rel="stylesheet" href="<?php echo $options->adminUrl('assets/app.css'); ?>?v=<?php echo htmlspecialchars((string) $assetCssVer, ENT_QUOTES); ?>" />
     <script>
         window.V3A = {
-            version: "1.0.0",
+            version: "1.1.0",
             adminUrl: <?php echo json_encode($options->adminUrl, JSON_UNESCAPED_SLASHES); ?>,
             apiUrl: <?php echo json_encode($options->adminUrl('api.php', true), JSON_UNESCAPED_SLASHES); ?>,
             csrfParam: "_",

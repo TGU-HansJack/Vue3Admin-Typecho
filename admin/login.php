@@ -50,7 +50,7 @@ if (is_string($primaryColor)) {
 
 $assetCssVer = @filemtime(__DIR__ . '/assets/app.css');
 if ($assetCssVer === false) {
-    $assetCssVer = '1.0.0';
+    $assetCssVer = '1.1.0';
 }
 ?>
 <!doctype html>
