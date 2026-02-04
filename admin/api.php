@@ -2168,6 +2168,109 @@ try {
 
     $do = trim((string) $request->get('do'));
 
+    if ($do === 'shoutu.stats') {
+        v3a_require_role($user, 'administrator');
+
+        $enabled = false;
+        try {
+            $plugins = \Typecho\Plugin::export();
+            $activated = (array) ($plugins['activated'] ?? []);
+            $enabled = isset($activated['ShouTuTa']);
+        } catch (\Throwable $e) {
+        }
+
+        if (!$enabled) {
+            v3a_exit_json(0, [
+                'enabled' => false,
+                'stats' => null,
+                'lists' => ['whitelist' => 0, 'banlist' => 0, 'cidr' => 0],
+                'banLog' => [],
+                'updatedAt' => 0,
+            ]);
+        }
+
+        $pluginDir = '';
+        try {
+            $pluginDir = (string) ($options->pluginDir('ShouTuTa') ?? '');
+        } catch (\Throwable $e) {
+        }
+        if ($pluginDir === '') {
+            $pluginDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'ShouTuTa';
+        }
+
+        $cacheDir = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR;
+        $statsPath = $cacheDir . 'protection_stats.json';
+
+        $stats = [
+            'total_blocks' => 0,
+            'cc_blocks' => 0,
+            'sqli_blocks' => 0,
+            'xss_blocks' => 0,
+            'file_inclusion_blocks' => 0,
+            'php_code_blocks' => 0,
+        ];
+
+        $updatedAt = 0;
+        if (is_file($statsPath)) {
+            $updatedAt = (int) (@filemtime($statsPath) ?: 0);
+            $raw = @file_get_contents($statsPath);
+            if (is_string($raw) && trim($raw) !== '') {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    foreach (array_keys($stats) as $k) {
+                        $stats[$k] = (int) ($decoded[$k] ?? 0);
+                    }
+                }
+            }
+        }
+
+        $countListFile = function (string $path): int {
+            try {
+                if (!is_file($path)) {
+                    return 0;
+                }
+                $lines = @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                if (!is_array($lines)) {
+                    return 0;
+                }
+                return count($lines);
+            } catch (\Throwable $e) {
+                return 0;
+            }
+        };
+
+        $lists = [
+            'whitelist' => $countListFile($cacheDir . 'whitelist_managed.txt'),
+            'banlist' => $countListFile($cacheDir . 'banlist_managed.txt'),
+            'cidr' => $countListFile($cacheDir . 'cidr_banlist.txt'),
+        ];
+
+        $banLog = [];
+        try {
+            $banLogPath = $cacheDir . 'ban_log.txt';
+            if (is_file($banLogPath)) {
+                $lines = @file($banLogPath, FILE_IGNORE_NEW_LINES);
+                if (is_array($lines)) {
+                    $lines = array_values(array_filter(array_map('trim', $lines), 'strlen'));
+                    if (count($lines) > 40) {
+                        $lines = array_slice($lines, -40);
+                    }
+                    $banLog = $lines;
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        v3a_exit_json(0, [
+            'enabled' => true,
+            'stats' => $stats,
+            'lists' => $lists,
+            'banLog' => $banLog,
+            'updatedAt' => $updatedAt,
+        ]);
+    }
+
     if ($do === 'dashboard') {
         v3a_require_role($user, 'subscriber');
 

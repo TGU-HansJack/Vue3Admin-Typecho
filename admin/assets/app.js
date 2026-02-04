@@ -187,6 +187,7 @@
     subscribe: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mail-icon lucide-mail"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg>`,
     settings: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings2-icon lucide-settings-2"><path d="M14 17H5"/><path d="M19 7h-9"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>`,
     gear: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings-icon lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>`,
+    cable: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cable-icon lucide-cable"><path d="M17 19a1 1 0 0 1-1-1v-2a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1z"/><path d="M17 21v-2"/><path d="M19 14V6.5a1 1 0 0 0-7 0v11a1 1 0 0 1-7 0V10"/><path d="M21 21v-2"/><path d="M3 5V3"/><path d="M4 10a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2a2 2 0 0 1-2 2z"/><path d="M7 5V3"/></svg>`,
     globe: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>`,
     fileText: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg>`,
     bell: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>`,
@@ -209,6 +210,7 @@
     eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
     eyeOff: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>`,
     search: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>`,
+    code: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code-icon lucide-code"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`,
     plus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
     copy: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>`,
     externalLink: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>`,
@@ -291,6 +293,42 @@
     { key: "data", label: "数据", icon: "data", to: "/data", access: "administrator" },
     { key: "users", label: "用户", icon: "user", to: "/users", access: "administrator" },
     { key: "settings", label: "设定", icon: "settings", action: "openSettings", access: "subscriber" },
+    {
+      key: "extras",
+      label: "额外功能",
+      icon: "cable",
+      access: "subscriber",
+      children: (() => {
+        const extras = V3A && V3A.extras && typeof V3A.extras === "object" ? V3A.extras : {};
+        const panels = Array.isArray(extras.panels) ? extras.panels : [];
+        const out = [];
+
+        if (extras.shouTuTaEnabled) {
+          out.push({
+            key: "extras-shoutu",
+            label: "守兔塔",
+            to: "/extras/shoutu",
+            access: "administrator",
+          });
+        }
+
+        for (const p of panels) {
+          const panel = p && typeof p === "object" ? String(p.panel || "") : "";
+          if (!panel) continue;
+          const title = p && typeof p === "object" ? String(p.title || p.panel || "") : panel;
+          const access = p && typeof p === "object" ? String(p.access || "administrator") : "administrator";
+          out.push({
+            key: `extras-panel-${panel}`,
+            label: title || panel,
+            to: "/extras/panel",
+            panel,
+            access,
+          });
+        }
+
+        return out;
+      })(),
+    },
     {
       key: "maintenance",
       label: "维护",
@@ -604,7 +642,10 @@
     location.hash = "#" + path;
   }
 
-  function findRouteTitle(path, settingsOpen, settingsActiveKey) {
+  function findRouteTitle(routeStr, settingsOpen, settingsActiveKey) {
+    const raw = String(routeStr || "/");
+    const path = raw.split("?")[0] || "/";
+
     if (path === "/settings") {
       const item = SETTINGS.find((s) => s.key === settingsActiveKey);
       if (item) return `设定 / ${item.label}`;
@@ -616,11 +657,37 @@
       return "设定";
     }
 
+    if (path === "/extras/panel") {
+      let panel = "";
+      try {
+        const idx = raw.indexOf("?");
+        const qs = idx >= 0 ? raw.slice(idx + 1) : "";
+        const sp = new URLSearchParams(qs);
+        panel = String(sp.get("panel") || "");
+      } catch (e) {}
+
+      if (panel) {
+        const extras = V3A && V3A.extras && typeof V3A.extras === "object" ? V3A.extras : {};
+        const panels = Array.isArray(extras.panels) ? extras.panels : [];
+        const hit = panels.find((p) => p && typeof p === "object" && String(p.panel || "") === panel);
+        const title = hit ? String(hit.title || hit.panel || "") : "";
+        if (title) return `额外功能 / ${title}`;
+      }
+
+      return "额外功能 / 插件面板";
+    }
+
+    if (path === "/extras/shoutu") {
+      return "额外功能 / 守兔塔";
+    }
+
     for (const top of MENU) {
-      if (top.to === path) return top.label;
+      const topPath = top.to ? String(top.to).split("?")[0] : "";
+      if (topPath && topPath === path) return top.label;
       if (top.children) {
         for (const child of top.children) {
-          if (child.to === path) return `${top.label} / ${child.label}`;
+          const childPath = child && child.to ? String(child.to).split("?")[0] : "";
+          if (childPath && childPath === path) return `${top.label} / ${child.label}`;
         }
       }
     }
@@ -673,6 +740,7 @@
       const expanded = ref({
         posts: true,
         pages: false,
+        extras: false,
         maintenance: false,
       });
 
@@ -695,6 +763,133 @@
         } catch (e) {}
         return out;
       });
+
+      // Extras (plugin panels / reserved pages)
+      const extrasPanelIframe = ref(null);
+      const extrasPanelUrl = computed(() => {
+        const panel = String(routeQuery.value.panel || "");
+        if (!panel) return "";
+
+        try {
+          const base = String(V3A.adminUrl || "").trim();
+          const adminBase = base ? new URL(base, location.href) : new URL(".", location.href);
+          const url = new URL("extending.php", adminBase);
+          url.searchParams.set("panel", panel);
+          return url.toString();
+        } catch (e) {
+          const base = String(location.href || "").split("#")[0];
+          const dir = base.replace(/[^/]*$/, "");
+          return dir + "extending.php?panel=" + encodeURIComponent(panel);
+        }
+      });
+
+      function styleExtrasPanelIframe() {
+        const el = extrasPanelIframe.value;
+        if (!el) return;
+        try {
+          const doc = el.contentDocument;
+          if (!doc) return;
+          const id = "__v3a_extras_panel_style__";
+          if (doc.getElementById(id)) return;
+          const style = doc.createElement("style");
+          style.id = id;
+          style.textContent = `
+            header.typecho-head-nav { display: none !important; }
+            body { padding: 12px !important; background: transparent !important; }
+            html { background: transparent !important; }
+          `;
+          (doc.head || doc.documentElement).appendChild(style);
+        } catch (e) {}
+      }
+
+      function resizeExtrasPanelIframe() {
+        const el = extrasPanelIframe.value;
+        if (!el) return;
+        try {
+          const doc = el.contentDocument;
+          if (!doc || !doc.body) return;
+          const h = Math.max(240, doc.body.scrollHeight || 0);
+          el.style.height = `${h}px`;
+        } catch (e) {}
+      }
+
+      function onExtrasPanelIframeLoad() {
+        styleExtrasPanelIframe();
+        resizeExtrasPanelIframe();
+        setTimeout(resizeExtrasPanelIframe, 60);
+        setTimeout(resizeExtrasPanelIframe, 300);
+        setTimeout(resizeExtrasPanelIframe, 1000);
+      }
+
+      function reloadExtrasPanelIframe() {
+        const el = extrasPanelIframe.value;
+        if (!el) return;
+        try {
+          if (el.contentWindow && el.contentWindow.location) {
+            el.contentWindow.location.reload();
+            return;
+          }
+        } catch (e) {}
+
+        try {
+          if (extrasPanelUrl.value) el.src = extrasPanelUrl.value;
+        } catch (e) {}
+      }
+
+      watch(
+        () => extrasPanelUrl.value,
+        async () => {
+          await nextTick();
+          setTimeout(resizeExtrasPanelIframe, 30);
+          setTimeout(resizeExtrasPanelIframe, 300);
+          setTimeout(resizeExtrasPanelIframe, 1000);
+        }
+      );
+
+      const shouTuTaEnabled = computed(() => !!(V3A && V3A.extras && V3A.extras.shouTuTaEnabled));
+      const shouTuTaLoading = ref(false);
+      const shouTuTaError = ref("");
+      const shouTuTaStats = ref({
+        total_blocks: 0,
+        cc_blocks: 0,
+        sqli_blocks: 0,
+        xss_blocks: 0,
+        file_inclusion_blocks: 0,
+        php_code_blocks: 0,
+      });
+      const shouTuTaLists = ref({ whitelist: 0, banlist: 0, cidr: 0 });
+      const shouTuTaBanLog = ref([]);
+      const shouTuTaUpdatedAt = ref(0);
+
+      async function fetchShouTuTaStats() {
+        if (!shouTuTaEnabled.value) {
+          shouTuTaError.value = "插件未启用";
+          return;
+        }
+        if (shouTuTaLoading.value) return;
+
+        shouTuTaLoading.value = true;
+        shouTuTaError.value = "";
+        try {
+          const data = await apiGet("shoutu.stats");
+          const stats = data && typeof data === "object" && data.stats && typeof data.stats === "object" ? data.stats : {};
+          shouTuTaStats.value = Object.assign({}, shouTuTaStats.value, stats);
+
+          const lists = data && typeof data === "object" && data.lists && typeof data.lists === "object" ? data.lists : {};
+          shouTuTaLists.value = Object.assign({}, shouTuTaLists.value, lists);
+
+          shouTuTaBanLog.value = data && typeof data === "object" && Array.isArray(data.banLog) ? data.banLog.map(String) : [];
+          shouTuTaUpdatedAt.value = Number(data && typeof data === "object" ? data.updatedAt : 0) || 0;
+        } catch (e) {
+          shouTuTaError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          shouTuTaLoading.value = false;
+        }
+      }
+
+      function openShouTuTaSettings() {
+        openPluginConfig({ name: "ShouTuTa", title: "守兔塔" });
+      }
 
       const jsonExample = '{"a":1}';
 
@@ -799,6 +994,7 @@
         if (obj && typeof obj === "object") {
           expanded.value.posts = !!obj.posts;
           expanded.value.pages = !!obj.pages;
+          expanded.value.extras = !!obj.extras;
           expanded.value.maintenance = !!obj.maintenance;
         }
       } catch (e) {}
@@ -833,6 +1029,7 @@
       function ensureExpandedForRoute(path) {
         if (path.startsWith("/posts/")) expanded.value.posts = true;
         if (path.startsWith("/pages/")) expanded.value.pages = true;
+        if (path.startsWith("/extras/")) expanded.value.extras = true;
         if (path.startsWith("/maintenance/")) expanded.value.maintenance = true;
       }
 
@@ -3800,7 +3997,7 @@
 
       const crumb = computed(() =>
         findRouteTitle(
-          routePath.value,
+          route.value,
           settingsOpen.value,
           settingsActiveKey.value
         )
@@ -3816,6 +4013,32 @@
 
       function isActive(path) {
         return routePath.value === path;
+      }
+
+      function isSubMenuItemActive(child) {
+        if (!child) return false;
+        const to = String(child.to || "");
+        if (to === "/extras/panel") {
+          const panel = String(child.panel || "");
+          if (!panel) return routePath.value === "/extras/panel";
+          return routePath.value === "/extras/panel" && String(routeQuery.value.panel || "") === panel;
+        }
+        return isActive(to);
+      }
+
+      function handleSubMenuClick(child) {
+        if (!child) return;
+        const to = String(child.to || "");
+        if (to === "/extras/panel") {
+          const panel = String(child.panel || "");
+          if (panel) {
+            navTo(`${to}?panel=${encodeURIComponent(panel)}`);
+          } else {
+            navTo(to);
+          }
+          return;
+        }
+        navTo(to);
       }
 
       function isMenuItemActive(item) {
@@ -3851,6 +4074,7 @@
           expanded.value[key] &&
           ((key === "posts" && route.value.startsWith("/posts/")) ||
             (key === "pages" && route.value.startsWith("/pages/")) ||
+            (key === "extras" && route.value.startsWith("/extras/")) ||
             (key === "maintenance" &&
               route.value.startsWith("/maintenance/")))
         ) {
@@ -7382,6 +7606,9 @@
           if (p === "/maintenance/backup") {
             await fetchBackups();
           }
+          if (p === "/extras/shoutu") {
+            await fetchShouTuTaStats();
+          }
         }
       );
 
@@ -7540,6 +7767,9 @@
         if (routePath.value === "/maintenance/backup") {
           await fetchBackups();
         }
+        if (routePath.value === "/extras/shoutu") {
+          await fetchShouTuTaStats();
+        }
       });
 
       function handleMenuClick(item) {
@@ -7550,7 +7780,7 @@
 
         if (item.children && item.children.length) {
           if (sidebarCollapsed.value) {
-            navTo(item.children[0].to);
+            handleSubMenuClick(item.children[0]);
             return;
           }
           toggleGroup(item.key);
@@ -8069,7 +8299,9 @@
         formatTime,
         formatTimeAgo,
         isActive,
+        isSubMenuItemActive,
         isMenuItemActive,
+        handleSubMenuClick,
         toggleSidebar,
         toggleWriteSidebar,
         permissionInfoOpen,
@@ -8082,6 +8314,19 @@
         toggleThemeSettings,
         badgeValue,
         fetchDashboard,
+        extrasPanelIframe,
+        extrasPanelUrl,
+        onExtrasPanelIframeLoad,
+        reloadExtrasPanelIframe,
+        shouTuTaEnabled,
+        shouTuTaLoading,
+        shouTuTaError,
+        shouTuTaStats,
+        shouTuTaLists,
+        shouTuTaBanLog,
+        shouTuTaUpdatedAt,
+        fetchShouTuTaStats,
+        openShouTuTaSettings,
       };
     },
     template: `
@@ -8111,8 +8356,8 @@
                   class="v3a-subitem"
                   v-for="child in item.children"
                   :key="child.key"
-                  :class="{ active: isActive(child.to) }"
-                  @click="navTo(child.to)"
+                  :class="{ active: isSubMenuItemActive(child) }"
+                  @click="handleSubMenuClick(child)"
                 >
                   {{ child.label }}
                 </div>
@@ -10142,6 +10387,154 @@
                     </div>
                   </div>
                 </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/extras/panel'">
+              <div class="v3a-container">
+                <div class="v3a-pagehead">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
+                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    </button>
+                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="!extrasPanelUrl" @click="reloadExtrasPanelIframe()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                    <a v-if="extrasPanelUrl" class="v3a-btn" :href="extrasPanelUrl" target="_blank" rel="noreferrer">
+                      <span class="v3a-icon" v-html="ICONS.externalLink"></span>
+                      新窗口
+                    </a>
+                  </div>
+                </div>
+
+                <div v-if="!extrasPanelUrl" class="v3a-muted">从左侧“额外功能”选择一个功能面板。</div>
+
+                <div v-else class="v3a-card">
+                  <div class="bd" style="padding: 0;">
+                    <iframe
+                      ref="extrasPanelIframe"
+                      class="v3a-theme-config-frame v3a-theme-config-frame-legacy"
+                      :src="extrasPanelUrl"
+                      @load="onExtrasPanelIframeLoad"
+                    ></iframe>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/extras/shoutu'">
+              <div class="v3a-container">
+                <div class="v3a-pagehead">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
+                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    </button>
+                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <button class="v3a-btn" type="button" @click="openShouTuTaSettings()" :disabled="!shouTuTaEnabled">
+                      <span class="v3a-icon" v-html="ICONS.gear"></span>
+                      设置
+                    </button>
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="shouTuTaLoading || !shouTuTaEnabled" @click="fetchShouTuTaStats()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="!shouTuTaEnabled" class="v3a-muted">ShouTuTa 插件未启用。</div>
+
+                <template v-else>
+                  <div v-if="shouTuTaError" class="v3a-alert" style="margin-bottom: 12px;">{{ shouTuTaError }}</div>
+                  <div v-if="shouTuTaLoading" class="v3a-muted">正在加载…</div>
+
+                  <template v-else>
+                    <div class="v3a-section">
+                      <div class="v3a-section-hd split">
+                        <div class="v3a-section-title">防护统计</div>
+                        <div class="v3a-section-tools">
+                          <span v-if="shouTuTaUpdatedAt" class="v3a-muted">更新于 {{ formatTime(shouTuTaUpdatedAt, settingsData.site.timezone) }}</span>
+                        </div>
+                      </div>
+                      <div class="v3a-section-line"></div>
+
+                      <div class="v3a-metric-grid">
+                        <div class="v3a-metric-item">
+                          <span class="v3a-metric-icon" v-html="ICONS.shieldAlert"></span>
+                          <div class="v3a-metric-meta">
+                            <div class="v3a-metric-label">累计拦截</div>
+                            <div class="v3a-metric-value">{{ formatNumber(shouTuTaStats.total_blocks) }}</div>
+                          </div>
+                        </div>
+                        <div class="v3a-metric-item">
+                          <span class="v3a-metric-icon" v-html="ICONS.activity"></span>
+                          <div class="v3a-metric-meta">
+                            <div class="v3a-metric-label">CC 防护</div>
+                            <div class="v3a-metric-value">{{ formatNumber(shouTuTaStats.cc_blocks) }}</div>
+                          </div>
+                        </div>
+                        <div class="v3a-metric-item">
+                          <span class="v3a-metric-icon" v-html="ICONS.search"></span>
+                          <div class="v3a-metric-meta">
+                            <div class="v3a-metric-label">SQL 注入</div>
+                            <div class="v3a-metric-value">{{ formatNumber(shouTuTaStats.sqli_blocks) }}</div>
+                          </div>
+                        </div>
+                        <div class="v3a-metric-item">
+                          <span class="v3a-metric-icon" v-html="ICONS.eyeOff"></span>
+                          <div class="v3a-metric-meta">
+                            <div class="v3a-metric-label">XSS</div>
+                            <div class="v3a-metric-value">{{ formatNumber(shouTuTaStats.xss_blocks) }}</div>
+                          </div>
+                        </div>
+                        <div class="v3a-metric-item">
+                          <span class="v3a-metric-icon" v-html="ICONS.fileText"></span>
+                          <div class="v3a-metric-meta">
+                            <div class="v3a-metric-label">文件包含</div>
+                            <div class="v3a-metric-value">{{ formatNumber(shouTuTaStats.file_inclusion_blocks) }}</div>
+                          </div>
+                        </div>
+                        <div class="v3a-metric-item">
+                          <span class="v3a-metric-icon" v-html="ICONS.code"></span>
+                          <div class="v3a-metric-meta">
+                            <div class="v3a-metric-label">PHP 代码</div>
+                            <div class="v3a-metric-value">{{ formatNumber(shouTuTaStats.php_code_blocks) }}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="v3a-section">
+                      <div class="v3a-section-hd">
+                        <div class="v3a-section-title">名单与日志</div>
+                      </div>
+                      <div class="v3a-section-line"></div>
+
+                      <div class="v3a-grid two">
+                        <div class="v3a-card">
+                          <div class="hd"><div class="title">名单数量</div></div>
+                          <div class="bd">
+                            <div class="v3a-muted">
+                              白名单：{{ formatNumber(shouTuTaLists.whitelist) }} ｜
+                              封禁：{{ formatNumber(shouTuTaLists.banlist) }} ｜
+                              CIDR：{{ formatNumber(shouTuTaLists.cidr) }}
+                            </div>
+                          </div>
+                        </div>
+                        <div class="v3a-card">
+                          <div class="hd"><div class="title">最近封禁日志</div></div>
+                          <div class="bd">
+                            <div v-if="!shouTuTaBanLog.length" class="v3a-muted">暂无日志</div>
+                            <pre v-else class="mono" style="margin: 0; white-space: pre-wrap;">{{ shouTuTaBanLog.join('\\n') }}</pre>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </template>
               </div>
             </template>
 

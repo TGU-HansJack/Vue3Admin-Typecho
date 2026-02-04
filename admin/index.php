@@ -97,6 +97,67 @@ try {
     }
 } catch (\Throwable $e) {
 }
+
+$extraPanels = [];
+try {
+    $panelTable = (array) ($options->panelTable ?? []);
+    $children = (array) ($panelTable['child'] ?? []);
+    $seen = [];
+
+    foreach ($children as $index => $items) {
+        if (!is_array($items)) {
+            continue;
+        }
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $url = trim((string) ($item[2] ?? ''));
+            if ($url === '' || strpos($url, 'extending.php?panel=') !== 0) {
+                continue;
+            }
+
+            $hidden = !empty($item[4] ?? false);
+            if ($hidden) {
+                continue;
+            }
+
+            $title = trim((string) ($item[0] ?? ''));
+            $access = strtolower(trim((string) ($item[3] ?? 'administrator')));
+            if ($access !== '' && !$user->pass($access, true)) {
+                continue;
+            }
+
+            $panelEncoded = substr($url, strlen('extending.php?panel='));
+            $panel = $panelEncoded !== '' ? urldecode($panelEncoded) : '';
+            if ($panel === '' || strpos($panel, '..') !== false) {
+                continue;
+            }
+
+            if (isset($seen[$panel])) {
+                continue;
+            }
+            $seen[$panel] = true;
+
+            $extraPanels[] = [
+                'title' => $title !== '' ? $title : $panel,
+                'panel' => $panel,
+                'access' => $access !== '' ? $access : 'administrator',
+            ];
+        }
+    }
+} catch (\Throwable $e) {
+}
+
+$shouTuTaEnabled = false;
+try {
+    $plugins = \Typecho\Plugin::export();
+    $activated = (array) ($plugins['activated'] ?? []);
+    $shouTuTaEnabled = isset($activated['ShouTuTa']);
+} catch (\Throwable $e) {
+}
 ?>
 <!doctype html>
 <html lang="zh-CN" style="--color-primary: <?php echo htmlspecialchars($primaryColor, ENT_QUOTES); ?>; --color-primary-shallow: <?php echo htmlspecialchars($primaryShallow, ENT_QUOTES); ?>; --color-primary-deep: <?php echo htmlspecialchars($primaryDeep, ENT_QUOTES); ?>;">
@@ -128,6 +189,10 @@ try {
             canPublish: <?php echo $user->pass('editor', true) ? 'true' : 'false'; ?>,
             markdownEnabled: <?php echo !empty($options->markdown) ? 'true' : 'false'; ?>,
             acl: <?php echo json_encode($acl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
+            extras: {
+                panels: <?php echo json_encode($extraPanels, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
+                shouTuTaEnabled: <?php echo $shouTuTaEnabled ? 'true' : 'false'; ?>
+            },
             user: {
                 uid: <?php echo (int) ($user->uid ?? 0); ?>,
                 name: <?php echo json_encode($user->screenName ?? ''); ?>,
