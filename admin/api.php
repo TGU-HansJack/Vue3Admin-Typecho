@@ -2134,6 +2134,7 @@ try {
         $stat = \Widget\Stat::alloc();
 
         $todayStart = strtotime(date('Y-m-d 00:00:00'));
+        $todayEnd = strtotime('+1 days', $todayStart);
         $fromStart = strtotime('-29 days', $todayStart);
 
         $summary = [
@@ -2175,7 +2176,10 @@ try {
                 $db->select(['COUNT(DISTINCT ip)' => 'num'])->from('table.v3a_visit_log')
             )->num ?? 0);
             $summary['todayUv'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(DISTINCT ip)' => 'num'])->from('table.v3a_visit_log')->where('created >= ?', $todayStart)
+                $db->select(['COUNT(DISTINCT ip)' => 'num'])
+                    ->from('table.v3a_visit_log')
+                    ->where('created >= ?', $todayStart)
+                    ->where('created < ?', $todayEnd)
             )->num ?? 0);
         } catch (\Throwable $e) {
         }
@@ -2210,6 +2214,7 @@ try {
                 $db->select([$bucketExpr => 'bucket'], ['COUNT(DISTINCT ip)' => 'num'])
                     ->from('table.v3a_visit_log')
                     ->where('created >= ?', $todayStart)
+                    ->where('created < ?', $todayEnd)
                     ->group('bucket')
                     ->order('num', \Typecho\Db::SORT_DESC)
                     ->limit(1)
@@ -2567,27 +2572,30 @@ try {
         }
 
         // 本周访问趋势（PV / IP）
+        // Align with old mx-admin: 7-day rolling window, ending at today.
         $visitWeekTrend = [];
         try {
-            $weekStart = (int) $todayStart;
-            $w = (int) date('w', $todayStart); // 0=周日
-            if ($w > 0) {
-                $weekStart = strtotime("-{$w} days", $todayStart);
-            }
-            $weekEnd = strtotime('+7 days', $weekStart);
+            $trendStart = strtotime('-6 days', $todayStart);
+            $trendEnd = (int) $todayEnd;
 
             $labels = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
             $bucket = [];
+            $days = [];
             for ($i = 0; $i < 7; $i++) {
-                $d = date('Y-m-d', strtotime("+{$i} days", $weekStart));
+                $ts = strtotime("+{$i} days", $trendStart);
+                $d = date('Y-m-d', $ts);
+                $days[] = [
+                    'date' => $d,
+                    'day' => $labels[(int) date('w', $ts)] ?? $d,
+                ];
                 $bucket[$d] = ['pv' => 0, 'ips' => []];
             }
 
             $rows = $db->fetchAll(
                 $db->select('ip', 'created')
                     ->from('table.v3a_visit_log')
-                    ->where('created >= ?', $weekStart)
-                    ->where('created < ?', $weekEnd)
+                    ->where('created >= ?', $trendStart)
+                    ->where('created < ?', $trendEnd)
             );
             foreach ($rows as $r) {
                 $created = (int) ($r['created'] ?? 0);
@@ -2604,15 +2612,24 @@ try {
                 }
             }
 
-            for ($i = 0; $i < 7; $i++) {
-                $d = date('Y-m-d', strtotime("+{$i} days", $weekStart));
+            foreach ($days as $dayRow) {
+                $d = (string) ($dayRow['date'] ?? '');
                 $ips = $bucket[$d]['ips'] ?? [];
                 $visitWeekTrend[] = [
                     'date' => $d,
-                    'day' => $labels[$i] ?? $d,
+                    'day' => (string) ($dayRow['day'] ?? $d),
                     'pv' => (int) ($bucket[$d]['pv'] ?? 0),
                     'ip' => (int) count($ips),
                 ];
+            }
+
+            // Ensure "today IP" matches the metric card.
+            $n = count($visitWeekTrend);
+            if ($n > 0) {
+                $last = $n - 1;
+                if (($visitWeekTrend[$last]['date'] ?? '') === date('Y-m-d', $todayStart)) {
+                    $visitWeekTrend[$last]['ip'] = (int) ($summary['todayUv'] ?? 0);
+                }
             }
         } catch (\Throwable $e) {
         }
