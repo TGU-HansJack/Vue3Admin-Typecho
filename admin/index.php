@@ -116,6 +116,7 @@ try {
             csrfRef: <?php echo json_encode($request->getRequestUrl(), JSON_UNESCAPED_SLASHES); ?>,
             uploadUrl: <?php echo json_encode($security->getIndex('/action/upload'), JSON_UNESCAPED_SLASHES); ?>,
             siteUrl: <?php echo json_encode($options->siteUrl, JSON_UNESCAPED_SLASHES); ?>,
+            timezone: <?php echo (int) ($options->timezone ?? 28800); ?>,
             indexUrl: <?php echo json_encode($indexUrl, JSON_UNESCAPED_SLASHES); ?>,
             permalink: {
                 postUrl: <?php echo json_encode($postPermalinkRule, JSON_UNESCAPED_SLASHES); ?>

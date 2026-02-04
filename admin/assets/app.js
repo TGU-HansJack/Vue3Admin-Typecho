@@ -16,6 +16,34 @@
     visitor: 4,
   };
 
+  const SETTINGS_TIMEZONES = [
+    { value: 0, label: "格林威治(子午线)标准时间 (GMT)" },
+    { value: 3600, label: "中欧标准时间 阿姆斯特丹,荷兰,法国 (GMT +1)" },
+    { value: 7200, label: "东欧标准时间 布加勒斯特,塞浦路斯,希腊 (GMT +2)" },
+    { value: 10800, label: "莫斯科时间 伊拉克,埃塞俄比亚,马达加斯加 (GMT +3)" },
+    { value: 14400, label: "第比利斯时间 阿曼,毛里塔尼亚,留尼汪岛 (GMT +4)" },
+    { value: 18000, label: "新德里时间 巴基斯坦,马尔代夫 (GMT +5)" },
+    { value: 21600, label: "科伦坡时间 孟加拉 (GMT +6)" },
+    { value: 25200, label: "曼谷雅加达 柬埔寨,苏门答腊,老挝 (GMT +7)" },
+    { value: 28800, label: "北京时间 香港,新加坡,越南 (GMT +8)" },
+    { value: 32400, label: "东京平壤时间 西伊里安,马鲁加群岛 (GMT +9)" },
+    { value: 36000, label: "悉尼关岛时间 塔斯马尼亚岛,新几内亚 (GMT +10)" },
+    { value: 39600, label: "所罗门群岛 库页岛 (GMT +11)" },
+    { value: 43200, label: "惠灵顿时间 新西兰,斐济群岛 (GMT +12)" },
+    { value: -3600, label: "佛得尔群岛 亚速尔群岛,葡属几内亚 (GMT -1)" },
+    { value: -7200, label: "大西洋中部时间 格陵兰 (GMT -2)" },
+    { value: -10800, label: "布宜诺斯艾利斯 乌拉圭,法属圭亚那 (GMT -3)" },
+    { value: -14400, label: "智利巴西 委内瑞拉,玻利维亚 (GMT -4)" },
+    { value: -18000, label: "纽约渥太华 古巴,哥伦比亚,牙买加 (GMT -5)" },
+    { value: -21600, label: "墨西哥城时间 温尼伯,危地马拉,休斯顿 (GMT -6)" },
+    { value: -25200, label: "美国丹佛时间 (GMT -7)" },
+    { value: -28800, label: "美国旧金山时间 (GMT -8)" },
+    { value: -32400, label: "阿拉斯加时间 (GMT -9)" },
+    { value: -36000, label: "夏威夷群岛 (GMT -10)" },
+    { value: -39600, label: "东萨摩亚群岛 (GMT -11)" },
+    { value: -43200, label: "艾尼威托克岛 (GMT -12)" },
+  ];
+
   function v3aGroupLevel(group) {
     const g = String(group || "").trim();
     return Object.prototype.hasOwnProperty.call(GROUP_LEVELS, g)
@@ -527,14 +555,27 @@
     return n.toLocaleString("zh-CN");
   }
 
-  function formatTime(ts) {
+  function formatTime(ts, tzSeconds) {
     const n = Number(ts || 0);
     if (!n) return "—";
-    const d = new Date(n * 1000);
+
+    const tzRaw = Number.isFinite(Number(tzSeconds))
+      ? Number(tzSeconds)
+      : Number(V3A && Object.prototype.hasOwnProperty.call(V3A, "timezone") ? V3A.timezone : NaN);
+
     const pad = (v) => String(v).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-      d.getDate()
-    )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    if (!Number.isFinite(tzRaw)) {
+      const d = new Date(n * 1000);
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+        d.getDate()
+      )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    const d = new Date((n + tzRaw) * 1000);
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
+      d.getUTCDate()
+    )} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
   }
 
   function formatTimeAgo(ts) {
@@ -1290,10 +1331,17 @@
         }
 
         const ts = v3aGetPostTimestamp();
-        const date = new Date(ts * 1000);
-        const year = String(date.getFullYear());
-        const month = v3aPad2(date.getMonth() + 1);
-        const day = v3aPad2(date.getDate());
+        const tz = (() => {
+          const v = settingsData?.site?.timezone;
+          if (Number.isFinite(Number(v))) return Number(v);
+          const vv = V3A && Object.prototype.hasOwnProperty.call(V3A, "timezone") ? V3A.timezone : NaN;
+          if (Number.isFinite(Number(vv))) return Number(vv);
+          return 0;
+        })();
+        const date = new Date((ts + tz) * 1000);
+        const year = String(date.getUTCFullYear());
+        const month = v3aPad2(date.getUTCMonth() + 1);
+        const day = v3aPad2(date.getUTCDate());
 
         const cid = Number(postForm.cid || 0);
         const cat = v3aGetPrimaryCategory();
@@ -2883,7 +2931,7 @@
           defaultRegisterGroup: "subscriber",
           allowXmlRpc: 0,
           lang: "zh_CN",
-          timezone: 28800,
+          timezone: Number(V3A.timezone ?? 28800),
         },
         storage: {
           attachmentTypes: "",
@@ -2902,7 +2950,7 @@
         discussion: {},
         notify: {},
         permalink: {},
-        lists: { langs: [], frontPagePages: [], frontPageFiles: [] },
+        lists: { langs: [], frontPagePages: [], frontPageFiles: [], timezones: SETTINGS_TIMEZONES },
       });
 
       const settingsProfileForm = reactive({
@@ -2929,7 +2977,7 @@
         defaultRegisterGroup: "subscriber",
         allowXmlRpc: 0,
         lang: "zh_CN",
-        timezone: 28800,
+        timezone: Number(V3A.timezone ?? 28800),
       });
       const settingsSiteXmlRpcLast = ref(1);
       watch(
@@ -5386,7 +5434,12 @@
           settingsData.notify = Object.assign({}, data.notify || {});
           settingsData.permalink = Object.assign({}, data.permalink || {});
           settingsData.lists = Object.assign(
-            { langs: [], frontPagePages: [], frontPageFiles: [] },
+            {
+              langs: [],
+              frontPagePages: [],
+              frontPageFiles: [],
+              timezones: SETTINGS_TIMEZONES,
+            },
             data.lists || {}
           );
 
@@ -5426,7 +5479,7 @@
           );
           settingsSiteForm.allowXmlRpc = Number(settingsData.site.allowXmlRpc || 0);
           settingsSiteForm.lang = String(settingsData.site.lang || "zh_CN");
-          settingsSiteForm.timezone = Number(settingsData.site.timezone || 28800);
+          settingsSiteForm.timezone = Number(settingsData.site.timezone ?? 28800);
 
           const at = parseAttachmentTypesValue(
             settingsData.storage.attachmentTypes || ""
@@ -5650,7 +5703,7 @@
             );
             settingsSiteForm.allowXmlRpc = Number(settingsData.site.allowXmlRpc || 0);
             settingsSiteForm.lang = String(settingsData.site.lang || "zh_CN");
-            settingsSiteForm.timezone = Number(settingsData.site.timezone || 28800);
+            settingsSiteForm.timezone = Number(settingsData.site.timezone ?? 28800);
           }
           if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
@@ -8199,7 +8252,7 @@
                   <div class="v3a-section-hd split">
                     <div class="v3a-section-title">数据统计</div>
                     <div class="v3a-section-tools">
-                      <span class="v3a-muted">更新于 {{ formatTime(systemInfo.serverTime) }}</span>
+                      <span class="v3a-muted">更新于 {{ formatTime(systemInfo.serverTime, settingsData.site.timezone) }}</span>
                       <button class="v3a-iconbtn" type="button" @click="fetchDashboard()" title="刷新">
                         <span class="v3a-icon" v-html="ICONS.refresh"></span>
                       </button>
@@ -9171,7 +9224,7 @@
                             <span class="v3a-pill" :class="getPageBadge(p).tone">{{ getPageBadge(p).text }}</span>
                           </td>
                           <td class="v3a-muted">{{ p.template || '—' }}</td>
-                          <td>{{ formatTime(p.created) }}</td>
+                          <td>{{ formatTime(p.created, settingsData.site.timezone) }}</td>
                           <td style="white-space: nowrap;">
                             <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deletePage(p.cid)">删除</button>
                           </td>
@@ -9873,7 +9926,7 @@
                           <td style="text-align:center;">
                             <span class="v3a-pill" :class="dataDeviceTone(v.deviceType)">{{ v.device || '—' }}</span>
                           </td>
-                          <td>{{ formatTime(v.created) }}</td>
+                          <td>{{ formatTime(v.created, settingsData.site.timezone) }}</td>
                         </tr>
                         <tr v-if="!dataVisitItems.length">
                           <td colspan="4" class="v3a-muted" style="padding: 16px;">暂无访问日志</td>
@@ -10145,7 +10198,7 @@
                         <tr v-for="b in backupItems" :key="b.file">
                           <td><span style="font-variant-numeric: tabular-nums;">{{ b.file }}</span></td>
                           <td style="text-align:center;">{{ formatBytes(b.size) }}</td>
-                          <td style="text-align:center;">{{ formatTime(b.time) }}</td>
+                          <td style="text-align:center;">{{ formatTime(b.time, settingsData.site.timezone) }}</td>
                           <td style="text-align:right; white-space: nowrap;">
                             <button class="v3a-mini-btn" type="button" @click="downloadBackup(b.file)">下载</button>
                             <button class="v3a-mini-btn" type="button" @click="restoreBackupFromServer(b.file)">恢复</button>
@@ -10744,10 +10797,13 @@
 
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
-                                <label>时区（秒）</label>
+                                <label>时区</label>
+                                <div class="v3a-settings-row-help">与旧后台一致（GMT 偏移量）</div>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <input class="v3a-input" type="number" v-model.number="settingsSiteForm.timezone" />
+                                <select class="v3a-select" v-model.number="settingsSiteForm.timezone">
+                                  <option v-for="z in settingsData.lists.timezones" :key="z.value" :value="z.value">{{ z.label }}</option>
+                                </select>
                               </div>
                             </div>
                           </div>
