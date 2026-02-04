@@ -544,6 +544,76 @@ class Plugin implements PluginInterface
     }
 
     /**
+     * 记录邮件发送状态（用于设置页诊断）。
+     *
+     * @param array<string,mixed> $payload
+     */
+    private static function recordMailStatus(string $optionName, array $payload): void
+    {
+        try {
+            $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if (!is_string($encoded) || $encoded === '') {
+                return;
+            }
+
+            $db = Db::get();
+            $exists = (int) ($db->fetchObject(
+                $db->select(['COUNT(*)' => 'num'])
+                    ->from('table.options')
+                    ->where('name = ? AND user = ?', $optionName, 0)
+                    ->limit(1)
+            )->num ?? 0);
+
+            if ($exists > 0) {
+                $db->query(
+                    $db->update('table.options')
+                        ->rows(['value' => $encoded])
+                        ->where('name = ? AND user = ?', $optionName, 0),
+                    Db::WRITE
+                );
+                return;
+            }
+
+            $db->query(
+                $db->insert('table.options')->rows([
+                    'name' => $optionName,
+                    'value' => $encoded,
+                    'user' => 0,
+                ]),
+                Db::WRITE
+            );
+        } catch (\Throwable $e) {
+        }
+    }
+
+    private static function recordMailError(string $kind, string $message): void
+    {
+        $msg = trim($message);
+        if ($msg === '') {
+            $msg = '未知错误';
+        }
+
+        self::recordMailStatus('v3a_mail_last_error', [
+            'kind' => $kind,
+            'time' => time(),
+            'message' => self::truncate($msg, 500),
+        ]);
+
+        // 记录到 PHP 错误日志，便于排查（不包含密码等敏感信息）
+        @error_log('[Vue3Admin][mail][' . $kind . '][error] ' . $msg);
+    }
+
+    private static function recordMailSuccess(string $kind, string $message = ''): void
+    {
+        $msg = trim($message);
+        self::recordMailStatus('v3a_mail_last_success', [
+            'kind' => $kind,
+            'time' => time(),
+            'message' => $msg === '' ? '' : self::truncate($msg, 500),
+        ]);
+    }
+
+    /**
      * 评论邮件提醒（管理员收件）
      * 触发时机：新评论提交（Widget_Feedback::finishComment）
      */
@@ -571,6 +641,7 @@ class Plugin implements PluginInterface
             }
 
             if ($smtpHost === '' || $smtpPort <= 0 || $smtpUser === '' || $smtpPass === '' || $smtpFrom === '') {
+                self::recordMailError('comment', 'SMTP 配置不完整或未保存密码，请在「设定 → 邮件通知设置」完善后重试。');
                 return;
             }
 
@@ -638,10 +709,12 @@ class Plugin implements PluginInterface
             }
 
             if (empty($admins)) {
+                self::recordMailError('comment', '未找到有效的管理员邮箱地址（请在用户资料中设置邮箱）。');
                 return;
             }
 
             if (!self::loadPHPMailer()) {
+                self::recordMailError('comment', '未找到 PHPMailer，无法发送邮件（请检查 Vue3Admin 插件目录 lib/PHPMailer 是否完整）。');
                 return;
             }
 
@@ -691,7 +764,22 @@ class Plugin implements PluginInterface
                 );
 
                 $mail->send();
+
+                self::recordMailSuccess('comment', '已发送至 ' . count($admins) . ' 位管理员邮箱。');
             } catch (\Throwable $e) {
+                $extra = '';
+                try {
+                    if (isset($mail) && $mail instanceof \PHPMailer\PHPMailer\PHPMailer) {
+                        $extra = trim((string) ($mail->ErrorInfo ?? ''));
+                    }
+                } catch (\Throwable $e2) {
+                }
+
+                $msg = trim((string) $e->getMessage());
+                if ($extra !== '' && stripos($msg, $extra) === false) {
+                    $msg = $msg !== '' ? ($msg . ' / ' . $extra) : $extra;
+                }
+                self::recordMailError('comment', $msg);
                 // 不影响评论正常提交
             }
         } catch (\Throwable $e) {
@@ -728,6 +816,7 @@ class Plugin implements PluginInterface
             }
 
             if ($smtpHost === '' || $smtpPort <= 0 || $smtpUser === '' || $smtpPass === '' || $smtpFrom === '') {
+                self::recordMailError('friendlink', 'SMTP 配置不完整或未保存密码，请在「设定 → 邮件通知设置」完善后重试。');
                 return;
             }
 
@@ -770,10 +859,12 @@ class Plugin implements PluginInterface
             }
 
             if (empty($admins)) {
+                self::recordMailError('friendlink', '未找到有效的管理员邮箱地址（请在用户资料中设置邮箱）。');
                 return;
             }
 
             if (!self::loadPHPMailer()) {
+                self::recordMailError('friendlink', '未找到 PHPMailer，无法发送邮件（请检查 Vue3Admin 插件目录 lib/PHPMailer 是否完整）。');
                 return;
             }
 
@@ -829,10 +920,153 @@ class Plugin implements PluginInterface
                 );
 
                 $mail->send();
+
+                self::recordMailSuccess('friendlink', '已发送至 ' . count($admins) . ' 位管理员邮箱。');
             } catch (\Throwable $e) {
+                $extra = '';
+                try {
+                    if (isset($mail) && $mail instanceof \PHPMailer\PHPMailer\PHPMailer) {
+                        $extra = trim((string) ($mail->ErrorInfo ?? ''));
+                    }
+                } catch (\Throwable $e2) {
+                }
+
+                $msg = trim((string) $e->getMessage());
+                if ($extra !== '' && stripos($msg, $extra) === false) {
+                    $msg = $msg !== '' ? ($msg . ' / ' . $extra) : $extra;
+                }
+                self::recordMailError('friendlink', $msg);
                 // 不影响前台正常提交
             }
         } catch (\Throwable $e) {
+        }
+    }
+
+    /**
+     * 发送测试邮件（用于诊断 SMTP 配置）
+     *
+     * @return array{ok:int,to:string,message:string}
+     */
+    public static function sendTestMail(string $toMail, string $toName = ''): array
+    {
+        $toMail = trim($toMail);
+        $toName = trim($toName);
+
+        if ($toMail === '' || filter_var($toMail, FILTER_VALIDATE_EMAIL) === false) {
+            self::recordMailError('test', '收件邮箱地址无效，请先在个人资料中设置邮箱。');
+            return ['ok' => 0, 'to' => $toMail, 'message' => '收件邮箱地址无效'];
+        }
+
+        try {
+            $options = \Utils\Helper::options();
+
+            if (!((int) ($options->v3a_mail_enabled ?? 0))) {
+                self::recordMailError('test', '尚未开启邮箱提醒，请先在「设定 → 邮件通知设置」开启。');
+                return ['ok' => 0, 'to' => $toMail, 'message' => '尚未开启邮箱提醒'];
+            }
+
+            $smtpHost = trim((string) ($options->v3a_mail_smtp_host ?? ''));
+            $smtpPort = (int) ($options->v3a_mail_smtp_port ?? 465);
+            $smtpUser = trim((string) ($options->v3a_mail_smtp_user ?? ''));
+            $smtpPass = (string) ($options->v3a_mail_smtp_pass ?? '');
+            $smtpFrom = trim((string) ($options->v3a_mail_smtp_from ?? ''));
+            $smtpSecure = (int) ($options->v3a_mail_smtp_secure ?? 1) ? 1 : 0;
+
+            if ($smtpFrom === '') {
+                $smtpFrom = $smtpUser;
+            }
+
+            if ($smtpHost === '' || $smtpPort <= 0 || $smtpUser === '' || $smtpPass === '' || $smtpFrom === '') {
+                self::recordMailError('test', 'SMTP 配置不完整或未保存密码，请在「设定 → 邮件通知设置」完善后重试。');
+                return ['ok' => 0, 'to' => $toMail, 'message' => 'SMTP 配置不完整'];
+            }
+
+            if (!self::loadPHPMailer()) {
+                self::recordMailError('test', '未找到 PHPMailer，无法发送邮件（请检查 Vue3Admin 插件目录 lib/PHPMailer 是否完整）。');
+                return ['ok' => 0, 'to' => $toMail, 'message' => '缺少 PHPMailer'];
+            }
+
+            $siteTitle = (string) ($options->title ?? 'Typecho');
+            $siteUrl = rtrim((string) ($options->siteUrl ?? ''), "/");
+            $adminUrl = $siteUrl !== '' ? ($siteUrl . '/' . self::ADMIN_DIR . '/') : '';
+            $now = date('Y-m-d H:i:s');
+
+            $subject = $siteTitle . ' · Vue3Admin 测试邮件';
+            $bodyHtml = trim(self::renderMailTemplate(
+                <<<'HTML'
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">Vue3Admin 测试邮件</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 10px;">如果你收到此邮件，说明 SMTP 配置可用。</div>
+      <div style="font-size: 12px; color: #666;">
+        <div><strong>时间：</strong>{{time}}</div>
+        <div><strong>收件人：</strong>{{to}}</div>
+        <div><strong>后台：</strong><a href="{{adminUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{adminUrl}}</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+HTML,
+                [
+                    'siteTitle' => htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8'),
+                    'time' => htmlspecialchars($now, ENT_QUOTES, 'UTF-8'),
+                    'to' => htmlspecialchars($toMail, ENT_QUOTES, 'UTF-8'),
+                    'adminUrl' => htmlspecialchars($adminUrl, ENT_QUOTES, 'UTF-8'),
+                ]
+            ));
+
+            try {
+                $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+                $mail->CharSet = 'UTF-8';
+                $mail->isSMTP();
+                $mail->Host = $smtpHost;
+                $mail->SMTPAuth = true;
+                $mail->Username = $smtpUser;
+                $mail->Password = $smtpPass;
+                $mail->Port = $smtpPort;
+
+                if ($smtpSecure) {
+                    $mail->SMTPSecure = $smtpPort === 465 ? 'ssl' : 'tls';
+                }
+
+                $mail->setFrom($smtpFrom, $siteTitle);
+                $mail->addAddress($toMail, $toName);
+
+                $mail->isHTML(true);
+                $mail->Subject = $subject;
+                $mail->Body = $bodyHtml;
+                $mail->AltBody = strip_tags(
+                    str_replace(["<br />", "<br/>", "<br>"], "\n", $bodyHtml)
+                );
+
+                $mail->send();
+
+                self::recordMailSuccess('test', '测试邮件已发送至：' . $toMail);
+                return ['ok' => 1, 'to' => $toMail, 'message' => '测试邮件已发送至：' . $toMail];
+            } catch (\Throwable $e) {
+                $extra = '';
+                try {
+                    if (isset($mail) && $mail instanceof \PHPMailer\PHPMailer\PHPMailer) {
+                        $extra = trim((string) ($mail->ErrorInfo ?? ''));
+                    }
+                } catch (\Throwable $e2) {
+                }
+
+                $msg = trim((string) $e->getMessage());
+                if ($extra !== '' && stripos($msg, $extra) === false) {
+                    $msg = $msg !== '' ? ($msg . ' / ' . $extra) : $extra;
+                }
+
+                self::recordMailError('test', $msg);
+                return ['ok' => 0, 'to' => $toMail, 'message' => ($msg !== '' ? $msg : '发送失败')];
+            }
+        } catch (\Throwable $e) {
+            self::recordMailError('test', (string) $e->getMessage());
+            return ['ok' => 0, 'to' => $toMail, 'message' => '发送失败'];
         }
     }
 
@@ -856,11 +1090,15 @@ class Plugin implements PluginInterface
         foreach ($candidates as $main) {
             $dir = dirname($main);
             $ex = $dir . '/Exception.php';
+            $oauthTokenProvider = $dir . '/OAuthTokenProvider.php';
             $phpMailer = $dir . '/PHPMailer.php';
             $smtp = $dir . '/SMTP.php';
 
             if (is_file($ex) && is_file($phpMailer) && is_file($smtp)) {
                 require_once $ex;
+                if (is_file($oauthTokenProvider)) {
+                    require_once $oauthTokenProvider;
+                }
                 require_once $phpMailer;
                 require_once $smtp;
 

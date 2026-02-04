@@ -4545,6 +4545,7 @@
         commentTemplate: DEFAULT_NOTIFY_COMMENT_TEMPLATE,
         friendLinkTemplate: DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE,
       });
+      const settingsNotifyTesting = ref(false);
       const settingsNotifyTemplateEditorOpen = ref(false);
       const settingsNotifyTemplateKind = ref("comment"); // comment|friendLink
       const settingsNotifyTemplateDraft = ref("");
@@ -7397,7 +7398,7 @@
           const payload = Object.assign({}, settingsNotifyForm);
           const data = await apiPost("settings.notify.save", payload);
           if (data && data.notify) {
-            settingsData.notify = Object.assign({}, data.notify);
+            settingsData.notify = Object.assign({}, settingsData.notify || {}, data.notify);
             settingsNotifyForm.mailEnabled = Number(data.notify.mailEnabled || 0);
             settingsNotifyForm.commentNotifyEnabled = Number(
               data.notify.commentNotifyEnabled || 0
@@ -7426,6 +7427,42 @@
           settingsError.value = e && e.message ? e.message : "保存失败";
         } finally {
           settingsSaving.value = false;
+        }
+      }
+
+      async function testSettingsNotify() {
+        if (settingsNotifyTesting.value) return;
+
+        settingsNotifyTesting.value = true;
+        settingsError.value = "";
+        settingsMessage.value = "";
+        try {
+          const data = await apiPost("settings.notify.test", {});
+          if (data && data.notify) {
+            settingsData.notify = Object.assign(
+              {},
+              settingsData.notify || {},
+              data.notify
+            );
+          }
+
+          const msg = String((data && data.message) || "");
+          settingsMessage.value = msg || "测试邮件已发送";
+        } catch (e) {
+          try {
+            const apiData = e && e.apiData ? e.apiData : null;
+            if (apiData && apiData.notify) {
+              settingsData.notify = Object.assign(
+                {},
+                settingsData.notify || {},
+                apiData.notify
+              );
+            }
+          } catch (e2) {
+          }
+          settingsError.value = e && e.message ? e.message : "发送失败";
+        } finally {
+          settingsNotifyTesting.value = false;
         }
       }
 
@@ -9462,6 +9499,7 @@
         settingsReadingForm,
         settingsDiscussionForm,
         settingsNotifyForm,
+        settingsNotifyTesting,
         settingsNotifyTemplateEditorOpen,
         settingsNotifyTemplateKind,
         settingsNotifyTemplateDraft,
@@ -9486,6 +9524,7 @@
         saveSettingsReading,
         saveSettingsDiscussion,
         saveSettingsNotify,
+        testSettingsNotify,
         openSettingsNotifyTemplateEditor,
         closeSettingsNotifyTemplateEditor,
         applySettingsNotifyTemplateDraft,
@@ -13322,6 +13361,57 @@
                               </div>
                             </div>
 
+                            <div
+                              v-if="(settingsData.notify.lastSuccess && settingsData.notify.lastSuccess.time) || (settingsData.notify.lastError && settingsData.notify.lastError.time)"
+                              class="v3a-settings-row"
+                            >
+                              <div class="v3a-settings-row-label">
+                                <label>发送状态</label>
+                                <div class="v3a-settings-row-help">最近一次邮件发送结果</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-mail-status-wrap">
+                                  <div
+                                    v-if="settingsData.notify.lastSuccess && settingsData.notify.lastSuccess.time"
+                                    class="v3a-mail-status success"
+                                    :title="formatTime(settingsData.notify.lastSuccess.time, settingsData.site.timezone)"
+                                  >
+                                    <div class="v3a-mail-status-hd">
+                                      <div class="v3a-mail-status-title">
+                                        发送成功
+                                        <span class="v3a-mail-status-kind" v-if="settingsData.notify.lastSuccess.kind">
+                                          · {{ settingsData.notify.lastSuccess.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastSuccess.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastSuccess.kind === 'test' ? '测试邮件' : settingsData.notify.lastSuccess.kind)) }}
+                                        </span>
+                                      </div>
+                                      <div class="v3a-mail-status-time v3a-muted">{{ formatTimeAgo(settingsData.notify.lastSuccess.time) }}</div>
+                                    </div>
+                                    <div v-if="settingsData.notify.lastSuccess.message" class="v3a-mail-status-desc">
+                                      {{ settingsData.notify.lastSuccess.message }}
+                                    </div>
+                                  </div>
+
+                                  <div
+                                    v-if="settingsData.notify.lastError && settingsData.notify.lastError.time"
+                                    class="v3a-mail-status error"
+                                    :title="formatTime(settingsData.notify.lastError.time, settingsData.site.timezone)"
+                                  >
+                                    <div class="v3a-mail-status-hd">
+                                      <div class="v3a-mail-status-title">
+                                        发送失败
+                                        <span class="v3a-mail-status-kind" v-if="settingsData.notify.lastError.kind">
+                                          · {{ settingsData.notify.lastError.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastError.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastError.kind === 'test' ? '测试邮件' : settingsData.notify.lastError.kind)) }}
+                                        </span>
+                                      </div>
+                                      <div class="v3a-mail-status-time v3a-muted">{{ formatTimeAgo(settingsData.notify.lastError.time) }}</div>
+                                    </div>
+                                    <div v-if="settingsData.notify.lastError.message" class="v3a-mail-status-desc">
+                                      {{ settingsData.notify.lastError.message }}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>评论提醒</label>
@@ -13403,6 +13493,21 @@
                                   <input type="checkbox" v-model="settingsNotifyForm.smtpSecure" :true-value="1" :false-value="0" />
                                   <span class="v3a-switch-ui"></span>
                                 </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>测试邮件</label>
+                                <div class="v3a-settings-row-help">用于验证 SMTP 配置是否可用（发送到当前登录用户邮箱）</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                  <button class="v3a-btn primary" type="button" @click="testSettingsNotify()" :disabled="settingsSaving || settingsNotifyTesting || !settingsNotifyForm.mailEnabled">
+                                    {{ settingsNotifyTesting ? "发送中…" : "发送测试邮件" }}
+                                  </button>
+                                  <div class="v3a-muted" style="font-size: 12px;">收件人：{{ settingsData.profile.mail || "未设置" }}</div>
+                                </div>
                               </div>
                             </div>
 

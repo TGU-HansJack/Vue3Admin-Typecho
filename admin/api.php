@@ -56,6 +56,20 @@ function v3a_upsert_option($db, string $name, $value, int $user = 0): void
     );
 }
 
+/**
+ * @return array<string,mixed>
+ */
+function v3a_json_assoc($value): array
+{
+    $raw = trim((string) ($value ?? ''));
+    if ($raw === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
 function v3a_truncate(string $value, int $max = 120): string
 {
     $value = trim($value);
@@ -7618,6 +7632,8 @@ try {
                 'commentTemplate' => (string) ($options->v3a_mail_comment_template ?? ''),
                 'friendLinkTemplate' => (string) ($options->v3a_mail_friendlink_template ?? ''),
                 'hasSmtpPass' => (string) ($options->v3a_mail_smtp_pass ?? '') === '' ? 0 : 1,
+                'lastError' => v3a_json_assoc($options->v3a_mail_last_error ?? ''),
+                'lastSuccess' => v3a_json_assoc($options->v3a_mail_last_success ?? ''),
             ],
             'permalink' => [
                 'rewrite' => (int) ($options->rewrite ?? 0),
@@ -8140,9 +8156,76 @@ try {
             'commentTemplate' => $commentTemplate,
             'friendLinkTemplate' => $friendLinkTemplate,
             'hasSmtpPass' => (trim($smtpPass) !== '' || $hasExistingPass) ? 1 : 0,
+            'lastError' => v3a_json_assoc($options->v3a_mail_last_error ?? ''),
+            'lastSuccess' => v3a_json_assoc($options->v3a_mail_last_success ?? ''),
         ];
 
         v3a_exit_json(0, ['notify' => $notify]);
+    }
+
+    if ($do === 'settings.notify.test') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $to = trim((string) ($user->mail ?? ''));
+        $toName = (string) ($user->screenName ?? $user->name ?? '');
+        if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            v3a_exit_json(400, null, '当前登录用户未设置有效邮箱地址，请先在「设定 → 用户」中保存邮箱。');
+        }
+
+        try {
+            if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Plugin')) {
+                $pluginFile = rtrim((string) __TYPECHO_ROOT_DIR__, "/\\") . __TYPECHO_PLUGIN_DIR__ . '/Vue3Admin/Plugin.php';
+                if (is_file($pluginFile)) {
+                    require_once $pluginFile;
+                }
+            }
+
+            if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Plugin')) {
+                v3a_exit_json(500, null, 'Vue3Admin Plugin not loaded');
+            }
+
+            $result = \TypechoPlugin\Vue3Admin\Plugin::sendTestMail($to, $toName);
+
+            $optLastError = '';
+            $optLastSuccess = '';
+            try {
+                $optLastError = (string) ($db->fetchObject(
+                    $db->select('value')->from('table.options')->where('name = ? AND user = ?', 'v3a_mail_last_error', 0)->limit(1)
+                )->value ?? '');
+            } catch (\Throwable $e) {
+            }
+            try {
+                $optLastSuccess = (string) ($db->fetchObject(
+                    $db->select('value')->from('table.options')->where('name = ? AND user = ?', 'v3a_mail_last_success', 0)->limit(1)
+                )->value ?? '');
+            } catch (\Throwable $e) {
+            }
+
+            $payloadOut = [
+                'sent' => (int) (($result['ok'] ?? 0) ? 1 : 0),
+                'to' => (string) ($result['to'] ?? $to),
+                'message' => (string) ($result['message'] ?? ''),
+                'notify' => [
+                    'lastError' => v3a_json_assoc($optLastError),
+                    'lastSuccess' => v3a_json_assoc($optLastSuccess),
+                ],
+            ];
+
+            if (!empty($result['ok'])) {
+                v3a_exit_json(0, $payloadOut);
+            }
+
+            v3a_exit_json(400, $payloadOut, (string) ($result['message'] ?? '发送失败'));
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
     }
 
     if ($do === 'settings.system.save') {
