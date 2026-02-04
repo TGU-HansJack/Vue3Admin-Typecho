@@ -484,31 +484,6 @@ a {
   padding: calc(var(--spacing) * 4) calc(var(--spacing) * 3)
     calc(var(--spacing) * 6);
   overflow: auto;
-  flex: 1;
-  min-height: 0;
-}
-
-.v3a-mobile-nav-slider {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.v3a-mobile-nav-track {
-  display: flex;
-  height: 100%;
-  width: 100%;
-  will-change: transform;
-}
-
-.v3a-mobile-nav-pane {
-  flex: 0 0 100%;
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 
 .v3a-menu-item {
@@ -2161,21 +2136,6 @@ a {
     display: none;
   }
 
-  .v3a-subsidebar.v3a-subsidebar-mobile {
-    display: flex;
-    width: 100%;
-    border-right: 0;
-    background: transparent;
-    flex: 1;
-    min-height: 0;
-  }
-
-  .v3a-subsidebar.v3a-subsidebar-mobile .v3a-subsidebar-bd {
-    flex: 1;
-    min-height: 0;
-    -webkit-overflow-scrolling: touch;
-  }
-
   .v3a-mobile-nav-mask {
     position: fixed;
     inset: 0;
@@ -2205,10 +2165,6 @@ a {
   .v3a-sidebar.open {
     transform: translateY(0);
     pointer-events: auto;
-  }
-
-  .v3a-mobile-nav-slider {
-    touch-action: pan-y;
   }
 
   .v3a-mobile-nav-handle {
