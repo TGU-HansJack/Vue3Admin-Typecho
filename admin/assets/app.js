@@ -5250,6 +5250,14 @@
             canPublish: !!cap.canPublish,
           };
 
+          if (!cid) {
+            resetPageForm(parent);
+            if (!pageCapabilities.value.markdownEnabled) {
+              pageForm.markdown = false;
+            }
+            return;
+          }
+
           pageForm.cid = Number(p.cid || cid) || cid || 0;
           pageForm.title = String(p.title || "");
           pageForm.slug = String(p.slug || "");
