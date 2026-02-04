@@ -203,6 +203,8 @@
     chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`,
     collapse: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`,
     expand: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`,
+    panelTopClose: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-top-close-icon lucide-panel-top-close"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="m9 16 3-3 3 3"/></svg>`,
+    panelTopOpen: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-top-open-icon lucide-panel-top-open"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="m15 14-3 3-3-3"/></svg>`,
     user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
     activity: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49"/><path d="M7.76 7.76a6 6 0 0 0 0 8.49"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>`,
     trending: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`,
@@ -713,6 +715,55 @@
       const lastThemeSettingsKey = ref("theme.activate");
       const writeSidebarOpen = ref(false);
       const permissionInfoOpen = ref(false);
+      const isNarrowScreen = ref(false);
+      const mobileNavOpen = ref(false);
+
+      function closeMobileNav() {
+        mobileNavOpen.value = false;
+      }
+
+      function syncNarrowScreen() {
+        let next = false;
+        try {
+          next = !!(window.matchMedia && window.matchMedia("(max-width: 48rem)").matches);
+        } catch (e) {}
+
+        if (!next) {
+          try {
+            next = (document.documentElement?.clientWidth || 0) <= 768;
+          } catch (e) {}
+        }
+
+        if (isNarrowScreen.value !== next) {
+          isNarrowScreen.value = next;
+        }
+
+        if (!next) {
+          closeMobileNav();
+        }
+      }
+
+      syncNarrowScreen();
+      onMounted(() => {
+        syncNarrowScreen();
+        try {
+          window.addEventListener("resize", syncNarrowScreen, { passive: true });
+        } catch (e) {}
+      });
+
+      const sidebarToggleIcon = computed(() => {
+        if (isNarrowScreen.value) {
+          return mobileNavOpen.value ? ICONS.panelTopOpen : ICONS.panelTopClose;
+        }
+        return sidebarCollapsed.value ? ICONS.expand : ICONS.collapse;
+      });
+
+      const sidebarToggleTitle = computed(() => {
+        if (isNarrowScreen.value) {
+          return mobileNavOpen.value ? "收起菜单" : "拉起菜单";
+        }
+        return sidebarCollapsed.value ? "展开" : "收起";
+      });
 
       function openPermissionInfo() {
         permissionInfoOpen.value = true;
@@ -5468,9 +5519,11 @@
           } else {
             navTo(to);
           }
+          closeMobileNav();
           return;
         }
         navTo(to);
+        closeMobileNav();
       }
 
       function isMenuItemActive(item) {
@@ -5484,6 +5537,10 @@
       }
 
       function toggleSidebar() {
+        if (isNarrowScreen.value) {
+          mobileNavOpen.value = !mobileNavOpen.value;
+          return;
+        }
         sidebarCollapsed.value = !sidebarCollapsed.value;
         try {
           localStorage.setItem(
@@ -9267,11 +9324,12 @@
       function handleMenuClick(item) {
         if (item.action === "openSettings") {
           openSettings();
+          closeMobileNav();
           return;
         }
 
         if (item.children && item.children.length) {
-          if (sidebarCollapsed.value) {
+          if (sidebarCollapsed.value && !isNarrowScreen.value) {
             handleSubMenuClick(item.children[0]);
             return;
           }
@@ -9279,7 +9337,10 @@
           return;
         }
 
-        if (item.to) navTo(item.to);
+        if (item.to) {
+          navTo(item.to);
+          closeMobileNav();
+        }
       }
 
       function badgeValue(item) {
@@ -9392,6 +9453,11 @@
         routeQuery,
         crumb,
         sidebarCollapsed,
+        isNarrowScreen,
+        mobileNavOpen,
+        closeMobileNav,
+        sidebarToggleIcon,
+        sidebarToggleTitle,
         settingsOpen,
         settingsActiveKey,
         isThemeSettingsActive,
@@ -9911,9 +9977,13 @@
         openShouTuTaSettings,
       };
     },
-    template: `
-      <div class="v3a-app">
-        <aside class="v3a-sidebar" data-tour="sidebar" :class="{ collapsed: sidebarCollapsed }">
+      template: `
+       <div class="v3a-app">
+        <div v-if="isNarrowScreen && mobileNavOpen" class="v3a-mobile-nav-mask" @click="closeMobileNav()"></div>
+        <aside class="v3a-sidebar" data-tour="sidebar" :class="{ collapsed: sidebarCollapsed && !isNarrowScreen, open: isNarrowScreen && mobileNavOpen }">
+          <div v-if="isNarrowScreen" class="v3a-mobile-nav-handle" @click="closeMobileNav()" role="button" aria-label="收起菜单">
+            <div class="v3a-mobile-nav-handle-bar"></div>
+          </div>
           <nav class="v3a-menu">
             <div v-for="item in menuItems" :key="item.key">
               <div
@@ -9924,9 +9994,9 @@
                 >
                 <div class="v3a-menu-left">
                   <span class="v3a-icon" v-html="ICONS[item.icon]"></span>
-                  <span class="v3a-menu-label" v-show="!sidebarCollapsed">{{ item.label }}</span>
+                  <span class="v3a-menu-label" v-show="isNarrowScreen || !sidebarCollapsed">{{ item.label }}</span>
                 </div>
-                <span class="v3a-menu-right" v-show="!sidebarCollapsed">
+                <span class="v3a-menu-right" v-show="isNarrowScreen || !sidebarCollapsed">
                   <span class="v3a-badge" v-if="badgeValue(item)">{{ badgeValue(item) }}</span>
                   <span v-if="item.children" class="v3a-chev" :class="{ open: expanded[item.key] }">
                     <span class="v3a-icon" v-html="ICONS.chevron"></span>
@@ -9934,7 +10004,7 @@
                 </span>
               </div>
 
-              <div class="v3a-sub" v-if="item.children" v-show="expanded[item.key] && !sidebarCollapsed">
+              <div class="v3a-sub" v-if="item.children" v-show="expanded[item.key] && (isNarrowScreen || !sidebarCollapsed)">
                 <div
                   class="v3a-subitem"
                   v-for="child in item.children"
@@ -9950,7 +10020,7 @@
           </nav>
         </aside>
 
-        <aside class="v3a-subsidebar" v-show="settingsOpen && !sidebarCollapsed" data-tour="settings-nav">
+        <aside class="v3a-subsidebar" v-show="settingsOpen && !sidebarCollapsed && !isNarrowScreen" data-tour="settings-nav">
           <div class="v3a-subsidebar-bd">
             <template v-for="s in settingsItems" :key="s.key">
               <template v-if="s.key === 'theme'">
@@ -10010,8 +10080,8 @@
             <template v-if="routePath === '/dashboard'">
               <div class="v3a-container">
                 <div class="v3a-dash-head">
-                  <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                    <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                  <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                    <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                   </button>
                   <div class="v3a-dash-title">欢迎回来</div>
                   <div class="v3a-posts-actions v3a-dash-actions" data-tour="dash-actions">
@@ -10303,8 +10373,8 @@
               <div class="v3a-container">
                 <div class="v3a-posts-head">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-posts-title">管理</div>
                   </div>
@@ -10420,8 +10490,8 @@
               <div class="v3a-container v3a-container-write">
                 <div class="v3a-pagehead v3a-pagehead-sticky">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -10669,8 +10739,8 @@
               <div class="v3a-container">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -10845,8 +10915,8 @@
               <div class="v3a-container v3a-container-comments">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -11072,8 +11142,8 @@
               <div class="v3a-container">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -11125,8 +11195,8 @@
               <div class="v3a-container v3a-container-write">
                 <div class="v3a-pagehead v3a-pagehead-sticky">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -11344,8 +11414,8 @@
               <div class="v3a-container v3a-container-files">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -11496,8 +11566,8 @@
               <div class="v3a-container v3a-container-friends">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -11759,8 +11829,8 @@
               <div class="v3a-container">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                   <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -11838,8 +11908,8 @@
               <div class="v3a-container">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -11997,8 +12067,8 @@
               <div class="v3a-container">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -12032,8 +12102,8 @@
               <div class="v3a-container">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -12447,8 +12517,8 @@
               <div class="v3a-container">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -12553,8 +12623,8 @@
               <div class="v3a-container">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
@@ -12769,8 +12839,8 @@
               <div class="v3a-container">
                 <div class="v3a-pagehead">
                   <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarCollapsed ? '展开' : '收起'">
-                      <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>

@@ -2132,9 +2132,67 @@ a {
 }
 
 @media (max-width: 48rem) {
-  .v3a-sidebar,
   .v3a-subsidebar {
     display: none;
+  }
+
+  .v3a-mobile-nav-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 1500;
+  }
+
+  .v3a-sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: 100%;
+    height: min(70vh, 520px);
+    border-right: 0;
+    border-top: 1px solid var(--sidebar-border);
+    background: var(--content-bg);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
+    transform: translateY(100%);
+    transition: transform 0.2s ease;
+    z-index: 1501;
+    pointer-events: none;
+  }
+
+  .v3a-sidebar.open {
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .v3a-mobile-nav-handle {
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--content-bg);
+    border-top-left-radius: var(--radius-xl);
+    border-top-right-radius: var(--radius-xl);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    cursor: pointer;
+    user-select: none;
+    flex: 0 0 auto;
+  }
+
+  .v3a-mobile-nav-handle-bar {
+    width: 44px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  .v3a-menu {
+    padding: 10px 12px calc(var(--spacing) * 6 + env(safe-area-inset-bottom, 0px));
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    flex: 1;
   }
 }
 
@@ -3145,6 +3203,45 @@ a {
 
 .v3a-table tbody tr:hover td {
   background: rgba(0, 0, 0, 0.02);
+}
+
+@media (max-width: 48rem) {
+  .v3a-card .bd {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .v3a-table {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .v3a-table th,
+  .v3a-table td {
+    white-space: nowrap;
+  }
+
+  .v3a-table thead th:last-child,
+  .v3a-table tbody td:last-child {
+    position: sticky;
+    right: 0;
+  }
+
+  .v3a-table thead th:last-child {
+    z-index: 3;
+    background: #fafafa;
+    box-shadow: -12px 0 16px -16px rgba(0, 0, 0, 0.3);
+  }
+
+  .v3a-table tbody td:last-child {
+    z-index: 2;
+    background: #fff;
+    box-shadow: -12px 0 16px -16px rgba(0, 0, 0, 0.18);
+  }
+
+  .v3a-table tbody tr:hover td:last-child {
+    background: rgba(0, 0, 0, 0.02);
+  }
 }
 
 .v3a-pill {
