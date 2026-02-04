@@ -1139,6 +1139,46 @@ function v3a_bool_int($value): int
 }
 
 /**
+ * Default slug: when slug is empty, use cid (if not occupied in same type group).
+ */
+function v3a_default_slug_to_cid($db, int $cid, array $types): bool
+{
+    if ($cid <= 0) {
+        return false;
+    }
+
+    $slug = (string) $cid;
+    $typeList = array_values(array_filter(array_map('strval', $types), fn($t) => $t !== ''));
+
+    if (!empty($typeList)) {
+        try {
+            $row = $db->fetchObject(
+                $db->select('cid')
+                    ->from('table.contents')
+                    ->where('slug = ?', $slug)
+                    ->where('cid <> ?', $cid)
+                    ->where('type IN ?', $typeList)
+                    ->limit(1)
+            );
+            if ((int) ($row->cid ?? 0) > 0) {
+                return false;
+            }
+        } catch (\Throwable $e) {
+        }
+    }
+
+    try {
+        $affected = (int) $db->query(
+            $db->update('table.contents')->rows(['slug' => $slug])->where('cid = ?', $cid),
+            \Typecho\Db::WRITE
+        );
+        return $affected > 0;
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+/**
  * Friends apply settings (front-end v3a_links.php templates).
  *
  * @return array{
@@ -3034,6 +3074,7 @@ try {
 
         // Normalize expected request keys for widget.
         $cid = v3a_int($payload['cid'] ?? 0, 0);
+        $slugEmpty = trim((string) ($payload['slug'] ?? '')) === '';
 
         $widgetRequest = [
             'title' => $payload['title'] ?? '',
@@ -3051,6 +3092,9 @@ try {
 
         if ($cid > 0) {
             $widgetRequest['cid'] = $cid;
+        }
+        if ($slugEmpty && $cid > 0) {
+            $widgetRequest['slug'] = (string) $cid;
         }
 
         $categories = $payload['category'] ?? $payload['categories'] ?? [];
@@ -3128,7 +3172,31 @@ try {
 
         try {
             $mode = $do === 'posts.publish' ? 'publish' : 'save';
-            $res = V3A_PostEditProxy::alloc(null, $widgetRequest, false)->v3aWrite($mode === 'publish' ? 'publish' : 'save');
+            $res = V3A_PostEditProxy::alloc(null, $widgetRequest, false)->v3aWrite(
+                $mode === 'publish' ? 'publish' : 'save'
+            );
+
+            if ($slugEmpty) {
+                $savedCid = (int) ($res['cid'] ?? 0);
+                if ($savedCid > 0) {
+                    $slugUpdated = v3a_default_slug_to_cid($db, $savedCid, ['post', 'post_draft']);
+                    if ($slugUpdated) {
+                        try {
+                            $post = \Widget\Contents\Post\Edit::alloc(null, ['cid' => $savedCid], false)->prepare();
+                            $res['permalink'] = (string) ($post->permalink ?? ($res['permalink'] ?? ''));
+                        } catch (\Throwable $e) {
+                        }
+                    }
+
+                    try {
+                        $row = $db->fetchObject(
+                            $db->select('slug')->from('table.contents')->where('cid = ?', $savedCid)->limit(1)
+                        );
+                        $res['slug'] = (string) ($row->slug ?? '');
+                    } catch (\Throwable $e) {
+                    }
+                }
+            }
             v3a_exit_json(0, $res);
         } catch (\Throwable $e) {
             v3a_exit_json(500, null, $e->getMessage());
@@ -3595,6 +3663,7 @@ try {
         $payload = v3a_payload();
 
         $cid = v3a_int($payload['cid'] ?? 0, 0);
+        $slugEmpty = trim((string) ($payload['slug'] ?? '')) === '';
 
         $widgetRequest = [
             'title' => $payload['title'] ?? '',
@@ -3612,6 +3681,9 @@ try {
 
         if ($cid > 0) {
             $widgetRequest['cid'] = $cid;
+        }
+        if ($slugEmpty && $cid > 0) {
+            $widgetRequest['slug'] = (string) $cid;
         }
 
         $fields = $payload['fields'] ?? [];
@@ -3683,6 +3755,28 @@ try {
             $res = V3A_PageEditProxy::alloc(null, $widgetRequest, false)->v3aWrite(
                 $mode === 'publish' ? 'publish' : 'save'
             );
+
+            if ($slugEmpty) {
+                $savedCid = (int) ($res['cid'] ?? 0);
+                if ($savedCid > 0) {
+                    $slugUpdated = v3a_default_slug_to_cid($db, $savedCid, ['page', 'page_draft']);
+                    if ($slugUpdated) {
+                        try {
+                            $page = \Widget\Contents\Page\Edit::alloc(null, ['cid' => $savedCid], false)->prepare();
+                            $res['permalink'] = (string) ($page->permalink ?? ($res['permalink'] ?? ''));
+                        } catch (\Throwable $e) {
+                        }
+                    }
+
+                    try {
+                        $row = $db->fetchObject(
+                            $db->select('slug')->from('table.contents')->where('cid = ?', $savedCid)->limit(1)
+                        );
+                        $res['slug'] = (string) ($row->slug ?? '');
+                    } catch (\Throwable $e) {
+                    }
+                }
+            }
             v3a_exit_json(0, $res);
         } catch (\Throwable $e) {
             v3a_exit_json(500, null, $e->getMessage());

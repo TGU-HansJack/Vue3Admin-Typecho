@@ -4324,7 +4324,10 @@
 
           postForm.cid = Number(p.cid || cid) || cid;
           postForm.title = String(p.title || "");
-          postForm.slug = String(p.slug || "");
+          postForm.slug = String(p.slug ?? "");
+          if (!String(postForm.slug || "").trim() && Number(postForm.cid || 0) > 0) {
+            postForm.slug = String(postForm.cid);
+          }
           postForm.text = String(p.text || "");
           postForm.tags = String(p.tags || "");
           postForm.created = Number(p.created || 0) || 0;
@@ -4376,6 +4379,11 @@
         try {
           syncPostTextFromEditor();
 
+          const slugWasEmpty = !String(postForm.slug || "").trim();
+          if (slugWasEmpty && Number(postForm.cid || 0) > 0) {
+            postForm.slug = String(postForm.cid);
+          }
+
           const postFieldsMap = new Map();
           const postDefaults = Array.isArray(postDefaultFields.value) ? postDefaultFields.value : [];
           for (const f of postDefaults) {
@@ -4423,6 +4431,12 @@
           const cid = Number(data.cid || 0);
           if (cid > 0) {
             postForm.cid = cid;
+            if (slugWasEmpty) {
+              const nextSlug = Object.prototype.hasOwnProperty.call(data || {}, "slug")
+                ? String(data.slug ?? "").trim()
+                : "";
+              postForm.slug = nextSlug ? nextSlug : String(cid);
+            }
             if (routePath.value === "/posts/write") {
               const currentCid = Number(routeQuery.value?.cid || 0);
               if (!currentCid || currentCid !== cid) {
@@ -5260,7 +5274,10 @@
 
           pageForm.cid = Number(p.cid || cid) || cid || 0;
           pageForm.title = String(p.title || "");
-          pageForm.slug = String(p.slug || "");
+          pageForm.slug = String(p.slug ?? "");
+          if (!String(pageForm.slug || "").trim() && Number(pageForm.cid || 0) > 0) {
+            pageForm.slug = String(pageForm.cid);
+          }
           pageForm.text = String(p.text || "");
           pageForm.visibility = String(p.visibility || p.status || "publish");
           if (pageForm.visibility !== "hidden") pageForm.visibility = "publish";
@@ -5303,6 +5320,11 @@
         pageMessage.value = "";
         try {
           syncPageTextFromEditor();
+
+          const slugWasEmpty = !String(pageForm.slug || "").trim();
+          if (slugWasEmpty && Number(pageForm.cid || 0) > 0) {
+            pageForm.slug = String(pageForm.cid);
+          }
 
           const pageFieldsMap = new Map();
           const pageDefaults = Array.isArray(pageDefaultFields.value) ? pageDefaultFields.value : [];
@@ -5348,6 +5370,12 @@
           const data = await apiPost(m === "publish" ? "pages.publish" : "pages.save", payload);
           const newCid = Number(data?.cid || pageForm.cid || 0) || 0;
           pageForm.cid = newCid;
+          if (slugWasEmpty && newCid > 0) {
+            const nextSlug = Object.prototype.hasOwnProperty.call(data || {}, "slug")
+              ? String(data.slug ?? "").trim()
+              : "";
+            pageForm.slug = nextSlug ? nextSlug : String(newCid);
+          }
           pageMessage.value = m === "publish" ? "页面已发布" : "草稿已保存";
 
           if (newCid && Number(routeQuery.value?.cid || 0) !== newCid) {
