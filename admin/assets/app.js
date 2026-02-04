@@ -859,7 +859,45 @@
       });
       const shouTuTaLists = ref({ whitelist: 0, banlist: 0, cidr: 0 });
       const shouTuTaBanLog = ref([]);
+      const shouTuTaGlobalWhitelist = ref([]);
+      const shouTuTaCidrItems = ref([]);
       const shouTuTaUpdatedAt = ref(0);
+      const shouTuTaAnalyticsEnabled = ref(0);
+      const shouTuTaAnalyticsAvailable = ref(0);
+      const shouTuTaVisitToday = ref({ requests: 0, uv: 0 });
+      const shouTuTaVisitYesterday = ref({ requests: 0, uv: 0 });
+      const shouTuTaTopPages = ref([]);
+      const shouTuTaTopIps = ref([]);
+      const shouTuTaTrend24h = ref([]);
+      const shouTuTaTrendMax = computed(() => {
+        const rows = Array.isArray(shouTuTaTrend24h.value) ? shouTuTaTrend24h.value : [];
+        let max = 0;
+        for (const r of rows) {
+          max = Math.max(max, Number(r && r.count ? r.count : 0) || 0);
+        }
+        return max || 1;
+      });
+      const shouTuTaLogs = ref([]);
+      const shouTuTaLastId = ref(0);
+      const shouTuTaThreatTop = ref([]);
+
+      const shouTuTaActing = ref(false);
+      const shouTuTaStreamPaused = ref(false);
+      const shouTuTaIpQuery = ref("");
+      const shouTuTaPurgeIpInput = ref("");
+      const shouTuTaIpModalOpen = ref(false);
+      const shouTuTaIpModalIp = ref("");
+      const shouTuTaIpModalLoading = ref(false);
+      const shouTuTaIpModalLogs = ref([]);
+      const shouTuTaIpModalAbuse = ref(null);
+      const shouTuTaIpModalAbuseLoading = ref(false);
+
+      const shouTuTaGlobalWhitelistOpen = ref(false);
+      const shouTuTaGlobalWhitelistForm = reactive({ ip: "", remark: "" });
+      const shouTuTaCidrOpen = ref(false);
+      const shouTuTaCidrList = ref("");
+
+      let shouTuTaPollTimer = null;
 
       async function fetchShouTuTaStats() {
         if (!shouTuTaEnabled.value) {
@@ -880,10 +918,301 @@
 
           shouTuTaBanLog.value = data && typeof data === "object" && Array.isArray(data.banLog) ? data.banLog.map(String) : [];
           shouTuTaUpdatedAt.value = Number(data && typeof data === "object" ? data.updatedAt : 0) || 0;
+
+          const globalWhitelist = data && typeof data === "object" && Array.isArray(data.globalWhitelist) ? data.globalWhitelist : [];
+          shouTuTaGlobalWhitelist.value = globalWhitelist
+            .map((v) => ({
+              ip: String(v && typeof v === "object" ? v.ip || "" : "").trim(),
+              remark: String(v && typeof v === "object" ? v.remark || "" : "").trim(),
+            }))
+            .filter((v) => !!v.ip);
+
+          shouTuTaCidrItems.value = data && typeof data === "object" && Array.isArray(data.cidrList) ? data.cidrList.map((v) => String(v || "").trim()).filter(Boolean) : [];
+
+          const analytics = data && typeof data === "object" && data.analytics && typeof data.analytics === "object" ? data.analytics : null;
+          shouTuTaAnalyticsEnabled.value = analytics ? Number(analytics.enabled || 0) : 0;
+          shouTuTaAnalyticsAvailable.value = analytics ? Number(analytics.available || 0) : 0;
+          shouTuTaVisitToday.value = analytics && analytics.today ? { requests: Number(analytics.today.requests || 0) || 0, uv: Number(analytics.today.uv || 0) || 0 } : { requests: 0, uv: 0 };
+          shouTuTaVisitYesterday.value = analytics && analytics.yesterday ? { requests: Number(analytics.yesterday.requests || 0) || 0, uv: Number(analytics.yesterday.uv || 0) || 0 } : { requests: 0, uv: 0 };
+          shouTuTaTopPages.value = analytics && Array.isArray(analytics.topPages) ? analytics.topPages : [];
+          shouTuTaTopIps.value = analytics && Array.isArray(analytics.topIps) ? analytics.topIps : [];
+          shouTuTaTrend24h.value = analytics && Array.isArray(analytics.trend24h) ? analytics.trend24h : [];
+          shouTuTaLogs.value = analytics && Array.isArray(analytics.logs) ? analytics.logs : [];
+          shouTuTaLastId.value = analytics ? Number(analytics.lastId || 0) || 0 : 0;
+          shouTuTaThreatTop.value = analytics && Array.isArray(analytics.threatTop) ? analytics.threatTop : [];
         } catch (e) {
           shouTuTaError.value = e && e.message ? e.message : "加载失败";
         } finally {
           shouTuTaLoading.value = false;
+        }
+      }
+
+      async function fetchShouTuTaLogsSince() {
+        if (!shouTuTaEnabled.value) return;
+        if (!shouTuTaAnalyticsAvailable.value) return;
+        const lastId = Number(shouTuTaLastId.value || 0) || 0;
+
+        try {
+          const data = await apiGet("shoutu.logs.since", { last_id: lastId });
+          const logs = data && typeof data === "object" && Array.isArray(data.logs) ? data.logs : [];
+          const nextLastId = data && typeof data === "object" ? Number(data.lastId || 0) || 0 : lastId;
+          if (!logs.length) {
+            shouTuTaLastId.value = Math.max(shouTuTaLastId.value, nextLastId);
+            return;
+          }
+
+          const merged = shouTuTaLogs.value.concat(logs);
+          shouTuTaLogs.value = merged.length > 200 ? merged.slice(merged.length - 200) : merged;
+          shouTuTaLastId.value = Math.max(shouTuTaLastId.value, nextLastId);
+        } catch (e) {}
+      }
+
+      function stopShouTuTaPolling() {
+        if (shouTuTaPollTimer) {
+          clearInterval(shouTuTaPollTimer);
+          shouTuTaPollTimer = null;
+        }
+      }
+
+      function startShouTuTaPolling() {
+        if (shouTuTaPollTimer) return;
+        if (routePath.value !== "/extras/shoutu") return;
+        if (!shouTuTaEnabled.value) return;
+        if (!shouTuTaAnalyticsAvailable.value) return;
+        if (shouTuTaStreamPaused.value) return;
+
+        shouTuTaPollTimer = setInterval(() => {
+          if (routePath.value !== "/extras/shoutu") {
+            stopShouTuTaPolling();
+            return;
+          }
+          fetchShouTuTaLogsSince();
+        }, 5000);
+      }
+
+      async function openShouTuTaIpModal(ip) {
+        const v = String(ip || "").trim();
+        if (!v) return;
+        shouTuTaIpModalIp.value = v;
+        shouTuTaIpModalOpen.value = true;
+        shouTuTaIpModalLogs.value = [];
+        shouTuTaIpModalAbuse.value = null;
+        shouTuTaIpModalAbuseLoading.value = false;
+
+        if (!shouTuTaEnabled.value || !shouTuTaAnalyticsAvailable.value) return;
+
+        shouTuTaIpModalLoading.value = true;
+        try {
+          const data = await apiGet("shoutu.ip.logs", { ip: v });
+          shouTuTaIpModalLogs.value = data && typeof data === "object" && Array.isArray(data.logs) ? data.logs : [];
+        } catch (e) {
+          toastError(e && e.message ? e.message : "加载失败");
+        } finally {
+          shouTuTaIpModalLoading.value = false;
+        }
+      }
+
+      function closeShouTuTaIpModal() {
+        shouTuTaIpModalOpen.value = false;
+        shouTuTaIpModalLoading.value = false;
+        shouTuTaIpModalIp.value = "";
+        shouTuTaIpModalLogs.value = [];
+        shouTuTaIpModalAbuse.value = null;
+        shouTuTaIpModalAbuseLoading.value = false;
+      }
+
+      async function shouTuTaCheckAbuseIpdb(ip) {
+        const v = String(ip || "").trim();
+        if (!v) return;
+        shouTuTaIpModalAbuseLoading.value = true;
+        try {
+          const data = await apiGet("shoutu.abuseipdb.check", { ip: v });
+          shouTuTaIpModalAbuse.value = data && typeof data === "object" ? data : null;
+        } catch (e) {
+          toastError(e && e.message ? e.message : "查询失败");
+        } finally {
+          shouTuTaIpModalAbuseLoading.value = false;
+        }
+      }
+
+      async function shouTuTaUnblock(ip) {
+        const v = String(ip || "").trim();
+        if (!v || shouTuTaActing.value) return;
+        if (!confirm(`确认解除拦截：${v} ?`)) return;
+        shouTuTaActing.value = true;
+        try {
+          await apiPost("shoutu.unblock", { ip: v });
+          toastSuccess("已解除拦截");
+          await fetchShouTuTaStats();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "操作失败");
+        } finally {
+          shouTuTaActing.value = false;
+        }
+      }
+
+      async function shouTuTaWhitelistAdd(ip) {
+        const v = String(ip || "").trim();
+        if (!v || shouTuTaActing.value) return;
+        if (!confirm(`确认加入白名单：${v} ?`)) return;
+        shouTuTaActing.value = true;
+        try {
+          await apiPost("shoutu.whitelist.add", { ip: v });
+          toastSuccess("已加入白名单");
+          await fetchShouTuTaStats();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "操作失败");
+        } finally {
+          shouTuTaActing.value = false;
+        }
+      }
+
+      async function shouTuTaPermBan(ip) {
+        const v = String(ip || "").trim();
+        if (!v || shouTuTaActing.value) return;
+        if (!confirm(`警告：确认永久封禁：${v} ?`)) return;
+        shouTuTaActing.value = true;
+        try {
+          await apiPost("shoutu.ban.perm", { ip: v });
+          toastSuccess("已永久封禁");
+          await fetchShouTuTaStats();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "操作失败");
+        } finally {
+          shouTuTaActing.value = false;
+        }
+      }
+
+      function openShouTuTaGlobalWhitelist() {
+        shouTuTaGlobalWhitelistForm.ip = shouTuTaIpModalIp.value || "";
+        shouTuTaGlobalWhitelistForm.remark = "";
+        shouTuTaGlobalWhitelistOpen.value = true;
+      }
+
+      function closeShouTuTaGlobalWhitelist() {
+        shouTuTaGlobalWhitelistOpen.value = false;
+      }
+
+      async function submitShouTuTaGlobalWhitelist() {
+        if (shouTuTaActing.value) return;
+        const ip = String(shouTuTaGlobalWhitelistForm.ip || "").trim();
+        const remark = String(shouTuTaGlobalWhitelistForm.remark || "").trim();
+        if (!ip) {
+          toastError("请输入IP");
+          return;
+        }
+        shouTuTaActing.value = true;
+        try {
+          await apiPost("shoutu.globalWhitelist.add", { ip, remark });
+          toastSuccess("已添加全局白名单");
+          shouTuTaGlobalWhitelistOpen.value = false;
+          await fetchShouTuTaStats();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "操作失败");
+        } finally {
+          shouTuTaActing.value = false;
+        }
+      }
+
+      function openShouTuTaCidr() {
+        shouTuTaCidrList.value = "";
+        shouTuTaCidrOpen.value = true;
+      }
+
+      function closeShouTuTaCidr() {
+        shouTuTaCidrOpen.value = false;
+      }
+
+      async function submitShouTuTaCidr() {
+        if (shouTuTaActing.value) return;
+        const list = String(shouTuTaCidrList.value || "").trim();
+        if (!list) {
+          toastError("请输入IP或CIDR");
+          return;
+        }
+        shouTuTaActing.value = true;
+        try {
+          const res = await apiPost("shoutu.cidr.add", { cidr_list: list });
+          toastSuccess(`已添加 ${Number(res?.added || 0) || 0} 条`);
+          shouTuTaCidrOpen.value = false;
+          await fetchShouTuTaStats();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "操作失败");
+        } finally {
+          shouTuTaActing.value = false;
+        }
+      }
+
+      function submitShouTuTaIpQuery() {
+        const v = String(shouTuTaIpQuery.value || "").trim();
+        if (!v) return;
+        openShouTuTaIpModal(v);
+      }
+
+      function toggleShouTuTaStream() {
+        if (shouTuTaStreamPaused.value) {
+          shouTuTaStreamPaused.value = false;
+          startShouTuTaPolling();
+        } else {
+          shouTuTaStreamPaused.value = true;
+          stopShouTuTaPolling();
+        }
+      }
+
+      function shouTuTaStatusTone(code) {
+        const c = Number(code || 0) || 0;
+        if (c === 403) return "danger";
+        if (c === 418) return "warn";
+        if (c === 503) return "warn";
+        if (c >= 400) return "danger";
+        return "success";
+      }
+
+      function shouTuTaStatusText(code) {
+        const c = Number(code || 0) || 0;
+        if (c === 403) return "拦截";
+        if (c === 418) return "边缘";
+        if (c === 503) return "维护";
+        if (!c) return "—";
+        if (c >= 200 && c < 400) return "正常";
+        return String(c);
+      }
+
+      async function shouTuTaGlobalWhitelistRemove(ip) {
+        const v = String(ip || "").trim();
+        if (!v || shouTuTaActing.value) return;
+        if (!confirm(`确定从全局白名单中移除：${v} ?`)) return;
+        shouTuTaActing.value = true;
+        try {
+          await apiPost("shoutu.globalWhitelist.remove", { ip: v });
+          toastSuccess("已移除");
+          await fetchShouTuTaStats();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "操作失败");
+        } finally {
+          shouTuTaActing.value = false;
+        }
+      }
+
+      async function shouTuTaPurgeIp(ip) {
+        const v = String(ip || "").trim();
+        if (!v || shouTuTaActing.value) return;
+        if (!confirm(`警告：该操作不可逆，将彻底清除 IP: ${v} 的相关数据。\n确认继续？`)) return;
+        shouTuTaActing.value = true;
+        try {
+          await apiPost("shoutu.purge_ip", { ip: v });
+          toastSuccess("已清除");
+          if (String(shouTuTaPurgeIpInput.value || "").trim() === v) {
+            shouTuTaPurgeIpInput.value = "";
+          }
+          if (String(shouTuTaIpModalIp.value || "").trim() === v) {
+            closeShouTuTaIpModal();
+          }
+          await fetchShouTuTaStats();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "操作失败");
+        } finally {
+          shouTuTaActing.value = false;
         }
       }
 
@@ -7608,6 +7937,9 @@
           }
           if (p === "/extras/shoutu") {
             await fetchShouTuTaStats();
+            startShouTuTaPolling();
+          } else {
+            stopShouTuTaPolling();
           }
         }
       );
@@ -7769,6 +8101,7 @@
         }
         if (routePath.value === "/extras/shoutu") {
           await fetchShouTuTaStats();
+          startShouTuTaPolling();
         }
       });
 
@@ -8324,8 +8657,54 @@
         shouTuTaStats,
         shouTuTaLists,
         shouTuTaBanLog,
+        shouTuTaGlobalWhitelist,
+        shouTuTaCidrItems,
         shouTuTaUpdatedAt,
+        shouTuTaAnalyticsEnabled,
+        shouTuTaAnalyticsAvailable,
+        shouTuTaVisitToday,
+        shouTuTaVisitYesterday,
+        shouTuTaTopPages,
+        shouTuTaTopIps,
+        shouTuTaTrend24h,
+        shouTuTaTrendMax,
+        shouTuTaLogs,
+        shouTuTaLastId,
+        shouTuTaThreatTop,
+        shouTuTaActing,
+        shouTuTaStreamPaused,
+        shouTuTaIpQuery,
+        shouTuTaPurgeIpInput,
+        shouTuTaIpModalOpen,
+        shouTuTaIpModalIp,
+        shouTuTaIpModalLoading,
+        shouTuTaIpModalLogs,
+        shouTuTaIpModalAbuse,
+        shouTuTaIpModalAbuseLoading,
+        shouTuTaGlobalWhitelistOpen,
+        shouTuTaGlobalWhitelistForm,
+        shouTuTaCidrOpen,
+        shouTuTaCidrList,
         fetchShouTuTaStats,
+        fetchShouTuTaLogsSince,
+        openShouTuTaIpModal,
+        closeShouTuTaIpModal,
+        shouTuTaCheckAbuseIpdb,
+        shouTuTaUnblock,
+        shouTuTaWhitelistAdd,
+        shouTuTaPermBan,
+        openShouTuTaGlobalWhitelist,
+        closeShouTuTaGlobalWhitelist,
+        submitShouTuTaGlobalWhitelist,
+        openShouTuTaCidr,
+        closeShouTuTaCidr,
+        submitShouTuTaCidr,
+        submitShouTuTaIpQuery,
+        toggleShouTuTaStream,
+        shouTuTaStatusTone,
+        shouTuTaStatusText,
+        shouTuTaGlobalWhitelistRemove,
+        shouTuTaPurgeIp,
         openShouTuTaSettings,
       };
     },
@@ -10435,9 +10814,8 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
-                    <button class="v3a-btn" type="button" @click="openShouTuTaSettings()" :disabled="!shouTuTaEnabled">
+                    <button class="v3a-actionbtn" type="button" title="设置" @click="openShouTuTaSettings()" :disabled="!shouTuTaEnabled">
                       <span class="v3a-icon" v-html="ICONS.gear"></span>
-                      设置
                     </button>
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="shouTuTaLoading || !shouTuTaEnabled" @click="fetchShouTuTaStats()">
                       <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
@@ -10508,28 +10886,331 @@
                     </div>
 
                     <div class="v3a-section">
+                      <div class="v3a-section-hd split">
+                        <div class="v3a-section-title">IP 查询</div>
+                        <div class="v3a-section-tools">
+                          <span class="v3a-muted">点击列表中的 IP 可查看详情与操作</span>
+                        </div>
+                      </div>
+                      <div class="v3a-section-line"></div>
+
+                      <div class="v3a-card">
+                        <div class="bd">
+                          <div style="display:flex; gap: 10px; flex-wrap: wrap; align-items:center;">
+                            <input class="v3a-input" type="text" v-model="shouTuTaIpQuery" placeholder="输入 IP 地址…" style="flex: 1; min-width: 220px;" />
+                            <button class="v3a-btn" type="button" @click="submitShouTuTaIpQuery()" :disabled="!shouTuTaIpQuery || !shouTuTaIpQuery.trim()">查询</button>
+                          </div>
+                          <div class="v3a-muted" style="margin-top: 10px; font-size: 12px;">
+                            弹窗中可进行：查询信誉 / 解除拦截 / 加入白名单 / 永久封禁 / 彻底清除数据等操作。
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="v3a-section">
+                      <div class="v3a-section-hd split">
+                        <div class="v3a-section-title">站点访问统计</div>
+                        <div class="v3a-section-tools">
+                          <span v-if="!shouTuTaAnalyticsEnabled" class="v3a-muted">未启用</span>
+                          <span v-else-if="!shouTuTaAnalyticsAvailable" class="v3a-muted">不可用</span>
+                          <span v-else class="v3a-muted">今日 / 昨日 / 24h</span>
+                        </div>
+                      </div>
+                      <div class="v3a-section-line"></div>
+
+                      <div v-if="!shouTuTaAnalyticsEnabled" class="v3a-muted">请在“守兔塔 → 设置”中开启统计功能。</div>
+                      <div v-else-if="!shouTuTaAnalyticsAvailable" class="v3a-muted">统计数据库不可用：需要启用 pdo_sqlite 并确保 analytics.db 可读写。</div>
+
+                      <template v-else>
+                        <div class="v3a-metric-grid">
+                          <div class="v3a-metric-item">
+                            <span class="v3a-metric-icon" v-html="ICONS.activity"></span>
+                            <div class="v3a-metric-meta">
+                              <div class="v3a-metric-label">今日请求</div>
+                              <div class="v3a-metric-value">{{ formatNumber(shouTuTaVisitToday.requests) }}</div>
+                            </div>
+                          </div>
+                          <div class="v3a-metric-item">
+                            <span class="v3a-metric-icon" v-html="ICONS.user"></span>
+                            <div class="v3a-metric-meta">
+                              <div class="v3a-metric-label">今日 UV</div>
+                              <div class="v3a-metric-value">{{ formatNumber(shouTuTaVisitToday.uv) }}</div>
+                            </div>
+                          </div>
+                          <div class="v3a-metric-item">
+                            <span class="v3a-metric-icon" v-html="ICONS.activity"></span>
+                            <div class="v3a-metric-meta">
+                              <div class="v3a-metric-label">昨日请求</div>
+                              <div class="v3a-metric-value">{{ formatNumber(shouTuTaVisitYesterday.requests) }}</div>
+                            </div>
+                          </div>
+                          <div class="v3a-metric-item">
+                            <span class="v3a-metric-icon" v-html="ICONS.user"></span>
+                            <div class="v3a-metric-meta">
+                              <div class="v3a-metric-label">昨日 UV</div>
+                              <div class="v3a-metric-value">{{ formatNumber(shouTuTaVisitYesterday.uv) }}</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="v3a-card" style="margin-top: 12px;">
+                          <div class="hd"><div class="title">24 小时流量趋势</div></div>
+                          <div class="bd">
+                            <div v-if="!shouTuTaTrend24h.length" class="v3a-muted">暂无数据</div>
+                            <div v-else>
+                              <svg viewBox="0 0 480 90" preserveAspectRatio="none" style="width: 100%; height: 90px; display: block;">
+                                <g v-for="(b, i) in shouTuTaTrend24h" :key="b.ts || i">
+                                  <rect
+                                    :x="i * 20 + 2"
+                                    :y="90 - Math.max(2, Math.round((Number(b.count || 0) || 0) / shouTuTaTrendMax * 86))"
+                                    width="16"
+                                    :height="Math.max(2, Math.round((Number(b.count || 0) || 0) / shouTuTaTrendMax * 86))"
+                                    rx="2"
+                                    :style="{ fill: 'var(--color-primary)', opacity: (Number(b.count || 0) || 0) ? 1 : 0.25 }"
+                                    :title="formatTime(b.ts, settingsData.site.timezone) + '：' + formatNumber(Number(b.count || 0) || 0)"
+                                  ></rect>
+                                </g>
+                              </svg>
+                              <div class="v3a-muted" style="display:flex; justify-content:space-between; font-size: 12px; margin-top: 6px;">
+                                <span>{{ formatTime(shouTuTaTrend24h[0].ts, settingsData.site.timezone) }}</span>
+                                <span>{{ formatTime(shouTuTaTrend24h[shouTuTaTrend24h.length - 1].ts, settingsData.site.timezone) }}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="v3a-grid two" style="margin-top: 12px;">
+                          <div>
+                            <div class="v3a-muted" style="font-weight: 500; margin-bottom: 8px;">今日热门页面 TOP15</div>
+                            <div class="v3a-card">
+                              <div class="bd" style="padding: 0;">
+                                <div v-if="!shouTuTaTopPages.length" class="v3a-muted" style="padding: 16px;">暂无数据</div>
+                                <table v-else class="v3a-table">
+                                <thead>
+                                  <tr>
+                                    <th>页面</th>
+                                    <th style="text-align:right;">访问</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr v-for="(p, idx) in shouTuTaTopPages" :key="(p && p.uri ? p.uri : '') + ':' + idx">
+                                    <td style="word-break: break-all;" :title="p && p.uri ? p.uri : ''">{{ p && p.uri ? p.uri : '—' }}</td>
+                                    <td style="text-align:right; white-space: nowrap;">{{ formatNumber(p && p.count ? p.count : 0) }}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div class="v3a-muted" style="font-weight: 500; margin-bottom: 8px;">今日高频 IP TOP15</div>
+                            <div class="v3a-card">
+                              <div class="bd" style="padding: 0;">
+                                <div v-if="!shouTuTaTopIps.length" class="v3a-muted" style="padding: 16px;">暂无数据</div>
+                                <table v-else class="v3a-table">
+                                <thead>
+                                  <tr>
+                                    <th>IP</th>
+                                    <th style="text-align:center;">地区</th>
+                                    <th style="text-align:right;">次数</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr v-for="(p, idx) in shouTuTaTopIps" :key="(p && p.ip ? p.ip : '') + ':' + idx">
+                                    <td style="white-space: nowrap;">
+                                      <a class="v3a-link" href="javascript:;" @click.prevent="openShouTuTaIpModal(p.ip)">{{ p && p.ip ? p.ip : '—' }}</a>
+                                    </td>
+                                    <td style="text-align:center;" class="v3a-muted">{{ p && p.geo ? p.geo : '—' }}</td>
+                                    <td style="text-align:right; white-space: nowrap;">{{ formatNumber(p && p.count ? p.count : 0) }}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+
+                    <div class="v3a-section">
+                      <div class="v3a-section-hd split">
+                        <div class="v3a-section-title">实时访问日志</div>
+                        <div class="v3a-section-tools">
+                          <span v-if="shouTuTaAnalyticsAvailable" class="v3a-muted">最近 {{ shouTuTaLogs.length }} 条</span>
+                          <button v-if="shouTuTaAnalyticsAvailable" class="v3a-mini-btn" type="button" @click="toggleShouTuTaStream()" :disabled="shouTuTaActing">
+                            {{ shouTuTaStreamPaused ? "继续" : "暂停" }}
+                          </button>
+                        </div>
+                      </div>
+                      <div class="v3a-section-line"></div>
+
+                      <div v-if="!shouTuTaAnalyticsAvailable" class="v3a-muted">启用统计后可查看实时日志。</div>
+
+                      <div v-else class="v3a-card">
+                        <div class="bd" style="padding: 0;">
+                          <div v-if="!shouTuTaLogs.length" class="v3a-muted" style="padding: 16px;">暂无访问记录</div>
+                          <table v-else class="v3a-table">
+                            <thead>
+                              <tr>
+                                <th style="white-space: nowrap;">时间</th>
+                                <th style="text-align:center; white-space: nowrap;">地区</th>
+                                <th style="white-space: nowrap;">IP</th>
+                                <th>请求</th>
+                                <th style="text-align:right; white-space: nowrap;">状态</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr v-for="l in shouTuTaLogs" :key="l.id">
+                                <td style="white-space: nowrap;" :title="formatTimeAgo(l.ts)">{{ formatTime(l.ts, settingsData.site.timezone) }}</td>
+                                <td style="text-align:center;" class="v3a-muted">{{ l.geo || '—' }}</td>
+                                <td style="white-space: nowrap;">
+                                  <a class="v3a-link" href="javascript:;" @click.prevent="openShouTuTaIpModal(l.ip)">{{ l.ip }}</a>
+                                </td>
+                                <td style="word-break: break-all;">{{ l.req || '—' }}</td>
+                                <td style="text-align:right; white-space: nowrap;">
+                                  <span class="v3a-pill" :class="shouTuTaStatusTone(l.status_code)">{{ shouTuTaStatusText(l.status_code) }}</span>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="v3a-section">
                       <div class="v3a-section-hd">
-                        <div class="v3a-section-title">名单与日志</div>
+                        <div class="v3a-section-title">威胁情报</div>
+                      </div>
+                      <div class="v3a-section-line"></div>
+
+                      <div v-if="!shouTuTaAnalyticsAvailable" class="v3a-muted">启用统计后可查看威胁排行。</div>
+
+                      <div v-else class="v3a-card">
+                        <div class="bd" style="padding: 0;">
+                          <div v-if="!shouTuTaThreatTop.length" class="v3a-muted" style="padding: 16px;">暂无数据</div>
+                          <table v-else class="v3a-table">
+                            <thead>
+                              <tr>
+                                <th>IP</th>
+                                <th style="text-align:center;">地区</th>
+                                <th style="text-align:center;">最近</th>
+                                <th style="text-align:right;">拦截</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr v-for="t in shouTuTaThreatTop" :key="t.ip">
+                                <td style="white-space: nowrap;">
+                                  <a class="v3a-link" href="javascript:;" @click.prevent="openShouTuTaIpModal(t.ip)" :title="t.ip">{{ t.masked || t.ip }}</a>
+                                </td>
+                                <td style="text-align:center;" class="v3a-muted">{{ t.geo || '—' }}</td>
+                                <td style="text-align:center;" class="v3a-muted">{{ formatTimeAgo(t.lastSeen) }}</td>
+                                <td style="text-align:right; white-space: nowrap;">{{ formatNumber(t.count || 0) }}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="v3a-section">
+                      <div class="v3a-section-hd">
+                        <div class="v3a-section-title">管理操作</div>
                       </div>
                       <div class="v3a-section-line"></div>
 
                       <div class="v3a-grid two">
-                        <div class="v3a-card">
-                          <div class="hd"><div class="title">名单数量</div></div>
-                          <div class="bd">
-                            <div class="v3a-muted">
-                              白名单：{{ formatNumber(shouTuTaLists.whitelist) }} ｜
-                              封禁：{{ formatNumber(shouTuTaLists.banlist) }} ｜
-                              CIDR：{{ formatNumber(shouTuTaLists.cidr) }}
+                        <div>
+                          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+                            <div class="v3a-muted" style="font-weight: 500;">全局白名单</div>
+                            <button class="v3a-mini-btn primary" type="button" @click="openShouTuTaGlobalWhitelist()" :disabled="shouTuTaActing">添加</button>
+                          </div>
+                          <div class="v3a-card">
+                            <div class="bd" style="padding: 0;">
+                              <div v-if="!shouTuTaGlobalWhitelist.length" class="v3a-muted" style="padding: 16px;">暂无全局白名单</div>
+                              <table v-else class="v3a-table">
+                                <thead>
+                                  <tr>
+                                    <th style="white-space: nowrap;">IP</th>
+                                    <th>备注</th>
+                                    <th style="text-align:right; white-space: nowrap;">操作</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr v-for="w in shouTuTaGlobalWhitelist" :key="w.ip">
+                                    <td style="white-space: nowrap;">{{ w.ip }}</td>
+                                    <td class="v3a-muted" style="word-break: break-all;">{{ w.remark || '—' }}</td>
+                                    <td style="text-align:right; white-space: nowrap;">
+                                      <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="shouTuTaGlobalWhitelistRemove(w.ip)" :disabled="shouTuTaActing">移除</button>
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
                             </div>
                           </div>
                         </div>
-                        <div class="v3a-card">
-                          <div class="hd"><div class="title">最近封禁日志</div></div>
-                          <div class="bd">
-                            <div v-if="!shouTuTaBanLog.length" class="v3a-muted">暂无日志</div>
-                            <pre v-else class="mono" style="margin: 0; white-space: pre-wrap;">{{ shouTuTaBanLog.join('\\n') }}</pre>
+
+                        <div>
+                          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+                            <div class="v3a-muted" style="font-weight: 500;">手动黑名单（IP/CIDR）</div>
+                            <button class="v3a-mini-btn primary" type="button" @click="openShouTuTaCidr()" :disabled="shouTuTaActing">添加</button>
                           </div>
+                          <div class="v3a-card">
+                            <div class="bd">
+                              <div v-if="!shouTuTaCidrItems.length" class="v3a-muted">暂无手动封禁</div>
+                              <pre v-else class="mono" style="margin: 0; white-space: pre-wrap; max-height: 180px; overflow:auto;">{{ shouTuTaCidrItems.join('\\n') }}</pre>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="v3a-muted" style="font-weight: 500; margin-top: 12px; margin-bottom: 8px;">系统维护</div>
+                      <div class="v3a-card">
+                        <div class="bd">
+                          <div class="v3a-muted" style="margin-bottom: 8px;">彻底清除某个 IP 的封禁/统计/缓存数据（不可逆）。</div>
+                          <div style="display:flex; gap: 10px; flex-wrap: wrap; align-items:center;">
+                            <input class="v3a-input" type="text" v-model="shouTuTaPurgeIpInput" placeholder="输入要清除的 IP…" style="flex: 1; min-width: 220px;" />
+                            <button class="v3a-btn" type="button" style="background: var(--v3a-danger); border-color: var(--v3a-danger); color:#fff;" @click="shouTuTaPurgeIp(shouTuTaPurgeIpInput)" :disabled="shouTuTaActing || !shouTuTaPurgeIpInput || !shouTuTaPurgeIpInput.trim()">清除</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="v3a-muted" style="font-weight: 500; margin-top: 12px; margin-bottom: 8px;">名单数量</div>
+                      <div class="v3a-metric-grid">
+                        <div class="v3a-metric-item">
+                          <span class="v3a-metric-icon" v-html="ICONS.check"></span>
+                          <div class="v3a-metric-meta">
+                            <div class="v3a-metric-label">白名单</div>
+                            <div class="v3a-metric-value">{{ formatNumber(shouTuTaLists.whitelist) }}</div>
+                          </div>
+                        </div>
+                        <div class="v3a-metric-item">
+                          <span class="v3a-metric-icon" v-html="ICONS.shieldAlert"></span>
+                          <div class="v3a-metric-meta">
+                            <div class="v3a-metric-label">封禁</div>
+                            <div class="v3a-metric-value">{{ formatNumber(shouTuTaLists.banlist) }}</div>
+                          </div>
+                        </div>
+                        <div class="v3a-metric-item">
+                          <span class="v3a-metric-icon" v-html="ICONS.code"></span>
+                          <div class="v3a-metric-meta">
+                            <div class="v3a-metric-label">CIDR</div>
+                            <div class="v3a-metric-value">{{ formatNumber(shouTuTaLists.cidr) }}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="v3a-section">
+                      <div class="v3a-section-hd">
+                        <div class="v3a-section-title">拦截事件日志</div>
+                      </div>
+                      <div class="v3a-section-line"></div>
+
+                      <div class="v3a-card">
+                        <div class="bd">
+                          <div v-if="!shouTuTaBanLog.length" class="v3a-muted">暂无日志</div>
+                          <pre v-else class="mono" style="margin: 0; white-space: pre-wrap;">{{ shouTuTaBanLog.join('\\n') }}</pre>
                         </div>
                       </div>
                     </div>
@@ -12197,34 +12878,6 @@
                       </div>
                     </div>
 
-                    <div v-if="pluginConfigOpen" class="v3a-modal-mask" @click.self="closePluginConfig()">
-                      <div class="v3a-modal-card v3a-plugin-config-modal" role="dialog" aria-modal="true">
-                        <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closePluginConfig()">
-                          <span class="v3a-icon" v-html="ICONS.close"></span>
-                        </button>
-                        <div class="v3a-modal-head">
-                          <div class="v3a-modal-title">插件设置：{{ pluginConfigTitle || pluginConfigName }}</div>
-                        </div>
-                        <div class="v3a-modal-body">
-                          <div class="v3a-plugin-config-body">
-                            <template v-if="pluginConfigLoading">
-                              <div class="v3a-muted">正在加载…</div>
-                            </template>
-                            <template v-else-if="!pluginConfigExists">
-                              <div class="v3a-muted">该插件暂无可配置项。</div>
-                            </template>
-                            <template v-else>
-                              <div ref="pluginConfigLegacyEl" class="v3a-plugin-config-legacy" v-html="pluginConfigHtml"></div>
-                            </template>
-                          </div>
-
-                          <div class="v3a-modal-actions">
-                            <button class="v3a-btn v3a-modal-btn" type="button" @click="closePluginConfig()">关闭</button>
-                            <button class="v3a-btn primary v3a-modal-btn" type="button" @click="savePluginConfig()" :disabled="pluginConfigLoading || pluginConfigSaving || !pluginConfigExists">{{ pluginConfigSaving ? "保存中…" : "保存设置" }}</button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </template>
 
                   <template v-else-if="settingsActiveKey === 'system'">
@@ -12509,6 +13162,203 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="shouTuTaIpModalOpen" class="v3a-modal-mask" @click.self="closeShouTuTaIpModal()">
+          <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 980px;">
+            <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeShouTuTaIpModal()">
+              <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+            </button>
+
+            <div class="v3a-modal-head">
+              <div class="v3a-modal-title">IP 详情：{{ shouTuTaIpModalIp }}</div>
+              <div class="v3a-modal-subtitle">查询信誉 / 解除拦截 / 白名单 / 封禁 / 清理</div>
+            </div>
+
+            <div class="v3a-modal-body">
+              <div class="v3a-modal-actions" style="justify-content: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+                <button class="v3a-mini-btn" type="button" @click="shouTuTaCheckAbuseIpdb(shouTuTaIpModalIp)" :disabled="shouTuTaIpModalAbuseLoading">
+                  {{ shouTuTaIpModalAbuseLoading ? "查询中…" : "查询信誉" }}
+                </button>
+                <button class="v3a-mini-btn" type="button" @click="shouTuTaUnblock(shouTuTaIpModalIp)" :disabled="shouTuTaActing">解除拦截</button>
+                <button class="v3a-mini-btn" type="button" @click="shouTuTaWhitelistAdd(shouTuTaIpModalIp)" :disabled="shouTuTaActing">加入白名单</button>
+                <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="shouTuTaPermBan(shouTuTaIpModalIp)" :disabled="shouTuTaActing">永久封禁</button>
+                <button class="v3a-mini-btn" type="button" @click="openShouTuTaGlobalWhitelist()" :disabled="shouTuTaActing">全局白名单</button>
+                <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="shouTuTaPurgeIp(shouTuTaIpModalIp)" :disabled="shouTuTaActing">彻底清除</button>
+              </div>
+
+              <div class="v3a-card" style="margin-bottom: 12px;">
+                <div class="hd"><div class="title">AbuseIPDB</div></div>
+                <div class="bd">
+                  <template v-if="shouTuTaIpModalAbuseLoading">
+                    <div class="v3a-muted">正在查询…</div>
+                  </template>
+                  <template v-else-if="!shouTuTaIpModalAbuse">
+                    <div class="v3a-muted">未查询</div>
+                  </template>
+                  <template v-else>
+                    <div style="display:flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px;">
+                      <span class="v3a-pill" :class="Number(shouTuTaIpModalAbuse.score || 0) >= 80 ? 'danger' : Number(shouTuTaIpModalAbuse.score || 0) >= 40 ? 'warn' : 'success'">
+                        评分 {{ Number(shouTuTaIpModalAbuse.score || 0) || 0 }}
+                      </span>
+                      <span class="v3a-muted">
+                        {{ (shouTuTaIpModalAbuse.data && (shouTuTaIpModalAbuse.data.countryName || shouTuTaIpModalAbuse.data.countryCode)) ? (shouTuTaIpModalAbuse.data.countryName || shouTuTaIpModalAbuse.data.countryCode) : '—' }}
+                      </span>
+                    </div>
+
+                    <table class="v3a-table">
+                      <tbody>
+                        <tr v-if="shouTuTaIpModalAbuse.data && shouTuTaIpModalAbuse.data.isWhitelisted !== undefined">
+                          <td style="width: 140px;" class="v3a-muted">白名单</td>
+                          <td>{{ shouTuTaIpModalAbuse.data.isWhitelisted ? '是' : '否' }}</td>
+                        </tr>
+                        <tr v-if="shouTuTaIpModalAbuse.data && shouTuTaIpModalAbuse.data.usageType">
+                          <td class="v3a-muted">用途</td>
+                          <td>{{ shouTuTaIpModalAbuse.data.usageType }}</td>
+                        </tr>
+                        <tr v-if="shouTuTaIpModalAbuse.data && shouTuTaIpModalAbuse.data.isp">
+                          <td class="v3a-muted">ISP</td>
+                          <td>{{ shouTuTaIpModalAbuse.data.isp }}</td>
+                        </tr>
+                        <tr v-if="shouTuTaIpModalAbuse.data && shouTuTaIpModalAbuse.data.domain">
+                          <td class="v3a-muted">域名</td>
+                          <td>{{ shouTuTaIpModalAbuse.data.domain }}</td>
+                        </tr>
+                        <tr v-if="shouTuTaIpModalAbuse.data && shouTuTaIpModalAbuse.data.totalReports !== undefined">
+                          <td class="v3a-muted">报告数</td>
+                          <td>{{ shouTuTaIpModalAbuse.data.totalReports }}</td>
+                        </tr>
+                        <tr v-if="shouTuTaIpModalAbuse.data && shouTuTaIpModalAbuse.data.lastReportedAt">
+                          <td class="v3a-muted">最近报告</td>
+                          <td>{{ shouTuTaIpModalAbuse.data.lastReportedAt }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </template>
+                </div>
+              </div>
+
+              <div class="v3a-card">
+                <div class="hd"><div class="title">访问记录</div></div>
+                <div class="bd" style="padding: 0;">
+                  <div v-if="!shouTuTaAnalyticsAvailable" class="v3a-muted" style="padding: 16px;">未启用统计，无法查询访问记录。</div>
+                  <div v-else-if="shouTuTaIpModalLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+                  <div v-else-if="!shouTuTaIpModalLogs.length" class="v3a-muted" style="padding: 16px;">暂无记录</div>
+                  <div v-else style="max-height: 50vh; overflow: auto;">
+                    <table class="v3a-table">
+                      <thead>
+                        <tr>
+                          <th style="white-space: nowrap;">时间</th>
+                          <th style="white-space: nowrap;">方法</th>
+                          <th>URI</th>
+                          <th style="text-align:right; white-space: nowrap;">状态</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="l in shouTuTaIpModalLogs" :key="l.id || (l.ts + ':' + l.uri)">
+                          <td style="white-space: nowrap;" :title="l.ua || ''">{{ formatTime(l.ts, settingsData.site.timezone) }}</td>
+                          <td style="white-space: nowrap;">{{ l.method || '—' }}</td>
+                          <td style="word-break: break-all;" :title="l.ua || ''">{{ l.uri || '—' }}</td>
+                          <td style="text-align:right; white-space: nowrap;">
+                            <span class="v3a-pill" :class="shouTuTaStatusTone(l.status_code)">{{ shouTuTaStatusText(l.status_code) }}</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="v3a-modal-actions">
+                <button class="v3a-btn v3a-modal-btn" type="button" @click="closeShouTuTaIpModal()">关闭</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="shouTuTaGlobalWhitelistOpen" class="v3a-modal-mask" @click.self="closeShouTuTaGlobalWhitelist()">
+          <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 640px;">
+            <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeShouTuTaGlobalWhitelist()">
+              <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+            </button>
+
+            <div class="v3a-modal-head">
+              <div class="v3a-modal-title">添加全局白名单</div>
+            </div>
+
+            <div class="v3a-modal-body">
+              <div class="v3a-modal-form">
+                <div class="v3a-modal-item">
+                  <label class="v3a-modal-label">IP<span class="v3a-required">*</span></label>
+                  <input class="v3a-input v3a-modal-input" v-model="shouTuTaGlobalWhitelistForm.ip" placeholder="例如：1.2.3.4" />
+                </div>
+                <div class="v3a-modal-item">
+                  <label class="v3a-modal-label">备注</label>
+                  <textarea class="v3a-textarea v3a-modal-textarea" v-model="shouTuTaGlobalWhitelistForm.remark" placeholder="可选，例如：朋友的服务器" style="min-height: 90px;"></textarea>
+                </div>
+              </div>
+
+              <div class="v3a-modal-actions">
+                <button class="v3a-btn v3a-modal-btn" type="button" @click="closeShouTuTaGlobalWhitelist()">取消</button>
+                <button class="v3a-btn primary v3a-modal-btn" type="button" @click="submitShouTuTaGlobalWhitelist()" :disabled="shouTuTaActing">{{ shouTuTaActing ? "保存中…" : "确定" }}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="shouTuTaCidrOpen" class="v3a-modal-mask" @click.self="closeShouTuTaCidr()">
+          <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 720px;">
+            <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeShouTuTaCidr()">
+              <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+            </button>
+
+            <div class="v3a-modal-head">
+              <div class="v3a-modal-title">添加 IP / CIDR 黑名单</div>
+            </div>
+
+            <div class="v3a-modal-body">
+              <div class="v3a-modal-form">
+                <div class="v3a-modal-item">
+                  <label class="v3a-modal-label">列表</label>
+                  <textarea class="v3a-textarea v3a-modal-textarea v3a-code-editor" v-model="shouTuTaCidrList" placeholder="每行输入一个 IP 或 CIDR，例如：\n1.2.3.4\n1.2.3.0/24" style="min-height: 160px;"></textarea>
+                </div>
+              </div>
+
+              <div class="v3a-modal-actions">
+                <button class="v3a-btn v3a-modal-btn" type="button" @click="closeShouTuTaCidr()">取消</button>
+                <button class="v3a-btn primary v3a-modal-btn" type="button" @click="submitShouTuTaCidr()" :disabled="shouTuTaActing">{{ shouTuTaActing ? "保存中…" : "确定" }}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="pluginConfigOpen" class="v3a-modal-mask" @click.self="closePluginConfig()">
+          <div class="v3a-modal-card v3a-plugin-config-modal" role="dialog" aria-modal="true">
+            <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closePluginConfig()">
+              <span class="v3a-icon" v-html="ICONS.close"></span>
+            </button>
+            <div class="v3a-modal-head">
+              <div class="v3a-modal-title">插件设置：{{ pluginConfigTitle || pluginConfigName }}</div>
+            </div>
+            <div class="v3a-modal-body">
+              <div class="v3a-plugin-config-body">
+                <template v-if="pluginConfigLoading">
+                  <div class="v3a-muted">正在加载…</div>
+                </template>
+                <template v-else-if="!pluginConfigExists">
+                  <div class="v3a-muted">该插件暂无可配置项。</div>
+                </template>
+                <template v-else>
+                  <div ref="pluginConfigLegacyEl" class="v3a-plugin-config-legacy" v-html="pluginConfigHtml"></div>
+                </template>
+              </div>
+
+              <div class="v3a-modal-actions">
+                <button class="v3a-btn v3a-modal-btn" type="button" @click="closePluginConfig()">关闭</button>
+                <button class="v3a-btn primary v3a-modal-btn" type="button" @click="savePluginConfig()" :disabled="pluginConfigLoading || pluginConfigSaving || !pluginConfigExists">{{ pluginConfigSaving ? "保存中…" : "保存设置" }}</button>
+              </div>
             </div>
           </div>
         </div>

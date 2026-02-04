@@ -2186,6 +2186,8 @@ try {
                 'lists' => ['whitelist' => 0, 'banlist' => 0, 'cidr' => 0],
                 'banLog' => [],
                 'updatedAt' => 0,
+                'globalWhitelist' => [],
+                'cidrList' => [],
             ]);
         }
 
@@ -2262,13 +2264,1021 @@ try {
         } catch (\Throwable $e) {
         }
 
+        $analyticsEnabled = false;
+        try {
+            $shoutuOptions = $options->plugin('ShouTuTa');
+            $analyticsEnabled = !empty($shoutuOptions->enableAnalytics);
+        } catch (\Throwable $e) {
+        }
+
+        $tz = 0;
+        try {
+            $tz = (int) ($options->timezone ?? 0);
+        } catch (\Throwable $e) {
+        }
+
+        $analytics = [
+            'enabled' => $analyticsEnabled ? 1 : 0,
+            'available' => 0,
+            'today' => ['requests' => 0, 'uv' => 0],
+            'yesterday' => ['requests' => 0, 'uv' => 0],
+            'topPages' => [],
+            'topIps' => [],
+            'trend24h' => [],
+            'logs' => [],
+            'lastId' => 0,
+            'threatTop' => [],
+        ];
+
+        $analyticsDbPath = $cacheDir . 'analytics.db';
+        $geoipDbPath = $cacheDir . 'GeoLite2-Country.mmdb';
+        $geoipAutoload = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'autoload.php';
+
+        if ($analyticsEnabled && is_file($analyticsDbPath) && extension_loaded('pdo_sqlite')) {
+            $analytics['available'] = 1;
+
+            $geoReader = null;
+            $geoCache = [];
+            try {
+                if (is_file($geoipDbPath) && is_file($geoipAutoload)) {
+                    require_once $geoipAutoload;
+                    $geoReader = new \GeoIp2\Database\Reader($geoipDbPath);
+                }
+            } catch (\Throwable $e) {
+                $geoReader = null;
+            }
+
+            $geoLookup = function (string $ip) use (&$geoCache, $geoReader): string {
+                $ip = trim($ip);
+                if ($ip === '') {
+                    return '';
+                }
+                if (isset($geoCache[$ip])) {
+                    return $geoCache[$ip];
+                }
+                $geo = '';
+                if ($geoReader) {
+                    try {
+                        $record = $geoReader->country($ip);
+                        $geo = (string) (($record->country->names['zh-CN'] ?? '') ?: ($record->country->name ?? ''));
+                    } catch (\Throwable $e) {
+                        $geo = '';
+                    }
+                }
+                $geoCache[$ip] = $geo;
+                return $geo;
+            };
+
+            $now = time();
+            $todayStart = (int) (floor(($now + $tz) / 86400) * 86400 - $tz);
+            $todayEnd = $todayStart + 86400;
+            $yesterdayStart = $todayStart - 86400;
+            $yesterdayEnd = $todayStart;
+
+            $todayStartStr = gmdate('Y-m-d H:i:s', $todayStart);
+            $todayEndStr = gmdate('Y-m-d H:i:s', $todayEnd);
+            $yesterdayStartStr = gmdate('Y-m-d H:i:s', $yesterdayStart);
+            $yesterdayEndStr = gmdate('Y-m-d H:i:s', $yesterdayEnd);
+
+            try {
+                $pdo = new \PDO('sqlite:' . $analyticsDbPath);
+                $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+                $sumStmt = $pdo->prepare('SELECT COUNT(*) AS total, COUNT(DISTINCT ip_address) AS uv FROM requests WHERE timestamp >= :start AND timestamp < :end');
+
+                $sumStmt->execute([':start' => $todayStartStr, ':end' => $todayEndStr]);
+                $row = $sumStmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+                $analytics['today'] = [
+                    'requests' => (int) ($row['total'] ?? 0),
+                    'uv' => (int) ($row['uv'] ?? 0),
+                ];
+
+                $sumStmt->execute([':start' => $yesterdayStartStr, ':end' => $yesterdayEndStr]);
+                $row = $sumStmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+                $analytics['yesterday'] = [
+                    'requests' => (int) ($row['total'] ?? 0),
+                    'uv' => (int) ($row['uv'] ?? 0),
+                ];
+
+                // Hot pages (today)
+                $stmt = $pdo->prepare('SELECT request_uri AS uri, COUNT(*) AS cnt FROM requests WHERE timestamp >= :start AND timestamp < :end GROUP BY request_uri ORDER BY cnt DESC LIMIT 15');
+                $stmt->execute([':start' => $todayStartStr, ':end' => $todayEndStr]);
+                $analytics['topPages'] = array_map(function ($r) {
+                    return [
+                        'uri' => (string) ($r['uri'] ?? ''),
+                        'count' => (int) ($r['cnt'] ?? 0),
+                    ];
+                }, $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: []);
+
+                // Top IPs (today)
+                $stmt = $pdo->prepare('SELECT ip_address AS ip, COUNT(*) AS cnt FROM requests WHERE timestamp >= :start AND timestamp < :end GROUP BY ip_address ORDER BY cnt DESC LIMIT 15');
+                $stmt->execute([':start' => $todayStartStr, ':end' => $todayEndStr]);
+                $topIps = [];
+                foreach (($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: []) as $r) {
+                    $ip = (string) ($r['ip'] ?? '');
+                    $topIps[] = [
+                        'ip' => $ip,
+                        'geo' => $geoLookup($ip),
+                        'count' => (int) ($r['cnt'] ?? 0),
+                    ];
+                }
+                $analytics['topIps'] = $topIps;
+
+                // 24h trend (per hour)
+                $hourStart = (int) (floor(($now + $tz) / 3600) * 3600 - $tz);
+                $trendStart = $hourStart - 23 * 3600;
+                $trendEnd = $hourStart + 3600;
+
+                $trendStartStr = gmdate('Y-m-d H:i:s', $trendStart);
+                $trendEndStr = gmdate('Y-m-d H:i:s', $trendEnd);
+
+                $bucketStart = (int) floor(($trendStart + $tz) / 3600);
+                $bucketEnd = $bucketStart + 24;
+                $bucketCounts = [];
+
+                $stmt = $pdo->prepare('SELECT CAST((CAST(strftime(\'%s\', timestamp) AS INTEGER) + :tz) / 3600 AS INTEGER) AS bucket, COUNT(*) AS cnt FROM requests WHERE timestamp >= :start AND timestamp < :end GROUP BY bucket ORDER BY bucket ASC');
+                $stmt->execute([':tz' => $tz, ':start' => $trendStartStr, ':end' => $trendEndStr]);
+                foreach (($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: []) as $r) {
+                    $b = (int) ($r['bucket'] ?? 0);
+                    $bucketCounts[$b] = (int) ($r['cnt'] ?? 0);
+                }
+
+                $trend = [];
+                for ($b = $bucketStart; $b < $bucketEnd; $b++) {
+                    $ts = $b * 3600 - $tz;
+                    $trend[] = ['ts' => $ts, 'count' => (int) ($bucketCounts[$b] ?? 0)];
+                }
+                $analytics['trend24h'] = $trend;
+
+                // Recent logs (latest 60)
+                $stmt = $pdo->query('SELECT id, ip_address, request_method, request_uri, protocol, status_code, timestamp FROM requests ORDER BY id DESC LIMIT 60');
+                $rows = $stmt ? ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: []) : [];
+                $rows = array_reverse($rows);
+
+                $logs = [];
+                $lastId = 0;
+                foreach ($rows as $r) {
+                    $id = (int) ($r['id'] ?? 0);
+                    $ip = (string) ($r['ip_address'] ?? '');
+                    $ts = 0;
+                    try {
+                        $dt = new \DateTime((string) ($r['timestamp'] ?? ''), new \DateTimeZone('UTC'));
+                        $ts = (int) $dt->getTimestamp();
+                    } catch (\Throwable $e) {
+                        $ts = 0;
+                    }
+
+                    $method = (string) (($r['request_method'] ?? '') ?: 'GET');
+                    $uri = (string) (($r['request_uri'] ?? '') ?: '/');
+                    $proto = (string) (($r['protocol'] ?? '') ?: 'HTTP/1.1');
+                    $statusCode = (int) ($r['status_code'] ?? 200);
+
+                    $logs[] = [
+                        'id' => $id,
+                        'ts' => $ts,
+                        'geo' => $geoLookup($ip),
+                        'ip' => $ip,
+                        'req' => trim($method . ' ' . $uri . ' ' . $proto),
+                        'status_code' => $statusCode,
+                    ];
+                    $lastId = max($lastId, $id);
+                }
+                $analytics['logs'] = $logs;
+                $analytics['lastId'] = $lastId;
+
+                // Threat top (blocked IPs)
+                $stmt = $pdo->query('SELECT ip_address AS ip, COUNT(*) AS cnt, MAX(timestamp) AS last_seen FROM requests WHERE status_code IN (403, 418) GROUP BY ip_address HAVING COUNT(*) > 10 ORDER BY cnt DESC LIMIT 60');
+                $threatRows = $stmt ? ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: []) : [];
+                $threatTop = [];
+                foreach ($threatRows as $r) {
+                    $ip = (string) ($r['ip'] ?? '');
+                    $lastSeen = 0;
+                    try {
+                        $dt = new \DateTime((string) ($r['last_seen'] ?? ''), new \DateTimeZone('UTC'));
+                        $lastSeen = (int) $dt->getTimestamp();
+                    } catch (\Throwable $e) {
+                        $lastSeen = 0;
+                    }
+                    $threatTop[] = [
+                        'ip' => $ip,
+                        'masked' => preg_replace('/(\\.[0-9]+)$/', '.x', $ip),
+                        'geo' => $geoLookup($ip),
+                        'count' => (int) ($r['cnt'] ?? 0),
+                        'lastSeen' => $lastSeen,
+                    ];
+                }
+                $analytics['threatTop'] = $threatTop;
+            } catch (\Throwable $e) {
+                $analytics['available'] = 0;
+            }
+        }
+
+        $globalWhitelist = [];
+        try {
+            $path = $cacheDir . 'global_whitelist.json';
+            if (is_file($path)) {
+                $raw = @file_get_contents($path);
+                $data = json_decode((string) $raw, true);
+                if (is_array($data)) {
+                    $i = 0;
+                    foreach ($data as $ip => $remark) {
+                        if ($i >= 500) {
+                            break;
+                        }
+                        $globalWhitelist[] = [
+                            'ip' => (string) $ip,
+                            'remark' => (string) $remark,
+                        ];
+                        $i++;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            $globalWhitelist = [];
+        }
+
+        $cidrList = [];
+        try {
+            $path = $cacheDir . 'cidr_banlist.txt';
+            if (is_file($path)) {
+                $lines = @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                if (is_array($lines)) {
+                    $lines = array_values(array_filter(array_map('trim', $lines), 'strlen'));
+                    if (count($lines) > 500) {
+                        $lines = array_slice($lines, -500);
+                    }
+                    $cidrList = $lines;
+                }
+            }
+        } catch (\Throwable $e) {
+            $cidrList = [];
+        }
+
         v3a_exit_json(0, [
             'enabled' => true,
             'stats' => $stats,
             'lists' => $lists,
             'banLog' => $banLog,
             'updatedAt' => $updatedAt,
+            'globalWhitelist' => $globalWhitelist,
+            'cidrList' => $cidrList,
+            'analytics' => $analytics,
+            'timezone' => $tz,
         ]);
+    }
+
+    if ($do === 'shoutu.logs.since') {
+        v3a_require_role($user, 'administrator');
+
+        $enabled = false;
+        try {
+            $plugins = \Typecho\Plugin::export();
+            $activated = (array) ($plugins['activated'] ?? []);
+            $enabled = isset($activated['ShouTuTa']);
+        } catch (\Throwable $e) {
+        }
+
+        $lastId = 0;
+        try {
+            $lastId = (int) ($request->get('last_id') ?? 0);
+        } catch (\Throwable $e) {
+        }
+
+        if (!$enabled) {
+            v3a_exit_json(0, ['logs' => [], 'lastId' => $lastId]);
+        }
+
+        $analyticsEnabled = false;
+        try {
+            $shoutuOptions = $options->plugin('ShouTuTa');
+            $analyticsEnabled = !empty($shoutuOptions->enableAnalytics);
+        } catch (\Throwable $e) {
+        }
+
+        if (!$analyticsEnabled) {
+            v3a_exit_json(0, ['logs' => [], 'lastId' => $lastId]);
+        }
+
+        $pluginDir = '';
+        try {
+            $pluginDir = (string) ($options->pluginDir('ShouTuTa') ?? '');
+        } catch (\Throwable $e) {
+        }
+        if ($pluginDir === '') {
+            $pluginDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'ShouTuTa';
+        }
+
+        $cacheDir = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR;
+        $analyticsDbPath = $cacheDir . 'analytics.db';
+        if (!is_file($analyticsDbPath) || !extension_loaded('pdo_sqlite')) {
+            v3a_exit_json(0, ['logs' => [], 'lastId' => $lastId]);
+        }
+
+        $geoipDbPath = $cacheDir . 'GeoLite2-Country.mmdb';
+        $geoipAutoload = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'autoload.php';
+
+        $tz = 0;
+        try {
+            $tz = (int) ($options->timezone ?? 0);
+        } catch (\Throwable $e) {
+        }
+
+        $geoReader = null;
+        $geoCache = [];
+        try {
+            if (is_file($geoipDbPath) && is_file($geoipAutoload)) {
+                require_once $geoipAutoload;
+                $geoReader = new \GeoIp2\Database\Reader($geoipDbPath);
+            }
+        } catch (\Throwable $e) {
+            $geoReader = null;
+        }
+
+        $geoLookup = function (string $ip) use (&$geoCache, $geoReader): string {
+            $ip = trim($ip);
+            if ($ip === '') {
+                return '';
+            }
+            if (isset($geoCache[$ip])) {
+                return $geoCache[$ip];
+            }
+            $geo = '';
+            if ($geoReader) {
+                try {
+                    $record = $geoReader->country($ip);
+                    $geo = (string) (($record->country->names['zh-CN'] ?? '') ?: ($record->country->name ?? ''));
+                } catch (\Throwable $e) {
+                    $geo = '';
+                }
+            }
+            $geoCache[$ip] = $geo;
+            return $geo;
+        };
+
+        $logs = [];
+        $maxId = $lastId;
+        try {
+            $pdo = new \PDO('sqlite:' . $analyticsDbPath);
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+            $stmt = $pdo->prepare('SELECT id, ip_address, request_method, request_uri, protocol, status_code, timestamp FROM requests WHERE id > :last_id ORDER BY id ASC LIMIT 200');
+            $stmt->execute([':last_id' => $lastId]);
+            foreach (($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: []) as $r) {
+                $id = (int) ($r['id'] ?? 0);
+                $ip = (string) ($r['ip_address'] ?? '');
+                $ts = 0;
+                try {
+                    $dt = new \DateTime((string) ($r['timestamp'] ?? ''), new \DateTimeZone('UTC'));
+                    $ts = (int) $dt->getTimestamp();
+                } catch (\Throwable $e) {
+                    $ts = 0;
+                }
+
+                $method = (string) (($r['request_method'] ?? '') ?: 'GET');
+                $uri = (string) (($r['request_uri'] ?? '') ?: '/');
+                $proto = (string) (($r['protocol'] ?? '') ?: 'HTTP/1.1');
+                $statusCode = (int) ($r['status_code'] ?? 200);
+
+                $logs[] = [
+                    'id' => $id,
+                    'ts' => $ts,
+                    'geo' => $geoLookup($ip),
+                    'ip' => $ip,
+                    'req' => trim($method . ' ' . $uri . ' ' . $proto),
+                    'status_code' => $statusCode,
+                ];
+                $maxId = max($maxId, $id);
+            }
+        } catch (\Throwable $e) {
+            $logs = [];
+            $maxId = $lastId;
+        }
+
+        v3a_exit_json(0, ['logs' => $logs, 'lastId' => $maxId, 'timezone' => $tz]);
+    }
+
+    if ($do === 'shoutu.ip.logs') {
+        v3a_require_role($user, 'administrator');
+
+        $enabled = false;
+        try {
+            $plugins = \Typecho\Plugin::export();
+            $activated = (array) ($plugins['activated'] ?? []);
+            $enabled = isset($activated['ShouTuTa']);
+        } catch (\Throwable $e) {
+        }
+
+        $ip = '';
+        try {
+            $ip = trim((string) ($request->get('ip') ?? ''));
+        } catch (\Throwable $e) {
+        }
+        $ip = filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : '';
+
+        if (!$enabled || $ip === '') {
+            v3a_exit_json(0, ['ip' => $ip, 'logs' => []]);
+        }
+
+        $analyticsEnabled = false;
+        try {
+            $shoutuOptions = $options->plugin('ShouTuTa');
+            $analyticsEnabled = !empty($shoutuOptions->enableAnalytics);
+        } catch (\Throwable $e) {
+        }
+
+        if (!$analyticsEnabled) {
+            v3a_exit_json(0, ['ip' => $ip, 'logs' => []]);
+        }
+
+        $pluginDir = '';
+        try {
+            $pluginDir = (string) ($options->pluginDir('ShouTuTa') ?? '');
+        } catch (\Throwable $e) {
+        }
+        if ($pluginDir === '') {
+            $pluginDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'ShouTuTa';
+        }
+
+        $cacheDir = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR;
+        $analyticsDbPath = $cacheDir . 'analytics.db';
+        if (!is_file($analyticsDbPath) || !extension_loaded('pdo_sqlite')) {
+            v3a_exit_json(0, ['ip' => $ip, 'logs' => []]);
+        }
+
+        $tz = 0;
+        try {
+            $tz = (int) ($options->timezone ?? 0);
+        } catch (\Throwable $e) {
+        }
+
+        $logs = [];
+        try {
+            $pdo = new \PDO('sqlite:' . $analyticsDbPath);
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+            $stmt = $pdo->prepare('SELECT id, request_method, request_uri, protocol, status_code, user_agent, timestamp FROM requests WHERE ip_address = :ip ORDER BY id DESC LIMIT 100');
+            $stmt->execute([':ip' => $ip]);
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            $rows = array_reverse($rows);
+
+            foreach ($rows as $r) {
+                $id = (int) ($r['id'] ?? 0);
+                $ts = 0;
+                try {
+                    $dt = new \DateTime((string) ($r['timestamp'] ?? ''), new \DateTimeZone('UTC'));
+                    $ts = (int) $dt->getTimestamp();
+                } catch (\Throwable $e) {
+                    $ts = 0;
+                }
+
+                $logs[] = [
+                    'id' => $id,
+                    'ts' => $ts,
+                    'method' => (string) (($r['request_method'] ?? '') ?: 'GET'),
+                    'uri' => (string) (($r['request_uri'] ?? '') ?: '/'),
+                    'protocol' => (string) (($r['protocol'] ?? '') ?: 'HTTP/1.1'),
+                    'status_code' => (int) ($r['status_code'] ?? 200),
+                    'ua' => (string) (($r['user_agent'] ?? '') ?: ''),
+                ];
+            }
+        } catch (\Throwable $e) {
+            $logs = [];
+        }
+
+        v3a_exit_json(0, ['ip' => $ip, 'logs' => $logs, 'timezone' => $tz]);
+    }
+
+    if ($do === 'shoutu.unblock') {
+        v3a_require_role($user, 'administrator');
+        v3a_security_protect($security, $request);
+
+        $enabled = false;
+        try {
+            $plugins = \Typecho\Plugin::export();
+            $activated = (array) ($plugins['activated'] ?? []);
+            $enabled = isset($activated['ShouTuTa']);
+        } catch (\Throwable $e) {
+        }
+        if (!$enabled) {
+            v3a_exit_json(404, null, 'Not found');
+        }
+
+        $payload = v3a_payload();
+        $ip = trim((string) ($payload['ip'] ?? ''));
+        $ip = filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : '';
+        if ($ip === '') {
+            v3a_exit_json(400, null, 'Invalid IP');
+        }
+
+        $pluginDir = '';
+        try {
+            $pluginDir = (string) ($options->pluginDir('ShouTuTa') ?? '');
+        } catch (\Throwable $e) {
+        }
+        if ($pluginDir === '') {
+            $pluginDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'ShouTuTa';
+        }
+
+        $cacheDir = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR;
+
+        @unlink($cacheDir . md5('ban_info_' . $ip));
+        @unlink($cacheDir . md5('ban_tier_' . $ip));
+
+        $banlistPath = $cacheDir . 'banlist_managed.txt';
+        try {
+            if (is_file($banlistPath)) {
+                $lines = @file($banlistPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                $lines = is_array($lines) ? $lines : [];
+                $lines = array_values(array_filter($lines, function ($line) use ($ip) {
+                    return trim((string) $line) !== $ip;
+                }));
+                @file_put_contents($banlistPath, implode(PHP_EOL, $lines) . (count($lines) ? PHP_EOL : ''), LOCK_EX);
+            }
+        } catch (\Throwable $e) {
+        }
+
+        v3a_exit_json(0, ['ok' => 1]);
+    }
+
+    if ($do === 'shoutu.whitelist.add') {
+        v3a_require_role($user, 'administrator');
+        v3a_security_protect($security, $request);
+
+        $enabled = false;
+        try {
+            $plugins = \Typecho\Plugin::export();
+            $activated = (array) ($plugins['activated'] ?? []);
+            $enabled = isset($activated['ShouTuTa']);
+        } catch (\Throwable $e) {
+        }
+        if (!$enabled) {
+            v3a_exit_json(404, null, 'Not found');
+        }
+
+        $payload = v3a_payload();
+        $ip = trim((string) ($payload['ip'] ?? ''));
+        $ip = filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : '';
+        if ($ip === '') {
+            v3a_exit_json(400, null, 'Invalid IP');
+        }
+
+        $pluginDir = '';
+        try {
+            $pluginDir = (string) ($options->pluginDir('ShouTuTa') ?? '');
+        } catch (\Throwable $e) {
+        }
+        if ($pluginDir === '') {
+            $pluginDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'ShouTuTa';
+        }
+
+        $cacheDir = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR;
+        $whitelistPath = $cacheDir . 'whitelist_managed.txt';
+
+        $exists = false;
+        try {
+            $lines = @file($whitelistPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $lines = is_array($lines) ? array_map('trim', $lines) : [];
+            $exists = in_array($ip, $lines, true);
+        } catch (\Throwable $e) {
+        }
+
+        if (!$exists) {
+            @file_put_contents($whitelistPath, $ip . PHP_EOL, FILE_APPEND | LOCK_EX);
+        }
+
+        v3a_exit_json(0, ['ok' => 1, 'exists' => $exists ? 1 : 0]);
+    }
+
+    if ($do === 'shoutu.ban.perm') {
+        v3a_require_role($user, 'administrator');
+        v3a_security_protect($security, $request);
+
+        $enabled = false;
+        try {
+            $plugins = \Typecho\Plugin::export();
+            $activated = (array) ($plugins['activated'] ?? []);
+            $enabled = isset($activated['ShouTuTa']);
+        } catch (\Throwable $e) {
+        }
+        if (!$enabled) {
+            v3a_exit_json(404, null, 'Not found');
+        }
+
+        $payload = v3a_payload();
+        $ip = trim((string) ($payload['ip'] ?? ''));
+        $ip = filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : '';
+        if ($ip === '') {
+            v3a_exit_json(400, null, 'Invalid IP');
+        }
+
+        $pluginDir = '';
+        try {
+            $pluginDir = (string) ($options->pluginDir('ShouTuTa') ?? '');
+        } catch (\Throwable $e) {
+        }
+        if ($pluginDir === '') {
+            $pluginDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'ShouTuTa';
+        }
+
+        $cacheDir = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR;
+        $banlistPath = $cacheDir . 'banlist_managed.txt';
+
+        $exists = false;
+        try {
+            $lines = @file($banlistPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $lines = is_array($lines) ? array_map('trim', $lines) : [];
+            $exists = in_array($ip, $lines, true);
+        } catch (\Throwable $e) {
+        }
+
+        if (!$exists) {
+            @file_put_contents($banlistPath, $ip . PHP_EOL, FILE_APPEND | LOCK_EX);
+        }
+
+        v3a_exit_json(0, ['ok' => 1, 'exists' => $exists ? 1 : 0]);
+    }
+
+    if ($do === 'shoutu.cidr.add') {
+        v3a_require_role($user, 'administrator');
+        v3a_security_protect($security, $request);
+
+        $enabled = false;
+        try {
+            $plugins = \Typecho\Plugin::export();
+            $activated = (array) ($plugins['activated'] ?? []);
+            $enabled = isset($activated['ShouTuTa']);
+        } catch (\Throwable $e) {
+        }
+        if (!$enabled) {
+            v3a_exit_json(404, null, 'Not found');
+        }
+
+        $payload = v3a_payload();
+        $raw = (string) ($payload['cidr_list'] ?? $payload['list'] ?? '');
+        $raw = str_replace("\r", "\n", $raw);
+        $lines = array_values(array_filter(array_map('trim', explode("\n", $raw)), 'strlen'));
+        if (!count($lines)) {
+            v3a_exit_json(400, null, 'Empty list');
+        }
+
+        $normalize = function (string $entry): ?string {
+            $v = trim($entry);
+            if ($v === '' || strlen($v) > 80) {
+                return null;
+            }
+            if (filter_var($v, FILTER_VALIDATE_IP) !== false) {
+                return $v;
+            }
+            if (strpos($v, '/') === false) {
+                return null;
+            }
+            [$ip, $bits] = explode('/', $v, 2);
+            $ip = trim($ip);
+            $bits = trim($bits);
+            if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
+                return null;
+            }
+            if (!preg_match('/^\\d+$/', $bits)) {
+                return null;
+            }
+            $n = (int) $bits;
+            $max = strpos($ip, ':') !== false ? 128 : 32;
+            if ($n < 0 || $n > $max) {
+                return null;
+            }
+            return $ip . '/' . $n;
+        };
+
+        $entries = [];
+        foreach ($lines as $line) {
+            $n = $normalize((string) $line);
+            if ($n !== null) {
+                $entries[$n] = true;
+            }
+        }
+        $entries = array_keys($entries);
+        if (!count($entries)) {
+            v3a_exit_json(400, null, 'No valid entries');
+        }
+
+        $pluginDir = '';
+        try {
+            $pluginDir = (string) ($options->pluginDir('ShouTuTa') ?? '');
+        } catch (\Throwable $e) {
+        }
+        if ($pluginDir === '') {
+            $pluginDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'ShouTuTa';
+        }
+
+        $cacheDir = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR;
+        $cidrPath = $cacheDir . 'cidr_banlist.txt';
+
+        $current = [];
+        try {
+            $cur = @file($cidrPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $cur = is_array($cur) ? array_map('trim', $cur) : [];
+            foreach ($cur as $v) {
+                if ($v !== '') {
+                    $current[$v] = true;
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        $added = [];
+        foreach ($entries as $v) {
+            if (!isset($current[$v])) {
+                $added[] = $v;
+            }
+        }
+
+        if (count($added)) {
+            @file_put_contents($cidrPath, implode(PHP_EOL, $added) . PHP_EOL, FILE_APPEND | LOCK_EX);
+        }
+
+        v3a_exit_json(0, ['ok' => 1, 'added' => count($added), 'entries' => $added]);
+    }
+
+    if ($do === 'shoutu.globalWhitelist.add') {
+        v3a_require_role($user, 'administrator');
+        v3a_security_protect($security, $request);
+
+        $enabled = false;
+        try {
+            $plugins = \Typecho\Plugin::export();
+            $activated = (array) ($plugins['activated'] ?? []);
+            $enabled = isset($activated['ShouTuTa']);
+        } catch (\Throwable $e) {
+        }
+        if (!$enabled) {
+            v3a_exit_json(404, null, 'Not found');
+        }
+
+        $payload = v3a_payload();
+        $ip = trim((string) ($payload['ip'] ?? ''));
+        $ip = filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : '';
+        $remark = trim((string) ($payload['remark'] ?? ''));
+        if ($ip === '') {
+            v3a_exit_json(400, null, 'Invalid IP');
+        }
+        if (strlen($remark) > 200) {
+            $remark = substr($remark, 0, 200);
+        }
+
+        $pluginDir = '';
+        try {
+            $pluginDir = (string) ($options->pluginDir('ShouTuTa') ?? '');
+        } catch (\Throwable $e) {
+        }
+        if ($pluginDir === '') {
+            $pluginDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'ShouTuTa';
+        }
+
+        $cacheDir = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR;
+        $path = $cacheDir . 'global_whitelist.json';
+
+        $ok = false;
+        try {
+            $fp = @fopen($path, 'c+');
+            if ($fp && flock($fp, LOCK_EX)) {
+                $raw = stream_get_contents($fp);
+                $data = json_decode((string) $raw, true);
+                if (!is_array($data)) {
+                    $data = [];
+                }
+                $data[$ip] = $remark;
+                ftruncate($fp, 0);
+                rewind($fp);
+                fwrite($fp, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                flock($fp, LOCK_UN);
+                $ok = true;
+            }
+            if ($fp) {
+                fclose($fp);
+            }
+        } catch (\Throwable $e) {
+        }
+
+        if (!$ok) {
+            v3a_exit_json(500, null, 'Write failed');
+        }
+
+        v3a_exit_json(0, ['ok' => 1]);
+    }
+
+    if ($do === 'shoutu.globalWhitelist.remove') {
+        v3a_require_role($user, 'administrator');
+        v3a_security_protect($security, $request);
+
+        $enabled = false;
+        try {
+            $plugins = \Typecho\Plugin::export();
+            $activated = (array) ($plugins['activated'] ?? []);
+            $enabled = isset($activated['ShouTuTa']);
+        } catch (\Throwable $e) {
+        }
+        if (!$enabled) {
+            v3a_exit_json(404, null, 'Not found');
+        }
+
+        $payload = v3a_payload();
+        $ip = trim((string) ($payload['ip'] ?? ''));
+        $ip = filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : '';
+        if ($ip === '') {
+            v3a_exit_json(400, null, 'Invalid IP');
+        }
+
+        $pluginDir = '';
+        try {
+            $pluginDir = (string) ($options->pluginDir('ShouTuTa') ?? '');
+        } catch (\Throwable $e) {
+        }
+        if ($pluginDir === '') {
+            $pluginDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'ShouTuTa';
+        }
+
+        $cacheDir = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR;
+        $path = $cacheDir . 'global_whitelist.json';
+
+        $ok = false;
+        $removed = 0;
+        try {
+            $fp = @fopen($path, 'c+');
+            if ($fp && flock($fp, LOCK_EX)) {
+                $raw = stream_get_contents($fp);
+                $data = json_decode((string) $raw, true);
+                if (!is_array($data)) {
+                    $data = [];
+                }
+                if (isset($data[$ip])) {
+                    unset($data[$ip]);
+                    $removed = 1;
+                }
+                ftruncate($fp, 0);
+                rewind($fp);
+                fwrite($fp, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                flock($fp, LOCK_UN);
+                $ok = true;
+            }
+            if ($fp) {
+                fclose($fp);
+            }
+        } catch (\Throwable $e) {
+        }
+
+        if (!$ok) {
+            v3a_exit_json(500, null, 'Write failed');
+        }
+
+        v3a_exit_json(0, ['ok' => 1, 'removed' => $removed]);
+    }
+
+    if ($do === 'shoutu.purge_ip') {
+        v3a_require_role($user, 'administrator');
+        v3a_security_protect($security, $request);
+
+        $enabled = false;
+        try {
+            $plugins = \Typecho\Plugin::export();
+            $activated = (array) ($plugins['activated'] ?? []);
+            $enabled = isset($activated['ShouTuTa']);
+        } catch (\Throwable $e) {
+        }
+        if (!$enabled) {
+            v3a_exit_json(404, null, 'Not found');
+        }
+
+        $payload = v3a_payload();
+        $ip = trim((string) ($payload['ip'] ?? ''));
+        $ip = filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : '';
+        if ($ip === '') {
+            v3a_exit_json(400, null, 'Invalid IP');
+        }
+
+        $pluginDir = '';
+        try {
+            $pluginDir = (string) ($options->pluginDir('ShouTuTa') ?? '');
+        } catch (\Throwable $e) {
+        }
+        if ($pluginDir === '') {
+            $pluginDir = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+                . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'ShouTuTa';
+        }
+
+        $cacheDir = rtrim($pluginDir, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR;
+
+        @unlink($cacheDir . md5('ban_info_' . $ip));
+        @unlink($cacheDir . md5('ban_tier_' . $ip));
+
+        try {
+            $banListPath = $cacheDir . 'banlist_managed.txt';
+            if (is_file($banListPath)) {
+                $lines = @file($banListPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                $lines = is_array($lines) ? $lines : [];
+                $newList = array_values(array_filter($lines, function ($v) use ($ip) {
+                    return trim((string) $v) !== $ip;
+                }));
+                @file_put_contents($banListPath, implode(PHP_EOL, $newList) . (empty($newList) ? '' : PHP_EOL), LOCK_EX);
+            }
+        } catch (\Throwable $e) {
+        }
+
+        @unlink($cacheDir . md5('cc_requests_' . $ip));
+        @unlink($cacheDir . md5('edge_score_' . $ip));
+        @unlink($cacheDir . md5('404_strikes_' . $ip));
+        @unlink($cacheDir . md5('abuseipdb_' . $ip));
+
+        $analyticsDbPath = $cacheDir . 'analytics.db';
+        if (is_file($analyticsDbPath) && extension_loaded('pdo_sqlite')) {
+            try {
+                $pdo = new \PDO('sqlite:' . $analyticsDbPath);
+                $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+                $stmt = $pdo->prepare('DELETE FROM requests WHERE ip_address = :ip');
+                $stmt->execute([':ip' => $ip]);
+            } catch (\Throwable $e) {
+            }
+        }
+
+        @unlink($cacheDir . 'threat_center_cache.json');
+
+        v3a_exit_json(0, ['ok' => 1]);
+    }
+
+    if ($do === 'shoutu.abuseipdb.check') {
+        v3a_require_role($user, 'administrator');
+
+        $enabled = false;
+        try {
+            $plugins = \Typecho\Plugin::export();
+            $activated = (array) ($plugins['activated'] ?? []);
+            $enabled = isset($activated['ShouTuTa']);
+        } catch (\Throwable $e) {
+        }
+        if (!$enabled) {
+            v3a_exit_json(404, null, 'Not found');
+        }
+
+        $ip = '';
+        try {
+            $ip = trim((string) ($request->get('ip') ?? ''));
+        } catch (\Throwable $e) {
+        }
+        $ip = filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : '';
+        if ($ip === '') {
+            v3a_exit_json(400, null, 'Invalid IP');
+        }
+
+        $use = false;
+        $key = '';
+        try {
+            $shoutuOptions = $options->plugin('ShouTuTa');
+            $use = !empty($shoutuOptions->enableAbuseIPDB);
+            $key = (string) ($shoutuOptions->abuseIPDBKey ?? '');
+        } catch (\Throwable $e) {
+        }
+
+        if (!$use || $key === '') {
+            v3a_exit_json(400, null, 'AbuseIPDB disabled or missing key');
+        }
+
+        if (!function_exists('curl_init')) {
+            v3a_exit_json(500, null, 'cURL is missing');
+        }
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, 'https://api.abuseipdb.com/api/v2/check?ipAddress=' . urlencode($ip));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Key: ' . $key, 'Accept: application/json']);
+        $response = curl_exec($ch);
+        $httpCode = (int) (curl_getinfo($ch, CURLINFO_HTTP_CODE) ?: 0);
+        curl_close($ch);
+
+        if ($httpCode !== 200 || !is_string($response) || trim($response) === '') {
+            v3a_exit_json(500, null, 'AbuseIPDB request failed');
+        }
+
+        $decoded = json_decode($response, true);
+        if (!is_array($decoded)) {
+            v3a_exit_json(500, null, 'Invalid AbuseIPDB response');
+        }
+
+        $score = 0;
+        try {
+            $score = (int) ($decoded['data']['abuseConfidenceScore'] ?? 0);
+        } catch (\Throwable $e) {
+            $score = 0;
+        }
+
+        v3a_exit_json(0, ['ip' => $ip, 'score' => $score, 'data' => $decoded['data'] ?? null]);
     }
 
     if ($do === 'dashboard') {
