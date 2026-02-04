@@ -12547,41 +12547,50 @@
 
                 <template v-else>
                   <div class="v3a-grid two">
-                    <div class="v3a-card">
-                      <div class="hd"><div class="title">当前版本</div></div>
-                      <div class="bd v3a-muted" style="line-height: 1.8;">
-                        <div>
-                          版本：<span style="font-variant-numeric: tabular-nums;">{{ (upgradeCurrent && (upgradeCurrent.rawVersion || upgradeCurrent.version)) || '—' }}</span>
+                    <div>
+                      <div style="display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px;">
+                        <div class="v3a-muted" style="font-weight: 500;">当前版本</div>
+                      </div>
+                      <div class="v3a-card">
+                        <div class="bd v3a-muted" style="line-height: 1.8;">
+                          <div>
+                            版本：<span style="font-variant-numeric: tabular-nums;">{{ (upgradeCurrent && (upgradeCurrent.rawVersion || upgradeCurrent.version)) || '—' }}</span>
+                          </div>
+                          <div v-if="upgradeCurrent && upgradeCurrent.deployVersion">部署标记：<code>{{ upgradeCurrent.deployVersion }}</code></div>
+                          <div v-if="upgradeCurrent && upgradeCurrent.build">构建时间：{{ formatTime(upgradeCurrent.build, settingsData.site.timezone) }}</div>
                         </div>
-                        <div v-if="upgradeCurrent && upgradeCurrent.deployVersion">部署标记：<code>{{ upgradeCurrent.deployVersion }}</code></div>
-                        <div v-if="upgradeCurrent && upgradeCurrent.build">构建时间：{{ formatTime(upgradeCurrent.build, settingsData.site.timezone) }}</div>
                       </div>
                     </div>
 
-                    <div class="v3a-card">
-                      <div class="hd" style="display:flex; align-items:center; justify-content: space-between; gap: 12px;">
-                        <div class="title">最新版本</div>
+                    <div>
+                      <div style="display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px; gap: 12px;">
+                        <div class="v3a-muted" style="font-weight: 500;">最新版本</div>
                         <span v-if="upgradeSettingsForm.strict ? upgradeStrictUpdateAvailable : upgradeUpdateAvailable" class="v3a-pill warn">有更新</span>
                         <span v-else class="v3a-pill success">已是最新</span>
                       </div>
-                      <div class="bd v3a-muted" style="line-height: 1.8;">
-                        <template v-if="upgradeSettingsForm.strict && upgradeLatestCommit">
-                          <div>最新 commit：<span style="font-variant-numeric: tabular-nums;">{{ upgradeLatestCommit.short }}</span></div>
-                          <div v-if="upgradeLatestCommit.date">提交时间：{{ formatTime(isoToTs(upgradeLatestCommit.date), settingsData.site.timezone) }}</div>
-                          <div v-if="upgradeLatestCommit.message" style="margin-top: 6px; white-space: pre-wrap;">{{ upgradeLatestCommit.message }}</div>
-                        </template>
-                        <template v-else>
-                          <div>最新 Release：<span style="font-variant-numeric: tabular-nums;">{{ (upgradeLatest && upgradeLatest.tag) || '—' }}</span></div>
-                          <div v-if="upgradeLatest && upgradeLatest.publishedAt">发布时间：{{ formatTime(isoToTs(upgradeLatest.publishedAt), settingsData.site.timezone) }}</div>
-                          <div v-if="upgradeLatest && upgradeLatest.name" style="margin-top: 6px;">{{ upgradeLatest.name }}</div>
-                        </template>
+                      <div class="v3a-card">
+                        <div class="bd v3a-muted" style="line-height: 1.8;">
+                          <template v-if="upgradeSettingsForm.strict && upgradeLatestCommit">
+                            <div>最新 commit：<span style="font-variant-numeric: tabular-nums;">{{ upgradeLatestCommit.short }}</span></div>
+                            <div v-if="upgradeLatestCommit.date">提交时间：{{ formatTime(isoToTs(upgradeLatestCommit.date), settingsData.site.timezone) }}</div>
+                            <div v-if="upgradeLatestCommit.message" style="margin-top: 6px; white-space: pre-wrap;">{{ upgradeLatestCommit.message }}</div>
+                          </template>
+                          <template v-else>
+                            <div>最新 Release：<span style="font-variant-numeric: tabular-nums;">{{ (upgradeLatest && upgradeLatest.tag) || '—' }}</span></div>
+                            <div v-if="upgradeLatest && upgradeLatest.publishedAt">发布时间：{{ formatTime(isoToTs(upgradeLatest.publishedAt), settingsData.site.timezone) }}</div>
+                            <div v-if="upgradeLatest && upgradeLatest.name" style="margin-top: 6px;">{{ upgradeLatest.name }}</div>
+                          </template>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div v-if="upgradeSettingsForm.strict ? upgradeStrictUpdateAvailable : upgradeUpdateAvailable" class="v3a-card" style="margin-top: calc(var(--spacing) * 4);">
-                    <div class="hd"><div class="title">更新内容</div></div>
-                    <div class="bd">
+                  <div v-if="upgradeSettingsForm.strict ? upgradeStrictUpdateAvailable : upgradeUpdateAvailable" style="margin-top: calc(var(--spacing) * 4);">
+                    <div style="display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px;">
+                      <div class="v3a-muted" style="font-weight: 500;">更新内容</div>
+                    </div>
+                    <div class="v3a-card">
+                      <div class="bd">
                       <template v-if="upgradeSettingsForm.strict && upgradeLatestCommit">
                         <pre class="mono" style="margin: 0; white-space: pre-wrap;">{{ upgradeLatestCommit.message || '—' }}</pre>
                         <div v-if="upgradeLatestCommit.url" style="margin-top: 10px;">
@@ -12591,12 +12600,16 @@
                       <template v-else>
                         <pre class="mono" style="margin: 0; white-space: pre-wrap;">{{ (upgradeLatest && upgradeLatest.body) ? upgradeLatest.body : '（该 release 暂无说明）' }}</pre>
                       </template>
+                      </div>
                     </div>
                   </div>
 
-                  <div class="v3a-card" style="margin-top: calc(var(--spacing) * 4);">
-                    <div class="hd"><div class="title">Release 列表</div></div>
-                    <div class="bd" style="padding: 0;">
+                  <div style="margin-top: calc(var(--spacing) * 4);">
+                    <div style="display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px;">
+                      <div class="v3a-muted" style="font-weight: 500;">Release 列表</div>
+                    </div>
+                    <div class="v3a-card">
+                      <div class="bd" style="padding: 0;">
                       <table class="v3a-table v3a-posts-table">
                         <thead>
                           <tr>
@@ -12624,6 +12637,7 @@
                           </tr>
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   </div>
                 </template>
