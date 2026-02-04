@@ -717,9 +717,26 @@
       const permissionInfoOpen = ref(false);
       const isNarrowScreen = ref(false);
       const mobileNavOpen = ref(false);
+      const mobileNavPane = ref(0);
+      const mobileNavWidth = ref(0);
+      const mobileNavSliderEl = ref(null);
+      const mobileNavDragging = ref(false);
+      const mobileNavDragOffset = ref(0);
+      const mobileNavSuppressClickUntil = ref(0);
+
+      function syncMobileNavWidth() {
+        const el = mobileNavSliderEl.value;
+        if (!el) return;
+        try {
+          const w = Number(el.clientWidth || 0) || 0;
+          if (w > 0) mobileNavWidth.value = w;
+        } catch (e) {}
+      }
 
       function closeMobileNav() {
         mobileNavOpen.value = false;
+        mobileNavDragging.value = false;
+        mobileNavDragOffset.value = 0;
       }
 
       function syncNarrowScreen() {
@@ -740,14 +757,23 @@
 
         if (!next) {
           closeMobileNav();
+          mobileNavPane.value = 0;
         }
       }
 
       syncNarrowScreen();
       onMounted(() => {
         syncNarrowScreen();
+        syncMobileNavWidth();
         try {
-          window.addEventListener("resize", syncNarrowScreen, { passive: true });
+          window.addEventListener(
+            "resize",
+            () => {
+              syncNarrowScreen();
+              syncMobileNavWidth();
+            },
+            { passive: true }
+          );
         } catch (e) {}
       });
 
@@ -824,6 +850,168 @@
         } catch (e) {}
         return out;
       });
+
+      const mobileNavPaneCount = computed(() => {
+        if (!isNarrowScreen.value) return 1;
+        return routePath.value === "/settings" ? 2 : 1;
+      });
+
+      function clampMobileNavPane(index) {
+        const max = Math.max(0, Number(mobileNavPaneCount.value || 1) - 1);
+        const n = Number(index || 0);
+        if (!Number.isFinite(n)) return 0;
+        return Math.min(max, Math.max(0, Math.trunc(n)));
+      }
+
+      function setMobileNavPane(index) {
+        mobileNavPane.value = clampMobileNavPane(index);
+        mobileNavDragOffset.value = 0;
+        mobileNavDragging.value = false;
+      }
+
+      const mobileNavTrackStyle = computed(() => {
+        const panes = Math.max(1, Number(mobileNavPaneCount.value || 1) || 1);
+        const pane = clampMobileNavPane(mobileNavPane.value);
+        const w = Number(mobileNavWidth.value || 0) || 0;
+        const dx = mobileNavDragging.value ? Number(mobileNavDragOffset.value || 0) || 0 : 0;
+        const x = -(pane * w) + dx;
+        return {
+          width: `${panes * 100}%`,
+          transform: `translate3d(${x}px, 0, 0)`,
+          transition: mobileNavDragging.value ? "none" : "transform 0.2s ease",
+        };
+      });
+
+      function onMobileNavClickCapture(e) {
+        if (!isNarrowScreen.value) return;
+        const until = Number(mobileNavSuppressClickUntil.value || 0) || 0;
+        if (!until) return;
+        if (Date.now() >= until) return;
+        try {
+          e.preventDefault();
+        } catch (err) {}
+        try {
+          e.stopPropagation();
+        } catch (err) {}
+      }
+
+      let mobileNavPointerId = null;
+      let mobileNavStartX = 0;
+      let mobileNavStartY = 0;
+      let mobileNavStartPane = 0;
+      let mobileNavAxis = "";
+
+      function endMobileNavGesture() {
+        mobileNavPointerId = null;
+        mobileNavAxis = "";
+        mobileNavDragging.value = false;
+        mobileNavDragOffset.value = 0;
+      }
+
+      function onMobileNavPointerDown(e) {
+        if (!isNarrowScreen.value) return;
+        if (!mobileNavOpen.value) return;
+        if (mobileNavPaneCount.value <= 1) return;
+        if (!e) return;
+        if (typeof e.button === "number" && e.button !== 0) return;
+
+        syncMobileNavWidth();
+        mobileNavPointerId = e.pointerId;
+        mobileNavAxis = "";
+        mobileNavStartX = Number(e.clientX || 0) || 0;
+        mobileNavStartY = Number(e.clientY || 0) || 0;
+        mobileNavStartPane = clampMobileNavPane(mobileNavPane.value);
+        mobileNavDragOffset.value = 0;
+        mobileNavDragging.value = false;
+      }
+
+      function onMobileNavPointerMove(e) {
+        if (!isNarrowScreen.value) return;
+        if (!mobileNavPointerId && mobileNavPointerId !== 0) return;
+        if (!e || e.pointerId !== mobileNavPointerId) return;
+        if (mobileNavPaneCount.value <= 1) return;
+
+        const dx = (Number(e.clientX || 0) || 0) - mobileNavStartX;
+        const dy = (Number(e.clientY || 0) || 0) - mobileNavStartY;
+
+        if (!mobileNavAxis) {
+          if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+          mobileNavAxis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+          if (mobileNavAxis === "x") {
+            mobileNavDragging.value = true;
+            try {
+              e.currentTarget && e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
+            } catch (err) {}
+          } else {
+            endMobileNavGesture();
+            return;
+          }
+        }
+
+        if (mobileNavAxis !== "x") return;
+
+        const max = Math.max(0, Number(mobileNavPaneCount.value || 1) - 1);
+        let offset = dx;
+        if (mobileNavStartPane <= 0 && offset > 0) offset *= 0.35;
+        if (mobileNavStartPane >= max && offset < 0) offset *= 0.35;
+
+        mobileNavDragOffset.value = offset;
+        try {
+          e.preventDefault();
+        } catch (err) {}
+      }
+
+      function onMobileNavPointerUp(e) {
+        if (!e) return;
+        if (!mobileNavPointerId && mobileNavPointerId !== 0) return;
+        if (e.pointerId !== mobileNavPointerId) return;
+
+        if (!mobileNavDragging.value || mobileNavAxis !== "x") {
+          endMobileNavGesture();
+          return;
+        }
+
+        const w = Number(mobileNavWidth.value || 0) || 0;
+        const threshold = Math.max(60, Math.min(140, w * 0.22));
+        const dx = Number(mobileNavDragOffset.value || 0) || 0;
+        const max = Math.max(0, Number(mobileNavPaneCount.value || 1) - 1);
+        let nextPane = mobileNavStartPane;
+
+        if (dx < -threshold) nextPane = Math.min(mobileNavStartPane + 1, max);
+        else if (dx > threshold) nextPane = Math.max(mobileNavStartPane - 1, 0);
+
+        mobileNavSuppressClickUntil.value = Date.now() + 380;
+        setMobileNavPane(nextPane);
+        endMobileNavGesture();
+      }
+
+      watch(
+        () => routePath.value,
+        (p) => {
+          if (!isNarrowScreen.value) return;
+          if (p === "/settings") {
+            mobileNavPane.value = 1;
+          } else {
+            mobileNavPane.value = 0;
+          }
+          endMobileNavGesture();
+        }
+      );
+
+      watch(
+        () => mobileNavOpen.value,
+        (open) => {
+          if (!isNarrowScreen.value) return;
+          if (!open) {
+            endMobileNavGesture();
+            return;
+          }
+          nextTick(() => {
+            syncMobileNavWidth();
+            setMobileNavPane(routePath.value === "/settings" ? 1 : 0);
+          });
+        }
+      );
 
       // Extras (plugin panels / reserved pages)
       const extrasPanelIframe = ref(null);
@@ -5538,6 +5726,12 @@
 
       function toggleSidebar() {
         if (isNarrowScreen.value) {
+          if (!mobileNavOpen.value) {
+            mobileNavPane.value = routePath.value === "/settings" ? 1 : 0;
+            mobileNavDragging.value = false;
+            mobileNavDragOffset.value = 0;
+            syncMobileNavWidth();
+          }
           mobileNavOpen.value = !mobileNavOpen.value;
           return;
         }
@@ -5578,7 +5772,9 @@
         navTo("/settings");
       }
 
-      function selectSettings(key) {
+      function selectSettings(key, opts) {
+        const options = opts && typeof opts === "object" ? opts : {};
+        const shouldCloseNav = options.closeNav !== false;
         const nextKey = normalizeSettingsKey(key);
         if (!settingsKeyExists(nextKey)) return;
         settingsActiveKey.value = nextKey;
@@ -5586,12 +5782,15 @@
           localStorage.setItem(STORAGE_KEYS.settingsKey, nextKey);
         } catch (e) {}
         navTo("/settings");
+        if (shouldCloseNav && isNarrowScreen.value) {
+          closeMobileNav();
+        }
       }
 
       function toggleThemeSettings() {
         if (!isThemeSettingsActive.value) {
           settingsThemeOpen.value = true;
-          selectSettings(lastThemeSettingsKey.value || "theme.activate");
+          selectSettings(lastThemeSettingsKey.value || "theme.activate", { closeNav: false });
           return;
         }
         settingsThemeOpen.value = !settingsThemeOpen.value;
@@ -9324,6 +9523,14 @@
       function handleMenuClick(item) {
         if (item.action === "openSettings") {
           openSettings();
+          if (isNarrowScreen.value) {
+            mobileNavOpen.value = true;
+            nextTick(() => {
+              syncMobileNavWidth();
+              setMobileNavPane(1);
+            });
+            return;
+          }
           closeMobileNav();
           return;
         }
@@ -9455,6 +9662,13 @@
         sidebarCollapsed,
         isNarrowScreen,
         mobileNavOpen,
+        mobileNavSliderEl,
+        mobileNavDragging,
+        mobileNavTrackStyle,
+        onMobileNavPointerDown,
+        onMobileNavPointerMove,
+        onMobileNavPointerUp,
+        onMobileNavClickCapture,
         closeMobileNav,
         sidebarToggleIcon,
         sidebarToggleTitle,
@@ -9984,43 +10198,115 @@
           <div v-if="isNarrowScreen" class="v3a-mobile-nav-handle" @click="closeMobileNav()" role="button" aria-label="收起菜单">
             <div class="v3a-mobile-nav-handle-bar"></div>
           </div>
-          <nav class="v3a-menu">
-            <div v-for="item in menuItems" :key="item.key">
-              <div
-                  class="v3a-menu-item"
-                  :data-tour="'menu-' + item.key"
-                  :class="{ active: isMenuItemActive(item) }"
-                  @click="handleMenuClick(item)"
-                >
-                <div class="v3a-menu-left">
-                  <span class="v3a-icon" v-html="ICONS[item.icon]"></span>
-                  <span class="v3a-menu-label" v-show="isNarrowScreen || !sidebarCollapsed">{{ item.label }}</span>
-                </div>
-                <span class="v3a-menu-right" v-show="isNarrowScreen || !sidebarCollapsed">
-                  <span class="v3a-badge" v-if="badgeValue(item)">{{ badgeValue(item) }}</span>
-                  <span v-if="item.children" class="v3a-chev" :class="{ open: expanded[item.key] }">
-                    <span class="v3a-icon" v-html="ICONS.chevron"></span>
-                  </span>
-                </span>
+          <div
+            class="v3a-mobile-nav-slider"
+            ref="mobileNavSliderEl"
+            :class="{ dragging: mobileNavDragging }"
+            @pointerdown="onMobileNavPointerDown"
+            @pointermove="onMobileNavPointerMove"
+            @pointerup="onMobileNavPointerUp"
+            @pointercancel="onMobileNavPointerUp"
+            @click.capture="onMobileNavClickCapture"
+          >
+            <div class="v3a-mobile-nav-track" :style="mobileNavTrackStyle">
+              <div class="v3a-mobile-nav-pane">
+                <nav class="v3a-menu">
+                  <div v-for="item in menuItems" :key="item.key">
+                    <div
+                        class="v3a-menu-item"
+                        :data-tour="'menu-' + item.key"
+                        :class="{ active: isMenuItemActive(item) }"
+                        @click="handleMenuClick(item)"
+                      >
+                      <div class="v3a-menu-left">
+                        <span class="v3a-icon" v-html="ICONS[item.icon]"></span>
+                        <span class="v3a-menu-label" v-show="isNarrowScreen || !sidebarCollapsed">{{ item.label }}</span>
+                      </div>
+                      <span class="v3a-menu-right" v-show="isNarrowScreen || !sidebarCollapsed">
+                        <span class="v3a-badge" v-if="badgeValue(item)">{{ badgeValue(item) }}</span>
+                        <span v-if="item.children" class="v3a-chev" :class="{ open: expanded[item.key] }">
+                          <span class="v3a-icon" v-html="ICONS.chevron"></span>
+                        </span>
+                      </span>
+                    </div>
+
+                    <div class="v3a-sub" v-if="item.children" v-show="expanded[item.key] && (isNarrowScreen || !sidebarCollapsed)">
+                      <div
+                        class="v3a-subitem"
+                        v-for="child in item.children"
+                        :key="child.key"
+                        :data-tour="'submenu-' + child.key"
+                        :class="{ active: isSubMenuItemActive(child) }"
+                        @click="handleSubMenuClick(child)"
+                      >
+                        {{ child.label }}
+                      </div>
+                    </div>
+                  </div>
+                </nav>
               </div>
 
-              <div class="v3a-sub" v-if="item.children" v-show="expanded[item.key] && (isNarrowScreen || !sidebarCollapsed)">
-                <div
-                  class="v3a-subitem"
-                  v-for="child in item.children"
-                  :key="child.key"
-                  :data-tour="'submenu-' + child.key"
-                  :class="{ active: isSubMenuItemActive(child) }"
-                  @click="handleSubMenuClick(child)"
-                >
-                  {{ child.label }}
-                </div>
+              <div v-if="isNarrowScreen && settingsOpen" class="v3a-mobile-nav-pane">
+                <aside class="v3a-subsidebar v3a-subsidebar-mobile" data-tour="settings-nav">
+                  <div class="v3a-subsidebar-bd">
+                    <template v-for="s in settingsItems" :key="s.key">
+                      <template v-if="s.key === 'theme'">
+                        <button
+                          class="v3a-subsidebar-item"
+                          :class="{ active: isThemeSettingsActive }"
+                          type="button"
+                          @click="toggleThemeSettings"
+                        >
+                          <div class="v3a-subsidebar-item-icon" :class="{ active: isThemeSettingsActive }">
+                            <span class="v3a-icon" v-html="ICONS[s.icon] || ICONS.settings"></span>
+                          </div>
+                          <div class="v3a-subsidebar-item-text">
+                            <div class="v3a-subsidebar-item-title">{{ s.label }}</div>
+                            <div class="v3a-subsidebar-item-subtitle">{{ s.subtitle }}</div>
+                          </div>
+                          <span class="v3a-chev" :class="{ open: settingsThemeOpen }">
+                            <span class="v3a-icon" v-html="ICONS.chevron"></span>
+                          </span>
+                        </button>
+
+                        <div class="v3a-subsidebar-sub" v-show="settingsThemeOpen">
+                          <button
+                            class="v3a-subsidebar-subitem"
+                            v-for="child in s.children"
+                            :key="child.key"
+                            :class="{ active: settingsActiveKey === child.key }"
+                            type="button"
+                            @click="selectSettings(child.key)"
+                          >
+                            {{ child.label }}
+                          </button>
+                        </div>
+                      </template>
+
+                      <button
+                        v-else
+                        class="v3a-subsidebar-item"
+                        :class="{ active: settingsActiveKey === s.key }"
+                        type="button"
+                        @click="selectSettings(s.key)"
+                      >
+                        <div class="v3a-subsidebar-item-icon" :class="{ active: settingsActiveKey === s.key }">
+                          <span class="v3a-icon" v-html="ICONS[s.icon] || ICONS.settings"></span>
+                        </div>
+                        <div class="v3a-subsidebar-item-text">
+                          <div class="v3a-subsidebar-item-title">{{ s.label }}</div>
+                          <div class="v3a-subsidebar-item-subtitle">{{ s.subtitle }}</div>
+                        </div>
+                      </button>
+                    </template>
+                  </div>
+                </aside>
               </div>
             </div>
-          </nav>
+          </div>
         </aside>
 
-        <aside class="v3a-subsidebar" v-show="settingsOpen && !sidebarCollapsed && !isNarrowScreen" data-tour="settings-nav">
+        <aside class="v3a-subsidebar" v-if="settingsOpen && !sidebarCollapsed && !isNarrowScreen" data-tour="settings-nav">
           <div class="v3a-subsidebar-bd">
             <template v-for="s in settingsItems" :key="s.key">
               <template v-if="s.key === 'theme'">
