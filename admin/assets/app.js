@@ -3891,6 +3891,7 @@
       const upgradeLatestCommit = ref(null);
       const upgradeStrictUpdateAvailable = ref(0);
 
+      const upgradeConfirmOpen = ref(false);
       const upgradeSettingsOpen = ref(false);
       const upgradeSettingsLoading = ref(false);
       const upgradeSettingsSaving = ref(false);
@@ -3898,6 +3899,13 @@
         strict: 0,
         globalReplace: 0,
       });
+
+      const upgradeModeLabel = computed(() =>
+        upgradeSettingsForm.strict ? "严格升级（commit）" : "Release 升级"
+      );
+      const upgradeReplaceLabel = computed(() =>
+        upgradeSettingsForm.globalReplace ? "开启全局替换" : "关闭全局替换"
+      );
 
       async function fetchUpgradeSettings() {
         if (upgradeSettingsLoading.value) return;
@@ -3950,7 +3958,31 @@
         } catch (e) {}
       }
 
-      async function runUpgrade() {
+      function openUpgradeConfirm() {
+        if (upgradeWorking.value) return;
+
+        const hasUpdate = upgradeSettingsForm.strict
+          ? !!upgradeStrictUpdateAvailable.value
+          : !!upgradeUpdateAvailable.value;
+        if (!hasUpdate) {
+          toastInfo("当前已是最新版本");
+          return;
+        }
+
+        upgradeConfirmOpen.value = true;
+      }
+
+      function closeUpgradeConfirm() {
+        upgradeConfirmOpen.value = false;
+      }
+
+      async function confirmUpgrade() {
+        if (upgradeWorking.value) return;
+        upgradeConfirmOpen.value = false;
+        await doUpgrade();
+      }
+
+      async function doUpgrade() {
         if (upgradeWorking.value) return;
 
         const hasUpdate = upgradeSettingsForm.strict
@@ -3963,12 +3995,6 @@
 
         const strict = upgradeSettingsForm.strict ? 1 : 0;
         const globalReplace = upgradeSettingsForm.globalReplace ? 1 : 0;
-        const modeLabel = strict ? "严格升级（commit）" : "Release 升级";
-        const replaceLabel = globalReplace ? "开启全局替换" : "关闭全局替换";
-
-        if (!confirm(`确认开始升级？\\n\\n模式：${modeLabel}\\n${replaceLabel}\\n\\n升级过程中请勿关闭页面。`)) {
-          return;
-        }
 
         upgradeWorking.value = true;
         try {
@@ -3998,6 +4024,10 @@
         } finally {
           upgradeWorking.value = false;
         }
+      }
+
+      function runUpgrade() {
+        openUpgradeConfirm();
       }
 
       async function openUpgradeSettings() {
@@ -9532,6 +9562,9 @@
         upgradeUpdateAvailable,
         upgradeLatestCommit,
         upgradeStrictUpdateAvailable,
+        upgradeConfirmOpen,
+        upgradeModeLabel,
+        upgradeReplaceLabel,
         upgradeSettingsOpen,
         upgradeSettingsLoading,
         upgradeSettingsSaving,
@@ -9540,6 +9573,9 @@
         isoToTs,
         openExternal,
         runUpgrade,
+        openUpgradeConfirm,
+        closeUpgradeConfirm,
+        confirmUpgrade,
         openUpgradeSettings,
         closeUpgradeSettings,
         saveUpgradeSettings,
@@ -12641,6 +12677,43 @@
                     </div>
                   </div>
                 </template>
+
+                <div v-if="upgradeConfirmOpen" class="v3a-modal-mask" @click.self="closeUpgradeConfirm()">
+                  <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 520px;">
+                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeUpgradeConfirm()">
+                      <span class="v3a-icon" v-html="ICONS.close"></span>
+                    </button>
+                    <div class="v3a-modal-head">
+                      <div class="v3a-modal-title">确认升级</div>
+                      <div class="v3a-modal-subtitle">升级过程中请勿关闭页面</div>
+                    </div>
+                    <div class="v3a-modal-body">
+                      <div class="v3a-settings-fields" style="border-top: 0; border-bottom: 0;">
+                        <div class="v3a-settings-row">
+                          <div class="v3a-settings-row-label"><label>升级模式</label></div>
+                          <div class="v3a-settings-row-control">
+                            <span class="v3a-muted">{{ upgradeModeLabel }}</span>
+                          </div>
+                        </div>
+                        <div class="v3a-settings-row">
+                          <div class="v3a-settings-row-label"><label>全局替换</label></div>
+                          <div class="v3a-settings-row-control">
+                            <span class="v3a-muted">{{ upgradeReplaceLabel }}</span>
+                          </div>
+                        </div>
+                        <div class="v3a-muted" style="margin-top: 10px; font-size: 12px; line-height: 1.6;">
+                          提示：升级会覆盖插件文件，建议先在「维护 → 备份」中做好备份。
+                        </div>
+                      </div>
+                      <div class="v3a-modal-actions">
+                        <button class="v3a-btn v3a-modal-btn" type="button" @click="closeUpgradeConfirm()" :disabled="upgradeWorking">取消</button>
+                        <button class="v3a-btn primary v3a-modal-btn" type="button" @click="confirmUpgrade()" :disabled="upgradeWorking">
+                          {{ upgradeWorking ? "升级中…" : "开始升级" }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 <div v-if="upgradeSettingsOpen" class="v3a-modal-mask" @click.self="closeUpgradeSettings()">
                   <div class="v3a-modal-card" role="dialog" aria-modal="true">

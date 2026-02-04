@@ -3010,7 +3010,18 @@ try {
                 throw new \RuntimeException('插件目录不存在：' . $pluginDir);
             }
 
-            v3a_copy_directory($pkgRoot, $pluginDir);
+            $pluginUpdated = 0;
+            $pluginUpdateError = '';
+            try {
+                v3a_copy_directory($pkgRoot, $pluginDir);
+                $pluginUpdated = 1;
+            } catch (\Throwable $e) {
+                $pluginUpdated = 0;
+                $pluginUpdateError = $e->getMessage();
+                if (!$globalReplace) {
+                    throw $e;
+                }
+            }
 
             $deployed = 0;
             if ($globalReplace) {
@@ -3024,7 +3035,10 @@ try {
 
                 v3a_copy_directory($adminSource, $deployDir);
 
-                $deployVersion = v3a_vue3admin_deploy_version_from_plugin($pluginDir);
+                $deployVersion = v3a_vue3admin_deploy_version_from_plugin($pkgRoot);
+                if ($deployVersion === '') {
+                    $deployVersion = v3a_vue3admin_deploy_version_from_plugin($pluginDir);
+                }
                 if ($deployVersion !== '') {
                     @file_put_contents($deployDir . DIRECTORY_SEPARATOR . '.v3a_deploy_version', $deployVersion);
                 }
@@ -3042,6 +3056,12 @@ try {
             $message = $globalReplace
                 ? '已完成升级，并已同步更新站点 /Vue3Admin/ 目录。'
                 : '已完成升级（未开启全局替换，站点 /Vue3Admin/ 目录未更新）。';
+            if (!$pluginUpdated) {
+                $message .= ' 注意：插件目录更新失败（请检查 usr/plugins/Vue3Admin 写权限），但已完成 /Vue3Admin/ 更新。';
+                if ($pluginUpdateError !== '') {
+                    $message .= ' 错误：' . $pluginUpdateError;
+                }
+            }
 
             v3a_rmdir_recursive($tmpDir);
             $tmpDir = '';
@@ -3050,6 +3070,8 @@ try {
                 'updated' => 1,
                 'strict' => $strict ? 1 : 0,
                 'globalReplace' => $globalReplace ? 1 : 0,
+                'pluginUpdated' => $pluginUpdated ? 1 : 0,
+                'pluginUpdateError' => $pluginUpdateError,
                 'deployed' => $deployed,
                 'target' => $targetLabel,
                 'kind' => $targetKind,
