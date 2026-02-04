@@ -277,6 +277,20 @@ function v3a_copy_directory(string $source, string $target): void
         throw new \RuntimeException('Cannot create dir: ' . $target);
     }
 
+    $captureFsError = function (callable $fn): array {
+        $err = '';
+        set_error_handler(function ($errno, $errstr) use (&$err) {
+            $err = (string) $errstr;
+            return true;
+        });
+        try {
+            $ok = (bool) $fn();
+        } finally {
+            restore_error_handler();
+        }
+        return [$ok, $err];
+    };
+
     $iterator = new \RecursiveIteratorIterator(
         new \RecursiveDirectoryIterator($source, \FilesystemIterator::SKIP_DOTS),
         \RecursiveIteratorIterator::SELF_FIRST
@@ -297,8 +311,50 @@ function v3a_copy_directory(string $source, string $target): void
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        if (!@copy($item->getPathname(), $destPath)) {
-            throw new \RuntimeException('Cannot copy file: ' . $destPath);
+
+        $srcPath = $item->getPathname();
+
+        // Fast path: try overwrite directly.
+        [$ok, $err] = $captureFsError(function () use ($srcPath, $destPath) {
+            return copy($srcPath, $destPath);
+        });
+        if ($ok) {
+            continue;
+        }
+
+        // Fallback: write to temp file then replace (handles read-only target files on some hosts).
+        $tmpPath = $dir
+            . DIRECTORY_SEPARATOR
+            . '.v3a_tmp_'
+            . basename($destPath)
+            . '_'
+            . substr(md5((string) mt_rand()), 0, 8);
+
+        [$tmpOk, $tmpErr] = $captureFsError(function () use ($srcPath, $tmpPath) {
+            return copy($srcPath, $tmpPath);
+        });
+        if (!$tmpOk) {
+            $msg = $tmpErr !== '' ? $tmpErr : $err;
+            throw new \RuntimeException('Cannot copy file: ' . $destPath . ($msg !== '' ? (' (' . $msg . ')') : ''));
+        }
+
+        [$renOk, $renErr] = $captureFsError(function () use ($tmpPath, $destPath) {
+            return rename($tmpPath, $destPath);
+        });
+        if (!$renOk && file_exists($destPath)) {
+            // Windows: rename() won't overwrite. Delete target only after temp is ready.
+            $captureFsError(function () use ($destPath) {
+                return @unlink($destPath);
+            });
+            [$renOk, $renErr] = $captureFsError(function () use ($tmpPath, $destPath) {
+                return rename($tmpPath, $destPath);
+            });
+        }
+
+        if (!$renOk) {
+            @unlink($tmpPath);
+            $msg = $renErr !== '' ? $renErr : ($err !== '' ? $err : 'rename failed');
+            throw new \RuntimeException('Cannot copy file: ' . $destPath . ($msg !== '' ? (' (' . $msg . ')') : ''));
         }
     }
 }
