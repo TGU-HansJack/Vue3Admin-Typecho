@@ -70,6 +70,19 @@ function v3a_truncate(string $value, int $max = 120): string
     return substr($value, 0, $max);
 }
 
+function v3a_gravatar_mirror_url(string $mail, int $size = 64, string $default = 'mm', string $rating = 'g'): string
+{
+    $mail = strtolower(trim($mail));
+    $hash = md5($mail);
+    $size = max(1, min(512, (int) $size));
+    $default = $default !== '' ? $default : 'mm';
+    $rating = $rating !== '' ? $rating : 'g';
+
+    $base = 'https://cdn.sep.cc/avatar/' . $hash;
+    $qs = http_build_query(['s' => $size, 'd' => $default, 'r' => $rating], '', '&', PHP_QUERY_RFC3986);
+    return $qs !== '' ? ($base . '?' . $qs) : $base;
+}
+
 /**
  * @return array{type:string,name:string}
  */
@@ -5038,6 +5051,7 @@ try {
 
         $items = [];
         foreach ($rows as $r) {
+            $mail = (string) ($r['mail'] ?? '');
             $text = (string) ($r['text'] ?? '');
             $plain = strip_tags($text);
             $plain = preg_replace('/\\s+/u', ' ', (string) $plain);
@@ -5047,7 +5061,8 @@ try {
                 'coid' => (int) ($r['coid'] ?? 0),
                 'cid' => $postCid,
                 'author' => (string) ($r['author'] ?? ''),
-                'mail' => (string) ($r['mail'] ?? ''),
+                'mail' => $mail,
+                'avatar' => v3a_gravatar_mirror_url($mail, 64),
                 'url' => (string) ($r['url'] ?? ''),
                 'text' => (string) ($r['text'] ?? ''),
                 'excerpt' => v3a_truncate((string) $plain, 120),
@@ -5147,6 +5162,7 @@ try {
                 'cid' => $postCid,
                 'author' => (string) ($row['author'] ?? ''),
                 'mail' => (string) ($row['mail'] ?? ''),
+                'avatar' => v3a_gravatar_mirror_url((string) ($row['mail'] ?? ''), 96),
                 'url' => (string) ($row['url'] ?? ''),
                 'text' => (string) ($row['text'] ?? ''),
                 'status' => (string) ($row['status'] ?? ''),
@@ -7530,13 +7546,7 @@ try {
                 'screenName' => (string) ($user->screenName ?? ''),
                 'mail' => (string) ($user->mail ?? ''),
                 'url' => (string) ($user->url ?? ''),
-                'avatar' => (string) \Typecho\Common::gravatarUrl(
-                    (string) ($user->mail ?? ''),
-                    160,
-                    'X',
-                    'mm',
-                    $request->isSecure()
-                ),
+                'avatar' => v3a_gravatar_mirror_url((string) ($user->mail ?? ''), 160, 'mm', 'X'),
                 'group' => (string) ($user->group ?? ''),
             ],
             'userOptions' => $userOptions,

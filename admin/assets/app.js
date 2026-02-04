@@ -3290,6 +3290,7 @@
         cid: 0,
         author: "",
         mail: "",
+        avatar: "",
         url: "",
         created: 0,
         text: "",
@@ -5439,6 +5440,7 @@
         commentForm.cid = 0;
         commentForm.author = "";
         commentForm.mail = "";
+        commentForm.avatar = "";
         commentForm.url = "";
         commentForm.created = 0;
         commentForm.text = "";
@@ -5467,6 +5469,7 @@
           commentForm.cid = Number(c.cid || 0) || 0;
           commentForm.author = String(c.author || "");
           commentForm.mail = String(c.mail || "");
+          commentForm.avatar = String(c.avatar || "");
           commentForm.url = String(c.url || "");
           commentForm.created = Number(c.created || 0) || 0;
           commentForm.text = String(c.text || "");
@@ -9696,8 +9699,11 @@
                               @click="openCommentEditor(c.coid)"
                               @keyup.enter="openCommentEditor(c.coid)"
                             >
-                              <div class="v3a-comment-avatar">
-                                {{ (String(c.author || '?').trim() || '?').slice(0, 1).toUpperCase() }}
+                              <div class="v3a-comment-avatar" :title="c.mail || ''">
+                                <img v-if="c.avatar" :src="c.avatar" :alt="c.author || ''" loading="lazy" referrerpolicy="no-referrer" @error="c.avatar = ''" />
+                                <template v-else>
+                                  {{ (String(c.author || '?').trim() || '?').slice(0, 1).toUpperCase() }}
+                                </template>
                               </div>
                               <div class="v3a-comment-body">
                                 <div class="v3a-comment-top">
@@ -9768,8 +9774,11 @@
 
                                 <div class="v3a-comments-main">
                                   <div class="v3a-comments-main-head">
-                                    <div class="v3a-comments-avatar">
-                                      {{ (String(commentForm.author || '?').trim() || '?').slice(0, 1).toUpperCase() }}
+                                    <div class="v3a-comments-avatar" :title="commentForm.mail || ''">
+                                      <img v-if="commentForm.avatar" :src="commentForm.avatar" :alt="commentForm.author || ''" loading="lazy" referrerpolicy="no-referrer" @error="commentForm.avatar = ''" />
+                                      <template v-else>
+                                        {{ (String(commentForm.author || '?').trim() || '?').slice(0, 1).toUpperCase() }}
+                                      </template>
                                     </div>
                                     <div class="v3a-comments-main-meta">
                                       <div class="v3a-comments-main-author">
