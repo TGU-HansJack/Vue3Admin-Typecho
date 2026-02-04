@@ -1,0 +1,106 @@
+name: Create Release
+
+on:
+  workflow_dispatch: # 仅支持手动触发
+    inputs:
+      tag_name:
+        description: "Tag name (e.g., v1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write # 允许创建 Release 与上传附件
+
+env:
+  PLUGIN_NAME: Vue3Admin
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 获取完整 git 历史，用于生成更新日志
+
+      - name: Get tag name
+        id: tag
+        run: echo "TAG_NAME=${{ inputs.tag_name }}" >> $GITHUB_OUTPUT
+
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [ -n "${{ steps.prev_tag.outputs.PREV_TAG }}" ]; then
+            echo "## 更新内容" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+
+            git log ${{ steps.prev_tag.outputs.PREV_TAG }}..HEAD \
+              --pretty=format:"- %s (%h)" \
+              --no-merges >> CHANGELOG.md
+
+            echo "" >> CHANGELOG.md
+          else
+            echo "## 更新内容" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "首个发布版本" >> CHANGELOG.md
+          fi
+
+          echo "=== Generated CHANGELOG.md ==="
+          cat CHANGELOG.md
+          echo "=== End of CHANGELOG.md ==="
+
+          DELIMITER="EOF_CHANGELOG_$(date +%s)"
+          {
+            echo "CHANGELOG<<${DELIMITER}"
+            cat CHANGELOG.md
+            echo ""
+            echo "${DELIMITER}"
+          } >> $GITHUB_OUTPUT
+
+      - name: Create plugin ZIP
+        run: |
+          mkdir -p "dist/${PLUGIN_NAME}"
+
+          rsync -av --progress . "dist/${PLUGIN_NAME}/" \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.gitignore' \
+            --exclude='.claude' \
+            --exclude='dist' \
+            --exclude='.DS_Store' \
+            --exclude='node_modules' \
+            --exclude='.v3a_deploy_version' \
+            --exclude='*.log'
+
+          cd dist
+          zip -r "${PLUGIN_NAME}-${{ steps.tag.outputs.TAG_NAME }}.zip" "${PLUGIN_NAME}/"
+          sha256sum "${PLUGIN_NAME}-${{ steps.tag.outputs.TAG_NAME }}.zip" > "${PLUGIN_NAME}-${{ steps.tag.outputs.TAG_NAME }}.zip.sha256"
+
+          mv "${PLUGIN_NAME}-${{ steps.tag.outputs.TAG_NAME }}.zip" ../
+          mv "${PLUGIN_NAME}-${{ steps.tag.outputs.TAG_NAME }}.zip.sha256" ../
+
+          cd ..
+          ls -lh "${PLUGIN_NAME}-${{ steps.tag.outputs.TAG_NAME }}.zip"
+          cat "${PLUGIN_NAME}-${{ steps.tag.outputs.TAG_NAME }}.zip.sha256"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.TAG_NAME }}
+          name: ${{ env.PLUGIN_NAME }} ${{ steps.tag.outputs.TAG_NAME }}
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
+          draft: false
+          prerelease: false
+          files: |
+            ${{ env.PLUGIN_NAME }}-${{ steps.tag.outputs.TAG_NAME }}.zip
+            ${{ env.PLUGIN_NAME }}-${{ steps.tag.outputs.TAG_NAME }}.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
