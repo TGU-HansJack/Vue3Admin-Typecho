@@ -13371,11 +13371,11 @@
                               </div>
                               <div class="v3a-settings-row-control">
                                 <div class="v3a-mail-status-wrap">
-                                  <div
-                                    v-if="settingsData.notify.lastSuccess && settingsData.notify.lastSuccess.time"
-                                    class="v3a-mail-status success"
-                                    :title="formatTime(settingsData.notify.lastSuccess.time, settingsData.site.timezone)"
-                                  >
+                                   <div
+                                     v-if="settingsData.notify.lastSuccess && settingsData.notify.lastSuccess.time && (!settingsData.notify.lastError || !settingsData.notify.lastError.time || +settingsData.notify.lastSuccess.time >= +settingsData.notify.lastError.time)"
+                                     class="v3a-mail-status success"
+                                     :title="formatTime(settingsData.notify.lastSuccess.time, settingsData.site.timezone)"
+                                   >
                                     <div class="v3a-mail-status-hd">
                                       <div class="v3a-mail-status-title">
                                         发送成功
@@ -13390,11 +13390,11 @@
                                     </div>
                                   </div>
 
-                                  <div
-                                    v-if="settingsData.notify.lastError && settingsData.notify.lastError.time"
-                                    class="v3a-mail-status error"
-                                    :title="formatTime(settingsData.notify.lastError.time, settingsData.site.timezone)"
-                                  >
+                                   <div
+                                     v-if="settingsData.notify.lastError && settingsData.notify.lastError.time && (!settingsData.notify.lastSuccess || !settingsData.notify.lastSuccess.time || +settingsData.notify.lastError.time > +settingsData.notify.lastSuccess.time)"
+                                     class="v3a-mail-status error"
+                                     :title="formatTime(settingsData.notify.lastError.time, settingsData.site.timezone)"
+                                   >
                                     <div class="v3a-mail-status-hd">
                                       <div class="v3a-mail-status-title">
                                         发送失败
@@ -13511,55 +13511,26 @@
                               </div>
                             </div>
 
-                            <div class="v3a-settings-row">
-                              <div class="v3a-settings-row-label">
+                            <div class="v3a-settings-row v3a-settings-row-stack">
+                              <div class="v3a-settings-row-label v3a-settings-row-label-actions">
                                 <label>评论提醒模板</label>
+                                <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor()">编辑</button>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <div class="v3a-mailtpl-card">
-                                  <div class="v3a-mailtpl-card-hd">
-                                    <div class="v3a-mailtpl-card-title">预览</div>
-                                    <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor()">编辑</button>
-                                  </div>
                                   <div class="v3a-mailtpl-preview" v-html="settingsNotifyTemplatePreviewHtml"></div>
-                                  <div class="v3a-mailtpl-vars">
-                                    <div class="v3a-mailtpl-vars-title">支持变量：</div>
-                                    <code v-pre>{{siteTitle}}</code>
-                                    <code v-pre>{{postTitle}}</code>
-                                    <code v-pre>{{postUrl}}</code>
-                                    <code v-pre>{{commentAuthor}}</code>
-                                    <code v-pre>{{commentTime}}</code>
-                                    <code v-pre>{{commentStatus}}</code>
-                                    <code v-pre>{{commentText}}</code>
-                                  </div>
                                 </div>
                               </div>
                             </div>
 
-                            <div class="v3a-settings-row">
-                              <div class="v3a-settings-row-label">
+                            <div class="v3a-settings-row v3a-settings-row-stack">
+                              <div class="v3a-settings-row-label v3a-settings-row-label-actions">
                                 <label>友链申请提醒模板</label>
+                                <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor('friendLink')">编辑</button>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <div class="v3a-mailtpl-card">
-                                  <div class="v3a-mailtpl-card-hd">
-                                    <div class="v3a-mailtpl-card-title">预览</div>
-                                    <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor('friendLink')">编辑</button>
-                                  </div>
                                   <div class="v3a-mailtpl-preview" v-html="settingsNotifyFriendLinkTemplatePreviewHtml"></div>
-                                  <div class="v3a-mailtpl-vars">
-                                    <div class="v3a-mailtpl-vars-title">支持变量：</div>
-                                    <code v-pre>{{siteTitle}}</code>
-                                    <code v-pre>{{linkName}}</code>
-                                    <code v-pre>{{linkUrl}}</code>
-                                    <code v-pre>{{linkType}}</code>
-                                    <code v-pre>{{linkEmail}}</code>
-                                    <code v-pre>{{linkAvatar}}</code>
-                                    <code v-pre>{{linkDescription}}</code>
-                                    <code v-pre>{{linkMessage}}</code>
-                                    <code v-pre>{{applyTime}}</code>
-                                    <code v-pre>{{reviewUrl}}</code>
-                                  </div>
                                 </div>
                               </div>
                             </div>

@@ -3532,6 +3532,18 @@ a {
   min-width: 0;
 }
 
+.v3a-settings-row-label-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.v3a-settings-row-label-actions label {
+  flex: 1;
+  min-width: 0;
+}
+
 .v3a-settings-row-control .v3a-input,
 .v3a-settings-row-control .v3a-select,
 .v3a-settings-row-control .v3a-textarea {
@@ -3546,10 +3558,21 @@ a {
     gap: 32px;
   }
 
+  .v3a-settings-row.v3a-settings-row-stack {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
   .v3a-settings-row-label {
     width: 220px;
     max-width: 40%;
     flex: 0 0 auto;
+  }
+
+  .v3a-settings-row.v3a-settings-row-stack .v3a-settings-row-label {
+    width: auto;
+    max-width: none;
   }
 
   .v3a-settings-row-control {
