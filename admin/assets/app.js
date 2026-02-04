@@ -174,6 +174,8 @@
     sidebarCollapsed: "v3a_sidebar_collapsed",
     sidebarExpanded: "v3a_sidebar_expanded",
     settingsKey: "v3a_settings_key",
+    dashboardTourDone: "v3a_tour_dashboard_done",
+    mainTourDone: "v3a_tour_main_done",
   };
 
   const ICONS = {
@@ -238,6 +240,8 @@
     smartphone: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" x2="12.01" y1="18" y2="18"></line></svg>`,
     smilePlus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11v1a10 10 0 1 1-9-10"></path><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" x2="9.01" y1="9" y2="9"></line><line x1="15" x2="15.01" y1="9" y2="9"></line><path d="M16 5h6"></path><path d="M19 2v6"></path></svg>`,
     info: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>`,
+    home: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-house-icon lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
+    logout: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-door-open-icon lucide-door-open"><path d="M11 20H2"/><path d="M11 4.562v16.157a1 1 0 0 0 1.242.97L19 20V5.562a2 2 0 0 0-1.515-1.94l-4-1A2 2 0 0 0 11 4.561z"/><path d="M11 4H8a2 2 0 0 0-2 2v14"/><path d="M14 12h.01"/><path d="M22 20h-3"/></svg>`,
   };
 
   const SETTINGS = [
@@ -1361,6 +1365,918 @@
         if (path.startsWith("/extras/")) expanded.value.extras = true;
         if (path.startsWith("/maintenance/")) expanded.value.maintenance = true;
       }
+
+      const frontendUrl = computed(() => String(V3A.siteUrl || "").trim() || "/");
+
+      // Step-by-step tours
+      const TOURS = {
+        dashboard: {
+          storageKey: STORAGE_KEYS.dashboardTourDone,
+          steps: [
+            {
+              route: "/dashboard",
+              selector: "[data-tour='sidebar']",
+              title: "侧边栏导航",
+              description: "这里是后台主要入口，可快速切换到博文、页面、评论与设定等功能。",
+            },
+            {
+              route: "/dashboard",
+              selector: "[data-tour='dash-realtime']",
+              title: "实时数据",
+              description: "查看当前在线、今日访客、今日最高在线等实时指标，快速掌握站点状态。",
+            },
+            {
+              route: "/dashboard",
+              selector: "[data-tour='dash-quick']",
+              title: "快速操作",
+              description: "常用功能一键直达：撰写/管理博文与页面，处理评论等。",
+            },
+            {
+              route: "/dashboard",
+              selector: "[data-tour='dash-metrics']",
+              title: "数据统计",
+              description: "网站核心统计汇总；点击卡片可跳转到对应管理页面。",
+            },
+            {
+              route: "/dashboard",
+              selector: "[data-tour='dash-actions']",
+              title: "右侧快捷按钮",
+              description: "随时打开使用教程、进入前台查看站点，或退出登录。",
+            },
+          ],
+        },
+        main: {
+          storageKey: STORAGE_KEYS.mainTourDone,
+          steps: [
+            {
+              route: "/dashboard",
+              selector: "[data-tour='sidebar']",
+              title: "侧边栏导航",
+              description: "从这里进入各模块；建议先熟悉整体结构再深入具体页面。",
+            },
+            {
+              route: "/dashboard",
+              selector: "[data-tour='menu-dashboard']",
+              title: "仪表盘入口",
+              description: "汇总关键指标与快捷操作，适合每日打开快速巡检。",
+            },
+            {
+              route: "/dashboard",
+              selector: "[data-tour='dash-realtime']",
+              title: "实时数据",
+              description: "查看在线、今日访客、最高在线等实时指标，快速掌握站点状态。",
+            },
+            {
+              route: "/dashboard",
+              selector: "[data-tour='dash-quick']",
+              title: "快速操作",
+              description: "常用入口一键直达：撰写/管理博文与页面，处理评论等。",
+            },
+            {
+              route: "/dashboard",
+              selector: "[data-tour='dash-metrics']",
+              title: "数据统计",
+              description: "网站核心统计汇总；点击卡片可跳转到对应管理页面。",
+            },
+            {
+              route: "/dashboard",
+              selector: "[data-tour='dash-actions']",
+              title: "右侧快捷按钮",
+              description: "手动启动引导、进入前台查看站点，或退出登录。",
+            },
+            {
+              route: "/dashboard",
+              selector: "[data-tour='menu-posts']",
+              title: "博文菜单",
+              description: "展开后可进入：管理 / 撰写 / 分类与标签。",
+              onEnter: () => {
+                try {
+                  expanded.value.posts = true;
+                  persistExpanded();
+                } catch (e) {}
+              },
+            },
+            {
+              route: "/posts/manage",
+              selector: "[data-tour='posts-manage-filters']",
+              title: "博文管理：筛选与搜索",
+              description: "按标题关键词、状态、范围筛选文章。",
+            },
+            {
+              route: "/posts/manage",
+              selector: "[data-tour='posts-manage-actions']",
+              title: "博文管理：批量操作",
+              description: "支持删除、批量发布/隐藏、新增文章等。",
+            },
+            {
+              route: "/posts/manage",
+              selector: "[data-tour='posts-manage-table']",
+              title: "博文管理：列表",
+              description: "点击标题进入编辑；可查看评论数、点赞、状态与时间等。",
+            },
+            {
+              route: "/posts/write",
+              selector: "[data-tour='write-post-title']",
+              title: "撰写文章：标题",
+              description: "输入文章标题；建议简洁清晰。",
+              onEnter: () => toggleWriteSidebar(false),
+            },
+            {
+              route: "/posts/write",
+              selector: "[data-tour='write-post-slug']",
+              title: "撰写文章：链接（slug）",
+              description: "不填将自动使用 cid；也支持自定义 slug。",
+              onEnter: () => toggleWriteSidebar(false),
+            },
+            {
+              route: "/posts/write",
+              selector: "[data-tour='write-post-editor']",
+              title: "撰写文章：正文编辑器",
+              description: "支持 Markdown / 纯文本编辑。",
+              onEnter: () => toggleWriteSidebar(false),
+            },
+            {
+              route: "/posts/write",
+              selector: "[data-tour='write-post-actions']",
+              title: "撰写文章：保存与发布",
+              description: "保存草稿/发布/删除等操作都在这里。",
+              onEnter: () => toggleWriteSidebar(false),
+            },
+            {
+              route: "/posts/write",
+              selector: "[data-tour='write-side-toggle']",
+              title: "发布设置侧栏",
+              description: "展开右侧发布设置（分类、标签、权限等）。",
+            },
+            {
+              route: "/posts/write",
+              selector: "[data-tour='write-post-drawer']",
+              title: "文章设置面板",
+              description: "这里可以设置分类、标签、可见性、权限等。",
+              onEnter: () => toggleWriteSidebar(true),
+            },
+            {
+              route: "/posts/write",
+              selector: "[data-tour='write-post-permissions']",
+              title: "文章权限",
+              description: "允许评论/引用/聚合等，按需求调整。",
+              onEnter: () => toggleWriteSidebar(true),
+            },
+            {
+              route: "/posts/write",
+              selector: "[data-tour='write-post-taxonomy']",
+              title: "分类与标签",
+              description: "分类用于归档，标签用于更细粒度检索。",
+              onEnter: () => toggleWriteSidebar(true),
+            },
+            {
+              route: "/posts/taxonomy",
+              selector: "[data-tour='taxonomy-actions']",
+              title: "分类/标签：操作",
+              description: "刷新、新建分类/标签等管理入口。",
+              onEnter: () => {
+                try {
+                  expanded.value.posts = true;
+                  persistExpanded();
+                } catch (e) {}
+              },
+            },
+            {
+              route: "/posts/taxonomy",
+              selector: "[data-tour='taxonomy-categories']",
+              title: "分类管理",
+              description: "支持多级分类、默认分类设置、编辑与删除。",
+            },
+            {
+              route: "/posts/taxonomy",
+              selector: "[data-tour='taxonomy-tags']",
+              title: "标签管理",
+              description: "用于更细粒度检索；支持编辑与删除。",
+            },
+            {
+              route: "/posts/write",
+              selector: "[data-tour='menu-pages']",
+              title: "页面菜单",
+              description: "页面常用于关于、独立页面等；展开后可进入管理/编辑。",
+              onEnter: () => {
+                try {
+                  expanded.value.pages = true;
+                  persistExpanded();
+                } catch (e) {}
+              },
+            },
+            {
+              route: "/pages/manage",
+              selector: "[data-tour='pages-manage-actions']",
+              title: "页面管理：操作",
+              description: "新增页面、刷新列表等。",
+            },
+            {
+              route: "/pages/manage",
+              selector: "[data-tour='pages-manage-table']",
+              title: "页面管理：列表",
+              description: "点击标题进入编辑；支持删除等操作。",
+            },
+            {
+              route: "/pages/edit",
+              selector: "[data-tour='write-page-title']",
+              title: "编辑页面：标题",
+              description: "页面标题将显示在前台导航/列表中。",
+              onEnter: () => toggleWriteSidebar(false),
+            },
+            {
+              route: "/pages/edit",
+              selector: "[data-tour='write-page-slug']",
+              title: "编辑页面：链接（slug）",
+              description: "不填将自动使用 cid；也支持自定义 slug。",
+              onEnter: () => toggleWriteSidebar(false),
+            },
+            {
+              route: "/pages/edit",
+              selector: "[data-tour='write-page-editor']",
+              title: "编辑页面：正文",
+              description: "支持 Markdown / 纯文本编辑。",
+              onEnter: () => toggleWriteSidebar(false),
+            },
+            {
+              route: "/pages/edit",
+              selector: "[data-tour='write-side-toggle']",
+              title: "页面设置侧栏",
+              description: "展开右侧页面设定（父级/模板/权限/字段）。",
+            },
+            {
+              route: "/pages/edit",
+              selector: "[data-tour='write-page-permissions']",
+              title: "页面权限",
+              description: "允许评论/引用/聚合等，按需求调整。",
+              onEnter: () => toggleWriteSidebar(true),
+            },
+            {
+              route: "/pages/edit",
+              selector: "[data-tour='write-page-fields']",
+              title: "页面字段",
+              description: "主题字段与自定义字段可用于扩展模板能力。",
+              onEnter: () => toggleWriteSidebar(true),
+            },
+            {
+              route: "/comments",
+              selector: "[data-tour='comments-filters']",
+              title: "评论：状态筛选",
+              description: "快速切换待审核/已通过/垃圾等。",
+            },
+            {
+              route: "/comments",
+              selector: "[data-tour='comments-search']",
+              title: "评论：搜索",
+              description: "可按作者/邮箱/内容搜索。",
+            },
+            {
+              route: "/comments",
+              selector: "[data-tour='comments-list']",
+              title: "评论：列表",
+              description: "点击任意评论查看详情与操作。",
+            },
+            {
+              route: "/comments",
+              selector: "[data-tour='comments-detail']",
+              title: "评论：详情面板",
+              description: "在这里审核、回复、删除，并查看来源与访问信息。",
+            },
+            {
+              route: "/files",
+              selector: "[data-tour='files-actions']",
+              title: "文件：快捷操作",
+              description: "上传、刷新、多选删除、复制链接等。",
+            },
+            {
+              route: "/files",
+              selector: "[data-tour='files-grid']",
+              title: "文件：网格列表",
+              description: "悬停可复制链接/打开/删除；多选模式可批量管理。",
+            },
+            {
+              route: "/friends",
+              selector: "[data-tour='friends-actions']",
+              title: "朋友们：操作",
+              description: "新增友链、检查可用性、迁移头像与设置。",
+            },
+            {
+              route: "/friends",
+              selector: "[data-tour='friends-tabs']",
+              title: "朋友们：状态",
+              description: "切换朋友们/待审核/封禁等状态列表。",
+            },
+            {
+              route: "/friends",
+              selector: "[data-tour='friends-table']",
+              title: "朋友们：列表",
+              description: "管理友链信息、审核申请、封禁与移除等。",
+            },
+            {
+              route: "/data",
+              selector: "[data-tour='data-actions']",
+              title: "数据：刷新",
+              description: "刷新访问日志与统计数据。",
+            },
+            {
+              route: "/data",
+              selector: "[data-tour='data-filters']",
+              title: "数据：访问日志筛选",
+              description: "搜索 IP / 路径 / 来源，快速定位异常访问。",
+            },
+            {
+              route: "/data",
+              selector: "[data-tour='data-table']",
+              title: "数据：访问日志",
+              description: "查看访问来源与设备信息；可跳转到对应页面。",
+            },
+            {
+              route: "/users",
+              selector: "[data-tour='users-actions']",
+              title: "用户：操作",
+              description: "刷新、批量删除、查看权限说明等。",
+            },
+            {
+              route: "/users",
+              selector: "[data-tour='users-table']",
+              title: "用户：列表",
+              description: "查看用户组与文章数；支持设置与删除。",
+            },
+            {
+              route: "/settings",
+              selector: "[data-tour='settings-nav']",
+              title: "设定：导航",
+              description: "左侧选择要配置的模块（用户/网站/内容/插件等）。",
+              onEnter: () => selectSettings("user"),
+            },
+            {
+              route: "/settings",
+              selector: "[data-tour='settings-savebar']",
+              title: "设定：保存提示",
+              description: "有未保存修改时会提示；可一键保存全部。",
+            },
+            {
+              route: "/settings",
+              selector: "[data-tour='settings-user-head']",
+              title: "设定：个人资料",
+              description: "头像、昵称、邮箱、主页等信息在这里维护。",
+              onEnter: () => selectSettings("user"),
+            },
+            {
+              route: "/settings",
+              selector: "[data-tour='settings-site-timezone']",
+              title: "设定：时区",
+              description: "影响后台时间显示与统计口径。",
+              onEnter: () => selectSettings("site"),
+            },
+            {
+              route: "/settings",
+              selector: "[data-tour='settings-plugins-active']",
+              title: "设定：插件管理",
+              description: "启用/禁用插件；有设置项的插件可打开配置弹窗。",
+              onEnter: () => selectSettings("plugins"),
+            },
+            {
+              route: "/settings",
+              selector: "[data-tour='plugin-config-modal']",
+              title: "插件配置弹窗",
+              description: "这里展示插件设置项；标题项会以红色高亮区分。",
+              onEnter: async () => {
+                selectSettings("plugins");
+                if (typeof fetchPlugins === "function") {
+                  try {
+                    await fetchPlugins();
+                  } catch (e) {}
+                }
+
+                const list = Array.isArray(pluginsActivated?.value) ? pluginsActivated.value : [];
+                const preferred =
+                  list.find((p) => p && (String(p.name || "") === "ShouTuTa" || String(p.title || "").includes("守兔塔"))) ||
+                  list.find((p) => p && p.config && !p.missing) ||
+                  null;
+                if (preferred && typeof openPluginConfig === "function") {
+                  try {
+                    await openPluginConfig(preferred);
+                  } catch (e) {}
+                }
+              },
+            },
+            {
+              route: "/settings",
+              selector: "[data-tour='settings-plugins-active']",
+              title: "返回插件列表",
+              description: "关闭弹窗后继续下一步（或直接下一步）。",
+              onEnter: () => {
+                try {
+                  if (typeof closePluginConfig === "function") closePluginConfig();
+                } catch (e) {}
+                selectSettings("plugins");
+              },
+            },
+            {
+              route: "/maintenance/backup",
+              selector: "[data-tour='backup-actions']",
+              title: "维护：备份",
+              description: "可一键备份、恢复、下载与删除备份文件。",
+              onEnter: () => {
+                try {
+                  if (typeof closePluginConfig === "function") closePluginConfig();
+                } catch (e) {}
+              },
+            },
+            {
+              route: "/maintenance/backup",
+              selector: "[data-tour='backup-table']",
+              title: "备份列表",
+              description: "服务器备份文件列表与操作入口。",
+            },
+            {
+              route: "/extras/shoutu",
+              selector: "[data-tour='shoutu-actions']",
+              title: "守兔塔：快捷操作",
+              description: "可打开设置、刷新数据。",
+            },
+            {
+              route: "/extras/shoutu",
+              selector: "[data-tour='shoutu-metrics']",
+              title: "守兔塔：防护统计",
+              description: "查看累计拦截、SQL/XSS 等细分指标。",
+            },
+            {
+              route: "/extras/shoutu",
+              selector: "[data-tour='shoutu-ip-query']",
+              title: "守兔塔：IP 查询",
+              description: "输入 IP 可查看详情并进行白名单/封禁等操作。",
+            },
+            {
+              route: "/dashboard",
+              selector: "[data-tour='dash-actions']",
+              title: "完成",
+              description: "你已了解后台主要结构与操作入口；可随时点击“使用教程”重新查看。",
+            },
+          ],
+        },
+      };
+
+      function v3aStorageGet(key) {
+        try {
+          return localStorage.getItem(String(key || ""));
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function v3aStorageSet(key, value) {
+        try {
+          localStorage.setItem(String(key || ""), String(value ?? ""));
+        } catch (e) {}
+      }
+
+      function getTourConfig(id) {
+        const key = String(id || "").trim();
+        return Object.prototype.hasOwnProperty.call(TOURS, key) ? TOURS[key] : null;
+      }
+
+      function isTourDone(id) {
+        const cfg = getTourConfig(id);
+        if (!cfg || !cfg.storageKey) return false;
+        return v3aStorageGet(cfg.storageKey) === "1";
+      }
+
+      function setTourDone(id) {
+        const cfg = getTourConfig(id);
+        if (!cfg || !cfg.storageKey) return;
+        v3aStorageSet(cfg.storageKey, "1");
+      }
+
+      const tourOpen = ref(false);
+      const tourId = ref("");
+      const tourStepIndex = ref(0);
+      const tourSteps = ref([]);
+      const tourStepEnterSig = ref("");
+      const tourBubbleEl = ref(null);
+      const tourHighlight = reactive({ top: 0, left: 0, width: 0, height: 0 });
+      const tourBubblePos = reactive({ top: 0, left: 0 });
+      const tourBubbleMax = reactive({ width: 360, height: 520 });
+
+      const tourCurrent = computed(() => tourSteps.value[tourStepIndex.value] || null);
+      const tourIsLast = computed(
+        () => tourStepIndex.value >= tourSteps.value.length - 1
+      );
+      const tourTitle = computed(() => String(tourCurrent.value?.title || ""));
+      const tourDescription = computed(() =>
+        String(tourCurrent.value?.description || "")
+      );
+
+      const tourSpotlightStyle = computed(() => ({
+        top: `${Math.max(0, tourHighlight.top)}px`,
+        left: `${Math.max(0, tourHighlight.left)}px`,
+        width: `${Math.max(0, tourHighlight.width)}px`,
+        height: `${Math.max(0, tourHighlight.height)}px`,
+      }));
+      const tourBubbleStyle = computed(() => ({
+        top: `${Math.max(0, tourBubblePos.top)}px`,
+        left: `${Math.max(0, tourBubblePos.left)}px`,
+        maxWidth: `${Math.max(0, tourBubbleMax.width)}px`,
+        maxHeight: `${Math.max(0, tourBubbleMax.height)}px`,
+      }));
+
+      function resetTourRects() {
+        tourHighlight.top = 0;
+        tourHighlight.left = 0;
+        tourHighlight.width = 0;
+        tourHighlight.height = 0;
+        tourBubblePos.top = 12;
+        tourBubblePos.left = 12;
+        tourBubbleMax.width = 360;
+        tourBubbleMax.height = 520;
+      }
+
+      function findTourTargetEl(step) {
+        const selector = step && typeof step === "object" ? String(step.selector || "") : "";
+        if (!selector) return null;
+        try {
+          return document.querySelector(selector);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function updateTourLayout() {
+        if (!tourOpen.value) return;
+
+        const step = tourCurrent.value;
+        const target = findTourTargetEl(step);
+        if (!target) {
+          resetTourRects();
+          return;
+        }
+
+        let rect;
+        try {
+          rect = target.getBoundingClientRect();
+        } catch (e) {
+          resetTourRects();
+          return;
+        }
+
+        const vw = Math.max(0, window.innerWidth || 0);
+        const vh = Math.max(0, window.innerHeight || 0);
+        const pad = 10;
+        const margin = 12;
+
+        const top = Math.max(margin, Number(rect.top || 0) - pad);
+        const left = Math.max(margin, Number(rect.left || 0) - pad);
+        const maxW = Math.max(0, vw - left - margin);
+        const maxH = Math.max(0, vh - top - margin);
+        const width = Math.max(24, Math.min(Number(rect.width || 0) + pad * 2, maxW));
+        const height = Math.max(
+          24,
+          Math.min(Number(rect.height || 0) + pad * 2, maxH)
+        );
+
+        tourHighlight.top = top;
+        tourHighlight.left = left;
+        tourHighlight.width = width;
+        tourHighlight.height = height;
+
+        let bubbleW = 360;
+        let bubbleH = 180;
+        const bubbleEl = tourBubbleEl.value;
+        if (bubbleEl && typeof bubbleEl.getBoundingClientRect === "function") {
+          const b = bubbleEl.getBoundingClientRect();
+          bubbleW = Math.max(200, Number(b.width || bubbleW) || bubbleW);
+          bubbleH = Math.max(120, Number(b.height || bubbleH) || bubbleH);
+        }
+
+        const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+        const gap = 14;
+
+        const hl = {
+          top,
+          left,
+          right: left + width,
+          bottom: top + height,
+        };
+        const hcx = (hl.left + hl.right) / 2;
+        const hcy = (hl.top + hl.bottom) / 2;
+
+        function rectOverlapArea(a, b) {
+          const x = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+          const y = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+          return x * y;
+        }
+
+        const maxBubbleW = Math.max(0, vw - margin * 2);
+        const maxBubbleH = Math.max(0, vh - margin * 2);
+        const spaceRight = Math.max(0, vw - (hl.right + gap) - margin);
+        const spaceLeft = Math.max(0, hl.left - gap - margin);
+        const spaceBottom = Math.max(0, vh - (hl.bottom + gap) - margin);
+        const spaceTop = Math.max(0, hl.top - gap - margin);
+
+        const baseBubbleW = Math.min(bubbleW, maxBubbleW || bubbleW);
+        const baseBubbleH = Math.min(bubbleH, maxBubbleH || bubbleH);
+
+        const bubbleMinW = 180;
+        const bubbleMinH = 140;
+
+        function makeCandidate(name, maxW, maxH, pos) {
+          const candMaxW = Math.max(0, Math.min(maxBubbleW || 0, Number(maxW || 0)));
+          const candMaxH = Math.max(0, Math.min(maxBubbleH || 0, Number(maxH || 0)));
+
+          const w = Math.max(1, Math.min(baseBubbleW, candMaxW || baseBubbleW));
+          const h = Math.max(1, Math.min(baseBubbleH, candMaxH || baseBubbleH));
+
+          const maxLeft = Math.max(margin, vw - w - margin);
+          const maxTop = Math.max(margin, vh - h - margin);
+          const bLeft = clamp(Number(pos.left || 0), margin, maxLeft);
+          const bTop = clamp(Number(pos.top || 0), margin, maxTop);
+          const br = { top: bTop, left: bLeft, right: bLeft + w, bottom: bTop + h };
+
+          const overlap = rectOverlapArea(br, hl);
+          const dx = bLeft + w / 2 - hcx;
+          const dy = bTop + h / 2 - hcy;
+          const dist = dx * dx + dy * dy;
+          const shrink = (baseBubbleW - w) * (baseBubbleW - w) + (baseBubbleH - h) * (baseBubbleH - h);
+          const tinyPenalty =
+            (w < bubbleMinW ? (bubbleMinW - w) * 1_000_000 : 0) +
+            (h < bubbleMinH ? (bubbleMinH - h) * 1_000_000 : 0);
+          const score = (overlap > 0 ? 1_000_000_000_000 + overlap : 0) + tinyPenalty + shrink + dist;
+
+          return {
+            name,
+            top: bTop,
+            left: bLeft,
+            maxW: candMaxW || maxBubbleW || baseBubbleW,
+            maxH: candMaxH || maxBubbleH || baseBubbleH,
+            score,
+          };
+        }
+
+        const candidates = [];
+        candidates.push(
+          makeCandidate("right", Math.min(spaceRight, maxBubbleW), maxBubbleH, {
+            left: hl.right + gap,
+            top: hcy - baseBubbleH / 2,
+          })
+        );
+        candidates.push(
+          makeCandidate("left", Math.min(spaceLeft, maxBubbleW), maxBubbleH, {
+            left: hl.left - gap - Math.min(baseBubbleW, Math.min(spaceLeft, maxBubbleW) || baseBubbleW),
+            top: hcy - baseBubbleH / 2,
+          })
+        );
+        candidates.push(
+          makeCandidate("bottom", maxBubbleW, Math.min(spaceBottom, maxBubbleH), {
+            left: hcx - baseBubbleW / 2,
+            top: hl.bottom + gap,
+          })
+        );
+        candidates.push(
+          makeCandidate("top", maxBubbleW, Math.min(spaceTop, maxBubbleH), {
+            left: hcx - baseBubbleW / 2,
+            top: hl.top - baseBubbleH - gap,
+          })
+        );
+
+        const cornerW = Math.max(1, Math.min(baseBubbleW, maxBubbleW || baseBubbleW));
+        const cornerH = Math.max(1, Math.min(baseBubbleH, maxBubbleH || baseBubbleH));
+        const viewportCorners = [
+          { name: "vpTopLeft", left: margin, top: margin },
+          { name: "vpTopRight", left: vw - cornerW - margin, top: margin },
+          { name: "vpBottomRight", left: vw - cornerW - margin, top: vh - cornerH - margin },
+          { name: "vpBottomLeft", left: margin, top: vh - cornerH - margin },
+        ];
+        for (const c of viewportCorners) {
+          candidates.push(makeCandidate(c.name, maxBubbleW, maxBubbleH, c));
+        }
+
+        let best = null;
+        for (const c of candidates) {
+          if (!best || c.score < best.score) best = c;
+        }
+
+        tourBubblePos.top = best ? best.top : margin;
+        tourBubblePos.left = best ? best.left : margin;
+        tourBubbleMax.width = best ? best.maxW : Math.max(160, maxBubbleW || 360);
+        tourBubbleMax.height = best ? best.maxH : Math.max(140, maxBubbleH || 520);
+      }
+
+      function ensureTourStepTarget(guard = 0) {
+        if (!tourOpen.value) return;
+        const total = tourSteps.value.length;
+        if (!total) {
+          resetTourRects();
+          return;
+        }
+
+        const guardLimit = Math.max(12, total * 3);
+        if (guard > guardLimit) {
+          updateTourLayout();
+          return;
+        }
+
+        const step = tourCurrent.value;
+
+        // Route-aware steps (optional)
+        const desiredRoute =
+          step && typeof step === "object" ? String(step.route || "").trim() : "";
+        if (desiredRoute) {
+          const desiredPath = desiredRoute.split("?")[0] || "/";
+          const normalized = v3aNormalizeRoute(desiredRoute);
+          const normalizedPath = String(normalized || "/").split("?")[0] || "/";
+          if (normalizedPath !== desiredPath) {
+            // Can't access this route -> skip step
+            if (tourStepIndex.value < total - 1) {
+              tourStepIndex.value += 1;
+              nextTick(() => ensureTourStepTarget(guard + 1));
+              return;
+            }
+          } else if (routePath.value !== desiredPath) {
+            navTo(desiredRoute);
+            nextTick(() => ensureTourStepTarget(guard + 1));
+            return;
+          }
+        }
+
+        // Step enter hooks (run once per step)
+        const sig = `${String(tourId.value || "")}:${tourStepIndex.value}`;
+        if (tourStepEnterSig.value !== sig) {
+          tourStepEnterSig.value = sig;
+          const onEnter = step && typeof step === "object" ? step.onEnter : null;
+          if (typeof onEnter === "function") {
+            let res;
+            try {
+              res = onEnter();
+            } catch (e) {}
+
+            if (res && typeof res.then === "function") {
+              Promise.resolve(res)
+                .catch(() => {})
+                .finally(() => nextTick(() => ensureTourStepTarget(guard + 1)));
+              return;
+            }
+
+            nextTick(() => ensureTourStepTarget(guard + 1));
+            return;
+          }
+        }
+
+        const target = findTourTargetEl(step);
+        if (!target) {
+          if (tourStepIndex.value < total - 1) {
+            tourStepIndex.value += 1;
+            nextTick(() => ensureTourStepTarget(guard + 1));
+            return;
+          }
+          updateTourLayout();
+          return;
+        }
+
+        try {
+          if (typeof target.scrollIntoView === "function") {
+            target.scrollIntoView({
+              block: "center",
+              inline: "nearest",
+              behavior: "smooth",
+            });
+          }
+        } catch (e) {}
+
+        updateTourLayout();
+        setTimeout(updateTourLayout, 80);
+        setTimeout(updateTourLayout, 240);
+        setTimeout(updateTourLayout, 700);
+      }
+
+      function openTour(id, opts = {}) {
+        const key = String(id || "").trim();
+        const cfg = getTourConfig(key);
+        if (!cfg) return;
+        const force = !!opts.force;
+        if (!force && isTourDone(key)) return;
+
+        tourId.value = key;
+        tourSteps.value = Array.isArray(cfg.steps) ? cfg.steps : [];
+        tourStepIndex.value = 0;
+        tourStepEnterSig.value = "";
+        tourOpen.value = true;
+
+        updateTourLayout();
+        nextTick(() => ensureTourStepTarget());
+      }
+
+      function closeTour(opts = {}) {
+        const markDone = !!opts.markDone;
+        const id = String(tourId.value || "");
+        if (markDone && id) {
+          setTourDone(id);
+        }
+
+        tourOpen.value = false;
+        tourId.value = "";
+        tourStepIndex.value = 0;
+        tourSteps.value = [];
+        tourStepEnterSig.value = "";
+        resetTourRects();
+      }
+
+      function tourPrev() {
+        if (!tourOpen.value) return;
+        tourStepIndex.value = Math.max(0, tourStepIndex.value - 1);
+        nextTick(() => ensureTourStepTarget());
+      }
+
+      function tourNext() {
+        if (!tourOpen.value) return;
+        tourStepIndex.value = Math.min(
+          Math.max(0, tourSteps.value.length - 1),
+          tourStepIndex.value + 1
+        );
+        nextTick(() => ensureTourStepTarget());
+      }
+
+      function tourSkip() {
+        closeTour({ markDone: true });
+      }
+
+      function tourFinish() {
+        closeTour({ markDone: true });
+      }
+
+      function openDashboardTour() {
+        openTour("main", { force: true });
+      }
+
+      function logout() {
+        const url = String(V3A.logoutUrl || "").trim();
+        if (!url) {
+          toastError("缺少退出登录地址");
+          return;
+        }
+        location.href = url;
+      }
+
+      function maybeAutoOpenDashboardTour() {
+        if (tourOpen.value) return;
+        if (routePath.value !== "/dashboard") return;
+        if (isTourDone("dashboard")) return;
+        if (settingsOpen.value || writeSidebarOpen.value || permissionInfoOpen.value) return;
+        openTour("dashboard", { force: false });
+      }
+
+      function onTourKeydown(e) {
+        if (!tourOpen.value) return;
+        if (e && e.key === "Escape") {
+          try {
+            e.preventDefault();
+          } catch (err) {}
+          tourSkip();
+        }
+      }
+
+      watch(
+        () => tourOpen.value,
+        (open) => {
+          if (open) {
+            try {
+              window.addEventListener("resize", updateTourLayout, { passive: true });
+              window.addEventListener("scroll", updateTourLayout, true);
+              window.addEventListener("keydown", onTourKeydown);
+            } catch (e) {}
+            nextTick(() => ensureTourStepTarget());
+          } else {
+            try {
+              window.removeEventListener("resize", updateTourLayout);
+              window.removeEventListener("scroll", updateTourLayout, true);
+              window.removeEventListener("keydown", onTourKeydown);
+            } catch (e) {}
+          }
+        }
+      );
+
+      watch(
+        () => routePath.value,
+        (p) => {
+          if (String(p || "") === "/dashboard") {
+            nextTick(() => {
+              setTimeout(maybeAutoOpenDashboardTour, 260);
+            });
+          } else if (tourOpen.value && tourId.value === "dashboard") {
+            closeTour({ markDone: false });
+          }
+
+          if (tourOpen.value) {
+            nextTick(() => ensureTourStepTarget());
+          }
+        }
+      );
+
+      onMounted(() => {
+        if (routePath.value === "/dashboard") {
+          setTimeout(maybeAutoOpenDashboardTour, 360);
+        }
+      });
 
       const loadingDashboard = ref(false);
       const dashboardError = ref("");
@@ -8649,6 +9565,22 @@
         isMenuItemActive,
         handleSubMenuClick,
         toggleSidebar,
+        frontendUrl,
+        openDashboardTour,
+        logout,
+        tourOpen,
+        tourSteps,
+        tourStepIndex,
+        tourIsLast,
+        tourTitle,
+        tourDescription,
+        tourSpotlightStyle,
+        tourBubbleStyle,
+        tourBubbleEl,
+        tourPrev,
+        tourNext,
+        tourSkip,
+        tourFinish,
         toggleWriteSidebar,
         permissionInfoOpen,
         openPermissionInfo,
@@ -8723,14 +9655,15 @@
     },
     template: `
       <div class="v3a-app">
-        <aside class="v3a-sidebar" :class="{ collapsed: sidebarCollapsed }">
+        <aside class="v3a-sidebar" data-tour="sidebar" :class="{ collapsed: sidebarCollapsed }">
           <nav class="v3a-menu">
             <div v-for="item in menuItems" :key="item.key">
               <div
-                class="v3a-menu-item"
-                :class="{ active: isMenuItemActive(item) }"
-                @click="handleMenuClick(item)"
-              >
+                  class="v3a-menu-item"
+                  :data-tour="'menu-' + item.key"
+                  :class="{ active: isMenuItemActive(item) }"
+                  @click="handleMenuClick(item)"
+                >
                 <div class="v3a-menu-left">
                   <span class="v3a-icon" v-html="ICONS[item.icon]"></span>
                   <span class="v3a-menu-label" v-show="!sidebarCollapsed">{{ item.label }}</span>
@@ -8748,6 +9681,7 @@
                   class="v3a-subitem"
                   v-for="child in item.children"
                   :key="child.key"
+                  :data-tour="'submenu-' + child.key"
                   :class="{ active: isSubMenuItemActive(child) }"
                   @click="handleSubMenuClick(child)"
                 >
@@ -8758,7 +9692,7 @@
           </nav>
         </aside>
 
-        <aside class="v3a-subsidebar" v-show="settingsOpen && !sidebarCollapsed">
+        <aside class="v3a-subsidebar" v-show="settingsOpen && !sidebarCollapsed" data-tour="settings-nav">
           <div class="v3a-subsidebar-bd">
             <template v-for="s in settingsItems" :key="s.key">
               <template v-if="s.key === 'theme'">
@@ -8822,9 +9756,20 @@
                     <span class="v3a-icon" v-html="sidebarCollapsed ? ICONS.expand : ICONS.collapse"></span>
                   </button>
                   <div class="v3a-dash-title">欢迎回来</div>
+                  <div class="v3a-posts-actions v3a-dash-actions" data-tour="dash-actions">
+                    <button class="v3a-actionbtn" type="button" title="使用教程" @click="openDashboardTour()">
+                      <span class="v3a-icon" v-html="ICONS.info"></span>
+                    </button>
+                    <a class="v3a-actionbtn" :href="frontendUrl" target="_blank" rel="noreferrer" title="进入前台">
+                      <span class="v3a-icon" v-html="ICONS.home"></span>
+                    </a>
+                    <button class="v3a-actionbtn danger" type="button" title="退出登录" @click="logout()">
+                      <span class="v3a-icon" v-html="ICONS.logout"></span>
+                    </button>
+                  </div>
                 </div>
 
-                <div class="v3a-section">
+                <div class="v3a-section" data-tour="dash-realtime">
                   <div class="v3a-section-hd">
                     <div class="v3a-section-title">实时数据</div>
                   </div>
@@ -8864,7 +9809,7 @@
                   </div>
                 </div>
 
-                <div class="v3a-section">
+                <div class="v3a-section" data-tour="dash-quick">
                   <div class="v3a-section-hd">
                     <div class="v3a-section-title">快速操作</div>
                   </div>
@@ -8921,7 +9866,7 @@
                   </div>
                 </div>
 
-                <div class="v3a-section">
+                <div class="v3a-section" data-tour="dash-metrics">
                   <div class="v3a-section-hd split">
                     <div class="v3a-section-title">数据统计</div>
                     <div class="v3a-section-tools">
@@ -9105,7 +10050,7 @@
                     </button>
                     <div class="v3a-posts-title">管理</div>
                   </div>
-                  <div class="v3a-posts-actions">
+                  <div class="v3a-posts-actions" data-tour="posts-manage-actions">
                     <button class="v3a-actionbtn danger" type="button" title="删除多条" :disabled="!postsSelectedCids.length" @click="deleteSelectedPosts()">
                       <span class="v3a-icon" v-html="ICONS.trash"></span>
                     </button>
@@ -9121,7 +10066,7 @@
                   </div>
                 </div>
 
-                <div class="v3a-posts-search">
+                <div class="v3a-posts-search" data-tour="posts-manage-filters">
                   <div class="v3a-searchbox">
                     <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
                     <input class="v3a-input" v-model="postsFilters.keywords" @keyup.enter="applyPostsFilters()" placeholder="搜索标题..." />
@@ -9142,7 +10087,7 @@
                   <div class="v3a-muted">{{ formatNumber(postsPagination.total) }} 篇</div>
                 </div>
 
-                <div class="v3a-card">
+                <div class="v3a-card" data-tour="posts-manage-table">
                   <div class="bd" style="padding: 0;">
                     <div v-if="postsLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
 
@@ -9222,8 +10167,8 @@
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
-                  <div class="v3a-pagehead-actions">
-                    <button class="v3a-iconbtn v3a-write-side-toggle" type="button" @click="toggleWriteSidebar()" :title="writeSidebarOpen ? '收起发布设置' : '展开发布设置'">
+                  <div class="v3a-pagehead-actions" data-tour="write-post-actions">
+                    <button class="v3a-iconbtn v3a-write-side-toggle" type="button" @click="toggleWriteSidebar()" :title="writeSidebarOpen ? '收起发布设置' : '展开发布设置'" data-tour="write-side-toggle">
                       <span class="v3a-icon" v-html="ICONS.settings"></span>
                     </button>
                     <button class="v3a-iconaction" type="button" @click="submitPost('save')" :disabled="postSaving || postLoading" aria-label="保存草稿" data-tooltip="保存草稿">
@@ -9244,18 +10189,18 @@
                   <div class="v3a-write-main">
                     <div class="v3a-write-editor">
                       <div class="v3a-write-editor-header">
-                        <input class="v3a-write-title" v-model="postForm.title" placeholder="输入标题..." />
+                        <input class="v3a-write-title" v-model="postForm.title" placeholder="输入标题..." data-tour="write-post-title" />
                         <div class="v3a-write-subtitle">
                           <div class="v3a-write-subline">
                             <span class="v3a-write-baseurl">{{ postSlugPrefix }}</span>
                             <template v-if="postSlugHasSlug">
-                              <input class="v3a-write-slug" v-model="postForm.slug" placeholder="slug" :style="{ width: postSlugInputWidth + 'ch' }" />
+                              <input class="v3a-write-slug" v-model="postForm.slug" placeholder="slug" :style="{ width: postSlugInputWidth + 'ch' }" data-tour="write-post-slug" />
                               <span v-if="postSlugSuffix" class="v3a-write-baseurl v3a-write-baseurl-suffix">{{ postSlugSuffix }}</span>
                             </template>
                           </div>
                         </div>
                       </div>
-                      <div class="v3a-write-editor-content">
+                      <div class="v3a-write-editor-content" data-tour="write-post-editor">
                         <div v-if="postEditorType === 'vditor'" id="v3a-post-vditor" class="v3a-vditor"></div>
                         <textarea v-else id="v3a-post-text" ref="postTextEl" class="v3a-write-textarea" v-model="postForm.text" @input="autoSizePostText"></textarea>
                       </div>
@@ -9263,7 +10208,7 @@
                   </div>
 
                   <div class="v3a-write-side-mask" v-if="writeSidebarOpen" @click="toggleWriteSidebar(false)"></div>
-                  <div class="v3a-write-side" :class="{ open: writeSidebarOpen }">
+                  <div class="v3a-write-side" :class="{ open: writeSidebarOpen }" data-tour="write-post-drawer">
                       <div class="v3a-write-drawer-header">
                         <div class="v3a-write-drawer-title" role="heading" aria-level="1">文章设定</div>
                         <button class="v3a-write-drawer-close" type="button" @click="toggleWriteSidebar(false)" aria-label="close" data-tooltip="关闭">
@@ -9271,7 +10216,7 @@
                         </button>
                       </div>
                     <div class="v3a-write-drawer-body">
-                      <div class="v3a-write-section">
+                      <div class="v3a-write-section" data-tour="write-post-taxonomy">
                         <div class="v3a-write-section-head">
                           <span class="v3a-icon" v-html="ICONS.files"></span>
                           <span class="v3a-write-section-title">分类与标签</span>
@@ -9352,7 +10297,7 @@
                           <span>{{ postCapabilities.markdownEnabled ? '启用' : '未开启' }}</span>
                         </label>
 
-                        <div class="v3a-kv-span">
+                        <div class="v3a-kv-span" data-tour="write-post-permissions">
                           <div class="v3a-muted">权限</div>
                           <div class="v3a-kv-inline">
                             <label class="v3a-remember" style="margin: 0;">
@@ -9471,7 +10416,7 @@
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
-                  <div class="v3a-pagehead-actions">
+                  <div class="v3a-pagehead-actions" data-tour="taxonomy-actions">
                     <button class="v3a-btn" type="button" @click="fetchTaxonomy()" :disabled="taxonomyLoading">刷新</button>
                     <button class="v3a-btn" type="button" @click="openCategoryEditor(null)">新建分类</button>
                     <button class="v3a-btn primary" type="button" @click="openTagEditor(null)">新建标签</button>
@@ -9479,7 +10424,7 @@
                 </div>
 
                 <div class="v3a-grid">
-                  <div class="v3a-card">
+                  <div class="v3a-card" data-tour="taxonomy-categories">
                     <div class="bd" style="padding: 0;">
                       <table class="v3a-table v3a-taxonomy-table v3a-taxonomy-table-cats">
                         <thead><tr><th>名称</th><th>默认分类</th><th>缩略名</th><th>描述</th><th>数量</th><th>操作</th></tr></thead>
@@ -9518,7 +10463,7 @@
                     </div>
                   </div>
 
-                  <div class="v3a-card">
+                  <div class="v3a-card" data-tour="taxonomy-tags">
                     <div class="bd" style="padding: 0;">
                       <table class="v3a-table v3a-taxonomy-table v3a-taxonomy-table-tags">
                         <thead><tr><th>名称</th><th>缩略名</th><th>引用</th><th>操作</th></tr></thead>
@@ -9658,7 +10603,7 @@
                   <div class="v3a-comments-left">
                       <div class="v3a-card v3a-comments-panel">
                       <div class="hd">
-                        <div class="v3a-comments-tabs" aria-label="评论状态">
+                        <div class="v3a-comments-tabs" aria-label="评论状态" data-tour="comments-filters">
                           <select class="v3a-select v3a-comments-filter" :value="commentsFilters.status" @change="quickSetCommentsStatus($event.target.value)" aria-label="评论状态">
                             <option value="waiting">待审核</option>
                             <option value="approved">已通过</option>
@@ -9670,7 +10615,7 @@
                       </div>
 
                       <div class="bd" style="padding: 0;">
-                        <div class="v3a-comments-toolbar">
+                        <div class="v3a-comments-toolbar" data-tour="comments-search">
                           <div class="v3a-searchbox v3a-searchbox-full">
                             <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
                             <input class="v3a-input" v-model="commentsFilters.keywords" @keyup.enter="applyCommentsFilters()" placeholder="搜索作者 / 邮箱 / 内容..." />
@@ -9680,7 +10625,7 @@
 
                         <div v-if="commentsError" class="v3a-alert v3a-comments-alert">{{ commentsError }}</div>
 
-                        <div class="v3a-comments-list">
+                        <div class="v3a-comments-list" data-tour="comments-list">
                           <div v-if="commentsLoading" class="v3a-comments-empty">
                             <div class="v3a-muted">正在加载…</div>
                           </div>
@@ -9756,7 +10701,7 @@
                         </div>
                       </div>
 
-                      <div class="bd v3a-comments-detail-shell">
+                      <div class="bd v3a-comments-detail-shell" data-tour="comments-detail">
                         <div v-if="!commentEditorOpen" class="v3a-comments-empty">
                           <span class="v3a-icon v3a-comments-empty-icon" v-html="ICONS.comments"></span>
                           <div class="v3a-muted">选择一条评论查看详情</div>
@@ -9874,7 +10819,7 @@
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
-                  <div class="v3a-pagehead-actions">
+                  <div class="v3a-pagehead-actions" data-tour="pages-manage-actions">
                     <button class="v3a-btn" type="button" @click="applyPagesFilters()" :disabled="pagesLoading">刷新</button>
                     <button class="v3a-actionbtn" type="button" title="新增页面" @click="openPageEditor(0)">
                       <span class="v3a-icon" v-html="ICONS.plus"></span>
@@ -9889,7 +10834,7 @@
                   </div>
                 </div>
 
-                <div class="v3a-card">
+                <div class="v3a-card" data-tour="pages-manage-table">
                   <div class="bd" style="padding: 0;">
                     <div v-if="pagesLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
                     <table v-else class="v3a-table">
@@ -9928,7 +10873,7 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
-                    <button class="v3a-iconbtn v3a-write-side-toggle" type="button" @click="toggleWriteSidebar()" :title="writeSidebarOpen ? '收起发布设置' : '展开发布设置'">
+                    <button class="v3a-iconbtn v3a-write-side-toggle" type="button" @click="toggleWriteSidebar()" :title="writeSidebarOpen ? '收起发布设置' : '展开发布设置'" data-tour="write-side-toggle">
                       <span class="v3a-icon" v-html="ICONS.settings"></span>
                     </button>
                     <button class="v3a-iconaction" type="button" @click="submitPage('save')" :disabled="pageSaving || pageLoading" aria-label="保存草稿" data-tooltip="保存草稿">
@@ -9949,18 +10894,18 @@
                   <div class="v3a-write-main">
                     <div class="v3a-write-editor">
                       <div class="v3a-write-editor-header">
-                        <input class="v3a-write-title" v-model="pageForm.title" placeholder="输入标题..." />
+                        <input class="v3a-write-title" v-model="pageForm.title" placeholder="输入标题..." data-tour="write-page-title" />
                         <div class="v3a-write-subtitle">
                           <div class="v3a-write-subline">
                             <span class="v3a-write-baseurl">{{ pageSlugPrefix }}</span>
                             <template v-if="pageSlugHasSlug">
-                              <input class="v3a-write-slug" v-model="pageForm.slug" placeholder="slug" :style="{ width: pageSlugInputWidth + 'ch' }" />
+                              <input class="v3a-write-slug" v-model="pageForm.slug" placeholder="slug" :style="{ width: pageSlugInputWidth + 'ch' }" data-tour="write-page-slug" />
                               <span v-if="pageSlugSuffix" class="v3a-write-baseurl v3a-write-baseurl-suffix">{{ pageSlugSuffix }}</span>
                             </template>
                           </div>
                         </div>
                       </div>
-                      <div class="v3a-write-editor-content">
+                      <div class="v3a-write-editor-content" data-tour="write-page-editor">
                         <div v-if="pageEditorType === 'vditor'" id="v3a-page-vditor" class="v3a-vditor"></div>
                         <textarea v-else id="v3a-page-text" ref="pageTextEl" class="v3a-write-textarea" v-model="pageForm.text" @input="autoSizePageText"></textarea>
                       </div>
@@ -10025,7 +10970,7 @@
                           <span>{{ pageCapabilities.markdownEnabled ? '启用' : '未开启' }}</span>
                         </label>
 
-                        <div class="v3a-kv-span">
+                        <div class="v3a-kv-span" data-tour="write-page-permissions">
                           <div class="v3a-muted">权限</div>
                           <div class="v3a-kv-inline">
                             <label class="v3a-remember" style="margin: 0;">
@@ -10047,6 +10992,7 @@
                       <div class="v3a-divider"></div>
                       <div class="v3a-muted" style="margin: calc(var(--spacing) * 4) 0;">发布权限：{{ pageCapabilities.canPublish ? '可直接发布' : '无权限' }}</div>
 
+                      <div data-tour="write-page-fields">
                       <template v-if="pageDefaultFields.length">
                         <div class="v3a-write-section-head" style="margin-top: calc(var(--spacing) * 6);">
                           <span class="v3a-icon" v-html="ICONS.settings"></span>
@@ -10129,6 +11075,7 @@
                           </table>
                         </div>
                       </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -10144,7 +11091,7 @@
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
-                  <div class="v3a-pagehead-actions">
+                  <div class="v3a-pagehead-actions" data-tour="files-actions">
                     <button
                       class="v3a-actionbtn primary"
                       type="button"
@@ -10180,7 +11127,7 @@
                   <div class="v3a-files-scroll">
                     <div v-if="filesLoading" class="v3a-muted">正在加载…</div>
 
-                    <div v-else class="v3a-filegrid">
+                    <div v-else class="v3a-filegrid" data-tour="files-grid">
                       <div
                         class="v3a-fileitem"
                         v-for="f in filesItems"
@@ -10296,7 +11243,7 @@
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
-                  <div class="v3a-pagehead-actions">
+                  <div class="v3a-pagehead-actions" data-tour="friends-actions">
                     <button class="v3a-iconaction primary" type="button" title="新增友链" @click="openFriendEditor(null)">
                       <span class="v3a-icon" v-html="ICONS.plus"></span>
                     </button>
@@ -10312,7 +11259,7 @@
                   </div>
                 </div>
 
-                <div class="v3a-friends-tabs">
+                <div class="v3a-friends-tabs" data-tour="friends-tabs">
                   <button class="v3a-friends-tab" :class="{ active: friendsState === 0 }" type="button" @click="setFriendsState(0)">
                     <span>朋友们</span>
                     <span class="v3a-friends-count">{{ formatNumber(friendsStateCount.friends || 0) }}</span>
@@ -10335,7 +11282,7 @@
                   </button>
                 </div>
 
-                <div class="v3a-card v3a-friends-tablecard">
+                <div class="v3a-card v3a-friends-tablecard" data-tour="friends-table">
                   <div class="bd" style="padding: 0;">
                     <div v-if="friendsError" class="v3a-alert" style="margin: 16px;">{{ friendsError }}</div>
                     <div v-else-if="friendsLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
@@ -10559,14 +11506,14 @@
                     </button>
                   <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
-                  <div class="v3a-pagehead-actions">
+                  <div class="v3a-pagehead-actions" data-tour="data-actions">
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="dataVisitLoading" @click="refreshData()">
                       <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
                     </button>
                   </div>
                 </div>
 
-                <div class="v3a-posts-search">
+                <div class="v3a-posts-search" data-tour="data-filters">
                   <div class="v3a-searchbox">
                     <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
                     <input class="v3a-input" v-model="dataVisitFilters.keywords" @keyup.enter="applyDataVisitFilters()" placeholder="搜索 IP / 路径 / 来源..." />
@@ -10579,7 +11526,7 @@
                   <div class="v3a-muted">{{ formatNumber(dataVisitPagination.total) }} 条</div>
                 </div>
 
-                <div class="v3a-card">
+                <div class="v3a-card" data-tour="data-table">
                   <div class="bd" style="padding: 0;">
                     <div v-if="dataVisitError" class="v3a-alert" style="margin: 16px;">{{ dataVisitError }}</div>
                     <div v-else-if="dataVisitLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
@@ -10638,7 +11585,7 @@
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
-                  <div class="v3a-pagehead-actions">
+                  <div class="v3a-pagehead-actions" data-tour="users-actions">
                     <button class="v3a-actionbtn" type="button" title="权限说明" @click="openPermissionInfo()">
                       <span class="v3a-icon" v-html="ICONS.info"></span>
                     </button>
@@ -10670,7 +11617,7 @@
 
                 <div v-if="usersError" class="v3a-alert">{{ usersError }}</div>
 
-                <div class="v3a-card">
+                <div class="v3a-card" data-tour="users-table">
                   <div class="bd" style="padding: 0;">
                     <div v-if="usersLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
 
@@ -10832,7 +11779,7 @@
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
-                  <div class="v3a-pagehead-actions">
+                  <div class="v3a-pagehead-actions" data-tour="shoutu-actions">
                     <button class="v3a-actionbtn" type="button" title="设置" @click="openShouTuTaSettings()" :disabled="!shouTuTaEnabled">
                       <span class="v3a-icon" v-html="ICONS.gear"></span>
                     </button>
@@ -10849,7 +11796,7 @@
                   <div v-if="shouTuTaLoading" class="v3a-muted">正在加载…</div>
 
                   <template v-else>
-                    <div class="v3a-section">
+                    <div class="v3a-section" data-tour="shoutu-metrics">
                       <div class="v3a-section-hd split">
                         <div class="v3a-section-title">防护统计</div>
                         <div class="v3a-section-tools">
@@ -10904,7 +11851,7 @@
                       </div>
                     </div>
 
-                    <div class="v3a-section">
+                    <div class="v3a-section" data-tour="shoutu-ip-query">
                       <div class="v3a-section-hd split">
                         <div class="v3a-section-title">IP 查询</div>
                         <div class="v3a-section-tools">
@@ -11247,7 +12194,7 @@
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
-                  <div class="v3a-pagehead-actions">
+                  <div class="v3a-pagehead-actions" data-tour="backup-actions">
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="backupLoading || backupWorking" @click="fetchBackups()">
                       <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
                     </button>
@@ -11311,7 +12258,7 @@
                   </div>
                 </div>
 
-                <div class="v3a-card" style="margin-top: calc(var(--spacing) * 4);">
+                <div class="v3a-card" style="margin-top: calc(var(--spacing) * 4);" data-tour="backup-table">
                   <div class="bd" style="padding: 0;">
                     <div v-if="backupLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
                     <table v-else class="v3a-table v3a-posts-table">
@@ -11354,7 +12301,7 @@
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
                   </div>
                   <div class="v3a-pagehead-actions">
-                    <div v-if="!String(settingsActiveKey || '').startsWith('theme.')" class="v3a-settings-savebar">
+                    <div v-if="!String(settingsActiveKey || '').startsWith('theme.')" class="v3a-settings-savebar" data-tour="settings-savebar">
                       <span v-if="settingsDirtyCount" class="v3a-settings-savehint">
                         你有 {{ settingsDirtyCount }} 项未保存的修改
                       </span>
@@ -11371,7 +12318,7 @@
                 <div v-else class="v3a-grid">
                   <template v-if="settingsActiveKey === 'user'">
                     <div class="v3a-settings-user">
-                      <div class="v3a-settings-user-head">
+                      <div class="v3a-settings-user-head" data-tour="settings-user-head">
                         <a class="v3a-settings-avatar" href="https://gravatar.com" target="_blank" rel="noreferrer" title="在 Gravatar 上修改头像">
                           <img v-if="settingsData.profile.avatar" :src="settingsData.profile.avatar" alt="" />
                           <div v-else class="v3a-settings-avatar-fallback">{{ userInitial }}</div>
@@ -11924,7 +12871,7 @@
                               </div>
                             </div>
 
-                            <div class="v3a-settings-row">
+                            <div class="v3a-settings-row" data-tour="settings-site-timezone">
                               <div class="v3a-settings-row-label">
                                 <label>时区</label>
                                 <div class="v3a-settings-row-help">与旧后台一致（GMT 偏移量）</div>
@@ -12593,7 +13540,7 @@
 
                         <template v-else>
                           <div v-if="themesLoading" class="v3a-muted" style="padding: 14px 16px;">正在加载…</div>
-                          <div v-else class="v3a-card v3a-settings-tablecard">
+                          <div v-else class="v3a-card v3a-settings-tablecard" data-tour="settings-plugins-active">
                             <div class="bd" style="padding: 0px;">
                               <div v-if="themesError" class="v3a-settings-row">
                                 <div class="v3a-settings-row-label">
@@ -13354,7 +14301,7 @@
         </div>
 
         <div v-if="pluginConfigOpen" class="v3a-modal-mask" @click.self="closePluginConfig()">
-          <div class="v3a-modal-card v3a-plugin-config-modal" role="dialog" aria-modal="true">
+          <div class="v3a-modal-card v3a-plugin-config-modal" role="dialog" aria-modal="true" data-tour="plugin-config-modal">
             <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closePluginConfig()">
               <span class="v3a-icon" v-html="ICONS.close"></span>
             </button>
@@ -13378,6 +14325,24 @@
                 <button class="v3a-btn v3a-modal-btn" type="button" @click="closePluginConfig()">关闭</button>
                 <button class="v3a-btn primary v3a-modal-btn" type="button" @click="savePluginConfig()" :disabled="pluginConfigLoading || pluginConfigSaving || !pluginConfigExists">{{ pluginConfigSaving ? "保存中…" : "保存设置" }}</button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="tourOpen" class="v3a-tour-mask">
+          <div class="v3a-tour-blocker" @click="tourSkip()"></div>
+          <div class="v3a-tour-spotlight" :style="tourSpotlightStyle"></div>
+          <div ref="tourBubbleEl" class="v3a-tour-bubble" :style="tourBubbleStyle" role="dialog" aria-modal="true">
+            <div class="v3a-tour-hd">
+              <div class="v3a-tour-title">{{ tourTitle }}</div>
+              <div class="v3a-tour-progress">{{ tourStepIndex + 1 }} / {{ tourSteps.length }}</div>
+            </div>
+            <div class="v3a-tour-desc">{{ tourDescription }}</div>
+            <div class="v3a-tour-actions">
+              <button class="v3a-mini-btn" type="button" @click="tourPrev()" :disabled="tourStepIndex <= 0">上一步</button>
+              <button class="v3a-mini-btn" type="button" @click="tourSkip()">跳过</button>
+              <button v-if="!tourIsLast" class="v3a-mini-btn primary" type="button" @click="tourNext()">下一步</button>
+              <button v-else class="v3a-mini-btn primary" type="button" @click="tourFinish()">完成</button>
             </div>
           </div>
         </div>
