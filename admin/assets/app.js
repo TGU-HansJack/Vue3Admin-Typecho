@@ -6847,6 +6847,16 @@
         } catch (e) {}
 
         try {
+          root.querySelectorAll("label.typecho-label").forEach((label) => {
+            if (!label || !label.querySelector) return;
+            if (!label.querySelector("h2, h3")) return;
+            label.classList.add("v3a-typecho-label-heading");
+            const li = label.closest ? label.closest("li") : null;
+            if (li && li.classList) li.classList.add("v3a-typecho-option-heading");
+          });
+        } catch (e) {}
+
+        try {
           const form = root.querySelector("form");
           if (form && !form.__v3aBound) {
             form.__v3aBound = true;
