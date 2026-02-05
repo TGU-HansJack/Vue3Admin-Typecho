@@ -14119,8 +14119,7 @@
                   </div>
                 </div>
 
-                <div v-if="craftSubmitOpen" class="v3a-modal">
-                  <div class="v3a-modal-mask" @click="craftCloseSubmit()"></div>
+                <div v-if="craftSubmitOpen" class="v3a-modal-mask" @click.self="craftCloseSubmit()">
                   <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 980px;">
                     <button class="v3a-modal-close" type="button" aria-label="关闭" @click="craftCloseSubmit()">
                       <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
