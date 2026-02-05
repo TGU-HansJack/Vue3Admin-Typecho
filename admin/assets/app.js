@@ -6286,6 +6286,20 @@
           settingsActiveKey.value
         )
       );
+      const crumbParts = computed(() => {
+        const text = String(crumb.value || "").trim();
+        if (!text) return { path: "", current: "" };
+        const sep = " / ";
+        const segs = text
+          .split(sep)
+          .map((s) => String(s || "").trim())
+          .filter(Boolean);
+        if (segs.length <= 1) return { path: "", current: text };
+        const current = String(segs.pop() || "").trim();
+        return { path: segs.join(sep), current: current || text };
+      });
+      const crumbPath = computed(() => crumbParts.value.path);
+      const crumbCurrent = computed(() => crumbParts.value.current);
 
       const username = computed(() =>
         V3A.user && V3A.user.name ? String(V3A.user.name) : "Typecho"
@@ -10379,6 +10393,8 @@
         routePath,
         routeQuery,
         crumb,
+        crumbPath,
+        crumbCurrent,
         sidebarCollapsed,
         isNarrowScreen,
         mobileNavOpen,
@@ -11536,7 +11552,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                     <div v-if="postAutoSaveEnabled" class="v3a-draft-status" :class="postDraftSaveState">
                       <span class="v3a-icon" v-html="ICONS.cloud"></span>
                       <span>{{ postDraftStatusText }}</span>
@@ -11790,7 +11810,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions" data-tour="taxonomy-actions">
                     <button class="v3a-btn" type="button" @click="fetchTaxonomy()" :disabled="taxonomyLoading">刷新</button>
@@ -11966,7 +11990,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions">
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="draftsPostsLoading || draftsPagesLoading" @click="fetchDrafts()">
@@ -12111,7 +12139,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions">
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="draftsPostsLoading || draftsPagesLoading" @click="fetchDrafts()">
@@ -12234,7 +12266,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions">
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="commentsLoading" @click="applyCommentsFilters()">
@@ -12461,7 +12497,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions" data-tour="pages-manage-actions">
                     <button class="v3a-btn" type="button" @click="applyPagesFilters()" :disabled="pagesLoading">刷新</button>
@@ -12514,7 +12554,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions">
                     <button class="v3a-iconbtn v3a-write-side-toggle" type="button" @click="toggleWriteSidebar()" :title="writeSidebarOpen ? '收起发布设置' : '展开发布设置'" data-tour="write-side-toggle">
@@ -12733,7 +12777,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions" data-tour="files-actions">
                     <button
@@ -12885,7 +12933,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions" data-tour="friends-actions">
                     <button class="v3a-iconaction primary" type="button" title="新增友链" @click="openFriendEditor(null)">
@@ -13148,7 +13200,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                  <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions" data-tour="data-actions">
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="dataVisitLoading" @click="refreshData()">
@@ -13227,7 +13283,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions" data-tour="users-actions">
                     <button class="v3a-actionbtn" type="button" title="权限说明" @click="openPermissionInfo()">
@@ -13386,7 +13446,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions">
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="!extrasPanelUrl" @click="reloadExtrasPanelIframe()">
@@ -13421,7 +13485,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                     <div v-if="workshopMeta && (workshopMeta.sourceText || workshopMeta.updatedAt || workshopMeta.url)" class="v3a-draft-status idle v3a-workshop-meta">
                       <span class="v3a-icon" v-html="ICONS.cloud"></span>
                       <span>{{ workshopMeta.sourceText || '—' }}</span>
@@ -13510,10 +13578,8 @@
                                     :disabled="workshopInstallingId === String(row.id || row.name || row.link || '')"
                                     @click="installWorkshopProject(row)"
                                   >{{ workshopInstallingId === String(row.id || row.name || row.link || '') ? '安装中…' : (row.installed ? '覆盖安装' : '安装') }}</button>
-                                  <a v-if="row.link" class="v3a-mini-btn" :href="row.link" target="_blank" rel="noreferrer">跳转</a>
                                   <a v-if="row.readme" class="v3a-mini-btn" :href="row.readme" target="_blank" rel="noreferrer">使用文档</a>
-                                  <a v-if="row.donate" class="v3a-mini-btn" :href="row.donate" target="_blank" rel="noreferrer">赞赏</a>
-                                  <span v-if="!row.canInstall && !row.link && !row.readme && !row.donate" class="v3a-muted">—</span>
+                                  <span v-if="!row.canInstall && !row.readme" class="v3a-muted">—</span>
                                 </div>
                               </td>
                             </tr>
@@ -13533,7 +13599,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions" data-tour="shoutu-actions">
                     <button class="v3a-actionbtn" type="button" title="设置" @click="openShouTuTaSettings()" :disabled="!shouTuTaEnabled">
@@ -13948,7 +14018,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions" data-tour="backup-actions">
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="backupLoading || backupWorking" @click="fetchBackups()">
@@ -14054,7 +14128,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions">
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="upgradeLoading" @click="fetchUpgradeInfo()">
@@ -14270,7 +14348,11 @@
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions">
                     <div v-if="!String(settingsActiveKey || '').startsWith('theme.')" class="v3a-settings-savebar" data-tour="settings-savebar">

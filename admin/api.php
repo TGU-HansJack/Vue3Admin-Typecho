@@ -3326,7 +3326,6 @@ try {
             $typecho = $pickAny($it, ['typecho', 'typechoVersion', 'typechoVersions', 'supportTypecho', '支持Typecho版本']);
             $ver = $pickStr($it, ['version', 'projectVersion', '项目的版本号'], '');
             $author = $pickStr($it, ['author', '作者'], '');
-            $donate = $pickStr($it, ['donate', 'donateUrl', 'sponsor', '赞赏链接'], '');
             $readme = $pickStr($it, ['readme', 'readmeUrl', 'docs', 'docsUrl', 'documentation', 'doc', 'manual', '使用文档', '文档'], '');
 
             $gh = $parseGithub($link);
@@ -3385,7 +3384,6 @@ try {
                 'typecho' => $typecho,
                 'version' => $ver,
                 'author' => $author,
-                'donate' => $donate,
                 'readme' => $readme,
                 'isGithub' => $isGithub ? 1 : 0,
                 'direct' => $direct ? 1 : 0,

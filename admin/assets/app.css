@@ -2836,6 +2836,38 @@ a {
   font-size: 16px;
   font-weight: 600;
   color: rgba(0, 0, 0, 0.82);
+  min-width: 0;
+}
+
+.v3a-pagehead-title.v3a-pagehead-title--path {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.v3a-pagehead-title-path {
+  flex: 1 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  unicode-bidi: plaintext;
+}
+
+.v3a-pagehead-title-sep {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.v3a-pagehead-title-current {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .v3a-draft-status {
