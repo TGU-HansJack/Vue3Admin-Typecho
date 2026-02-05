@@ -13425,8 +13425,8 @@
                     <div v-if="workshopMeta && (workshopMeta.sourceText || workshopMeta.updatedAt || workshopMeta.url)" class="v3a-draft-status idle v3a-workshop-meta">
                       <span class="v3a-icon" v-html="ICONS.cloud"></span>
                       <span>{{ workshopMeta.sourceText || '—' }}</span>
-                      <span v-if="workshopMeta.updatedAt" class="v3a-draft-status-time">· 更新于 {{ formatTime(workshopMeta.updatedAt, settingsData.site.timezone) }}</span>
-                      <span class="v3a-draft-status-time">· <a :href="(workshopMeta && workshopMeta.url) || workshopListUrl" target="_blank" rel="noreferrer">repo.json</a></span>
+                      <span v-if="workshopMeta.updatedAt" class="v3a-draft-status-time v3a-workshop-meta-time" :title="'更新于 ' + formatTime(workshopMeta.updatedAt, settingsData.site.timezone)">· {{ formatTime(workshopMeta.updatedAt, settingsData.site.timezone).slice(5) }}</span>
+                      <span class="v3a-draft-status-time v3a-workshop-meta-link">· <a :href="(workshopMeta && workshopMeta.url) || workshopListUrl" target="_blank" rel="noreferrer">repo.json</a></span>
                     </div>
                   </div>
                   <div class="v3a-pagehead-actions">

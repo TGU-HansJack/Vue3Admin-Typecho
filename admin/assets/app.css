@@ -3314,7 +3314,21 @@ a {
 
 @media (max-width: 48rem) {
   .v3a-draft-status.v3a-workshop-meta {
-    white-space: normal;
+    white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .v3a-draft-status.v3a-workshop-meta .v3a-workshop-meta-time {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .v3a-draft-status.v3a-workshop-meta .v3a-workshop-meta-link {
+    flex: 0 0 auto;
   }
 }
 
