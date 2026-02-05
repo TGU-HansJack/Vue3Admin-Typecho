@@ -2989,21 +2989,7 @@ function v3a_craft_proc_run($cmd, ?string $cwd = null, int $timeout = 20): array
 
 function v3a_craft_git_run(string $repoRoot, array $args, int $timeout = 20): array
 {
-    $root = rtrim((string) $repoRoot, '/\\');
-
-    $safe = $root;
-    try {
-        $rp = @realpath($root);
-        if (is_string($rp) && $rp !== false && trim($rp) !== '') {
-            $safe = $rp;
-        }
-    } catch (\Throwable $e) {
-        $safe = $root;
-    }
-    $safe = str_replace('\\', '/', (string) $safe);
-
-    // Avoid "detected dubious ownership" by explicitly trusting the repo directory for this invocation.
-    $cmd = array_merge(['git', '-c', 'safe.directory=' . $safe, '-C', $root], $args);
+    $cmd = array_merge(['git', '-C', $repoRoot], $args);
     $res = v3a_craft_proc_run($cmd, null, $timeout);
     if ((int) ($res['code'] ?? 1) !== 0) {
         $out = trim((string) ($res['stderr'] ?? ''));
@@ -3030,14 +3016,14 @@ function v3a_craft_git_ensure_identity(string $repoRoot): void
     $email = '';
 
     try {
-        $res = v3a_craft_git_run($repoRoot, ['config', '--get', 'user.name'], 6);
+        $res = v3a_craft_proc_run(['git', '-C', $repoRoot, 'config', '--get', 'user.name'], null, 6);
         $name = trim((string) ($res['stdout'] ?? ''));
     } catch (\Throwable $e) {
         $name = '';
     }
 
     try {
-        $res = v3a_craft_git_run($repoRoot, ['config', '--get', 'user.email'], 6);
+        $res = v3a_craft_proc_run(['git', '-C', $repoRoot, 'config', '--get', 'user.email'], null, 6);
         $email = trim((string) ($res['stdout'] ?? ''));
     } catch (\Throwable $e) {
         $email = '';
@@ -4662,142 +4648,12 @@ try {
             $isAdmin = 0;
         }
 
-        $out = [
+        v3a_exit_json(0, [
             'repoUrl' => $repoUrl,
             'repoReady' => $repoReady,
             'oauthConfigured' => $oauthConfigured,
             'githubUser' => $githubUser,
             'isAdmin' => $isAdmin,
-        ];
-
-        if ($isAdmin) {
-            $out['repoRoot'] = $repoRoot;
-        }
-
-        v3a_exit_json(0, $out);
-    }
-
-    if ($do === 'craft.repo.init') {
-        if (!$request->isPost()) {
-            v3a_exit_json(405, null, 'Method Not Allowed');
-        }
-        v3a_security_protect($security, $request);
-        v3a_require_role($user, 'administrator');
-
-        $repoRoot = v3a_craft_repo_root($options);
-        if (trim($repoRoot) === '') {
-            v3a_exit_json(500, null, 'Missing craftRepoPath');
-        }
-
-        try {
-            if (!is_dir($repoRoot)) {
-                v3a_mkdir_p($repoRoot);
-            }
-            if (!is_dir($repoRoot)) {
-                throw new \RuntimeException('Create directory failed');
-            }
-
-            if (!v3a_craft_repo_ready($repoRoot)) {
-                $res = v3a_craft_proc_run(['git', 'init', $repoRoot], null, 60);
-                if ((int) ($res['code'] ?? 1) !== 0) {
-                    $err = trim((string) ($res['stderr'] ?? ''));
-                    if ($err === '') {
-                        $err = trim((string) ($res['stdout'] ?? ''));
-                    }
-                    throw new \RuntimeException($err !== '' ? $err : 'git init failed');
-                }
-            }
-
-            v3a_craft_ensure_dirs($repoRoot);
-            try {
-                v3a_craft_git_ensure_identity($repoRoot);
-            } catch (\Throwable $e) {
-            }
-        } catch (\Throwable $e) {
-            v3a_exit_json(500, null, $e->getMessage() !== '' ? $e->getMessage() : 'Init failed');
-        }
-
-        v3a_exit_json(0, [
-            'ok' => 1,
-            'repoRoot' => $repoRoot,
-            'repoReady' => v3a_craft_repo_ready($repoRoot) ? 1 : 0,
-        ]);
-    }
-
-    if ($do === 'craft.repo.clone') {
-        if (!$request->isPost()) {
-            v3a_exit_json(405, null, 'Method Not Allowed');
-        }
-        v3a_security_protect($security, $request);
-        v3a_require_role($user, 'administrator');
-
-        $repoRoot = v3a_craft_repo_root($options);
-        if (trim($repoRoot) === '') {
-            v3a_exit_json(500, null, 'Missing craftRepoPath');
-        }
-
-        $cloneUrl = v3a_craft_repo_url($options);
-        if (trim($cloneUrl) === '') {
-            v3a_exit_json(400, null, 'Missing craftRepoUrl');
-        }
-
-        if (v3a_craft_repo_ready($repoRoot)) {
-            v3a_exit_json(0, ['ok' => 1, 'repoRoot' => $repoRoot, 'repoReady' => 1]);
-        }
-
-        try {
-            $existsDir = is_dir($repoRoot);
-            if ($existsDir) {
-                $empty = true;
-                try {
-                    $it = new \FilesystemIterator($repoRoot, \FilesystemIterator::SKIP_DOTS);
-                    foreach ($it as $f) {
-                        $empty = false;
-                        break;
-                    }
-                } catch (\Throwable $e) {
-                    $empty = false;
-                }
-                if (!$empty) {
-                    throw new \RuntimeException('目标目录非空，请先清空或改用“一键初始化”');
-                }
-            } else {
-                $parent = dirname($repoRoot);
-                if ($parent && $parent !== '.' && !is_dir($parent)) {
-                    v3a_mkdir_p($parent);
-                }
-            }
-
-            $cmd = $existsDir
-                ? ['git', '-C', $repoRoot, 'clone', $cloneUrl, '.']
-                : ['git', 'clone', $cloneUrl, $repoRoot];
-
-            $res = v3a_craft_proc_run($cmd, null, 180);
-            if ((int) ($res['code'] ?? 1) !== 0) {
-                $err = trim((string) ($res['stderr'] ?? ''));
-                if ($err === '') {
-                    $err = trim((string) ($res['stdout'] ?? ''));
-                }
-                throw new \RuntimeException($err !== '' ? $err : 'git clone failed');
-            }
-
-            if (!v3a_craft_repo_ready($repoRoot)) {
-                throw new \RuntimeException('Clone finished but repo is not ready');
-            }
-
-            v3a_craft_ensure_dirs($repoRoot);
-            try {
-                v3a_craft_git_ensure_identity($repoRoot);
-            } catch (\Throwable $e) {
-            }
-        } catch (\Throwable $e) {
-            v3a_exit_json(500, null, $e->getMessage() !== '' ? $e->getMessage() : 'Clone failed');
-        }
-
-        v3a_exit_json(0, [
-            'ok' => 1,
-            'repoRoot' => $repoRoot,
-            'repoReady' => v3a_craft_repo_ready($repoRoot) ? 1 : 0,
         ]);
     }
 
