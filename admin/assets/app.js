@@ -14829,7 +14829,7 @@
         </div>
 
         <div v-if="shouTuTaIpModalOpen" class="v3a-modal-mask" @click.self="closeShouTuTaIpModal()">
-          <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 980px;">
+          <div class="v3a-modal-card v3a-scroll-modal" role="dialog" aria-modal="true" style="max-width: 980px;">
             <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeShouTuTaIpModal()">
               <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
             </button>
@@ -14941,7 +14941,7 @@
         </div>
 
         <div v-if="shouTuTaGlobalWhitelistOpen" class="v3a-modal-mask" @click.self="closeShouTuTaGlobalWhitelist()">
-          <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 640px;">
+          <div class="v3a-modal-card v3a-scroll-modal" role="dialog" aria-modal="true" style="max-width: 640px;">
             <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeShouTuTaGlobalWhitelist()">
               <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
             </button>
@@ -14971,7 +14971,7 @@
         </div>
 
         <div v-if="shouTuTaCidrOpen" class="v3a-modal-mask" @click.self="closeShouTuTaCidr()">
-          <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 720px;">
+          <div class="v3a-modal-card v3a-scroll-modal" role="dialog" aria-modal="true" style="max-width: 720px;">
             <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeShouTuTaCidr()">
               <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
             </button>

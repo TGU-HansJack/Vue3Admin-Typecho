@@ -1316,7 +1316,7 @@ a {
 }
 
 .v3a-modal-card {
-  width: 480px;
+  width: min(480px, 90vw);
   max-width: 90vw;
   border-radius: var(--radius-xl);
   border: 1px solid #e5e5e5;
@@ -1364,6 +1364,25 @@ a {
 
 .v3a-modal-body {
   padding: 20px 24px 24px;
+}
+
+.v3a-modal-card.v3a-scroll-modal {
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+
+.v3a-modal-card.v3a-scroll-modal .v3a-modal-head {
+  flex: 0 0 auto;
+}
+
+.v3a-modal-card.v3a-scroll-modal .v3a-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .v3a-modal-card.v3a-plugin-config-modal {
