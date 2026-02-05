@@ -2189,24 +2189,31 @@ a {
   }
 
   .v3a-menu {
+    padding: 10px 12px calc(var(--spacing) * 6 + env(safe-area-inset-bottom, 0px));
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    flex: 1;
+  }
+
+  .v3a-menu.v3a-menu--swipe {
     padding: 0;
     overflow: hidden;
-    flex: 1;
     display: flex;
     flex-direction: column;
     touch-action: pan-y;
   }
 
-  .v3a-menu-swipe {
+  .v3a-menu.v3a-menu--swipe .v3a-menu-swipe {
     flex: 1;
     display: flex;
-    width: 200%;
+    width: 100%;
     height: 100%;
     transition: transform 0.22s ease;
     will-change: transform;
   }
 
-  .v3a-menu-panel {
+  .v3a-menu.v3a-menu--swipe .v3a-menu-panel {
+    flex: 0 0 100%;
     width: 100%;
     height: 100%;
     overflow: auto;
@@ -2214,11 +2221,11 @@ a {
     overscroll-behavior: contain;
   }
 
-  .v3a-menu-panel--main {
+  .v3a-menu.v3a-menu--swipe .v3a-menu-panel--main {
     padding: 10px 12px calc(var(--spacing) * 6 + env(safe-area-inset-bottom, 0px));
   }
 
-  .v3a-menu-panel--settings {
+  .v3a-menu.v3a-menu--swipe .v3a-menu-panel--settings {
     padding: 0 0 calc(var(--spacing) * 6 + env(safe-area-inset-bottom, 0px));
   }
 }

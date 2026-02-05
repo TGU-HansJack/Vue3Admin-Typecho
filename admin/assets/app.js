@@ -729,7 +729,7 @@
       let mobileNavSwipeStartY = 0;
 
       function onMobileNavSwipeStart(e) {
-        if (!isNarrowScreen.value || !mobileNavOpen.value) return;
+        if (!isNarrowScreen.value || !mobileNavOpen.value || !settingsOpen.value) return;
         const t = e?.touches?.[0];
         if (!t) return;
         mobileNavSwipeActive = true;
@@ -740,6 +740,7 @@
       function onMobileNavSwipeEnd(e) {
         if (!mobileNavSwipeActive) return;
         mobileNavSwipeActive = false;
+        if (!settingsOpen.value) return;
         const t = e?.changedTouches?.[0];
         if (!t) return;
         const dx = t.clientX - mobileNavSwipeStartX;
@@ -10035,11 +10036,12 @@
           </div>
           <nav
             class="v3a-menu"
+            :class="{ 'v3a-menu--swipe': isNarrowScreen && settingsOpen }"
             @touchstart="onMobileNavSwipeStart"
             @touchend="onMobileNavSwipeEnd"
             @touchcancel="onMobileNavSwipeCancel"
           >
-            <div class="v3a-menu-swipe" :style="{ transform: isNarrowScreen ? 'translate3d(-' + (mobileNavTab * 100) + '%,0,0)' : '' }">
+            <div class="v3a-menu-swipe" :style="{ transform: (isNarrowScreen && settingsOpen) ? 'translate3d(-' + (mobileNavTab * 100) + '%,0,0)' : '' }">
               <div class="v3a-menu-panel v3a-menu-panel--main">
                 <div v-for="item in menuItems" :key="item.key">
                   <div
@@ -10075,7 +10077,7 @@
                 </div>
               </div>
 
-              <div v-if="isNarrowScreen" class="v3a-menu-panel v3a-menu-panel--settings">
+              <div v-if="isNarrowScreen && settingsOpen" class="v3a-menu-panel v3a-menu-panel--settings">
                 <div class="v3a-subsidebar-bd">
                   <template v-for="s in settingsItems" :key="s.key">
                     <template v-if="s.key === 'theme'">
