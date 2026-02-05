@@ -2870,6 +2870,17 @@ a {
   white-space: nowrap;
 }
 
+@media (max-width: 48rem) {
+  .v3a-pagehead-title.v3a-pagehead-title--path .v3a-pagehead-title-path,
+  .v3a-pagehead-title.v3a-pagehead-title--path .v3a-pagehead-title-sep {
+    display: none;
+  }
+
+  .v3a-pagehead-title.v3a-pagehead-title--path .v3a-pagehead-title-current {
+    flex: 1 1 auto;
+  }
+}
+
 .v3a-draft-status {
   margin-left: calc(var(--spacing) * 2);
   padding-left: calc(var(--spacing) * 3);
