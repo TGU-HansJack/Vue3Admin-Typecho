@@ -992,6 +992,8 @@
       const craftGithubUser = ref(null);
       const craftIsAdmin = ref(false);
       const craftRepoReady = ref(false);
+      const craftRepoRoot = ref("");
+      const craftRepoSetupWorking = ref(false);
 
       const craftProjects = ref([]);
       const craftPending = ref([]);
@@ -1115,6 +1117,7 @@
         craftGithubUser.value = data && data.githubUser && typeof data.githubUser === "object" ? data.githubUser : null;
         craftIsAdmin.value = !!(data && data.isAdmin);
         craftRepoReady.value = !!(data && data.repoReady);
+        craftRepoRoot.value = String(data && data.repoRoot ? data.repoRoot : "").trim();
       }
 
       async function fetchCraftList() {
@@ -1128,11 +1131,60 @@
         craftLoading.value = true;
         craftError.value = "";
         try {
-          await Promise.all([fetchCraftMeta(), fetchCraftList()]);
+          await fetchCraftMeta();
+          if (craftRepoReady.value) {
+            await fetchCraftList();
+          } else {
+            craftProjects.value = [];
+            craftPending.value = [];
+          }
         } catch (e) {
           craftError.value = e && e.message ? e.message : "加载失败";
         } finally {
           craftLoading.value = false;
+        }
+      }
+
+      async function craftRepoInit() {
+        if (craftRepoSetupWorking.value) return;
+        if (!craftIsAdmin.value) {
+          toastError("仅管理员可初始化仓库");
+          return;
+        }
+        if (!confirm("确认一键初始化创意工坊仓库？（git init）")) return;
+        craftRepoSetupWorking.value = true;
+        try {
+          await apiPost("craft.repo.init", {});
+          toastSuccess("仓库已初始化");
+          await fetchCraftAll();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "初始化失败");
+        } finally {
+          craftRepoSetupWorking.value = false;
+        }
+      }
+
+      async function craftRepoClone() {
+        if (craftRepoSetupWorking.value) return;
+        if (!craftIsAdmin.value) {
+          toastError("仅管理员可克隆仓库");
+          return;
+        }
+        const url = String(craftRepoUrl.value || "").trim();
+        if (!url) {
+          toastError("缺少仓库地址");
+          return;
+        }
+        if (!confirm(`确认一键克隆仓库？\\n${url}`)) return;
+        craftRepoSetupWorking.value = true;
+        try {
+          await apiPost("craft.repo.clone", {});
+          toastSuccess("仓库已克隆");
+          await fetchCraftAll();
+        } catch (e) {
+          toastError(e && e.message ? e.message : "克隆失败");
+        } finally {
+          craftRepoSetupWorking.value = false;
         }
       }
 
@@ -1159,6 +1211,10 @@
       );
 
       function craftOpenSubmit() {
+        if (!craftRepoReady.value) {
+          toastError("仓库未就绪，请先初始化");
+          return;
+        }
         if (!craftOauthConfigured.value) {
           toastError("未配置 GitHub OAuth，无法提交");
           return;
@@ -11122,6 +11178,8 @@
         craftGithubUser,
         craftIsAdmin,
         craftRepoReady,
+        craftRepoRoot,
+        craftRepoSetupWorking,
         craftProjects,
         craftPending,
         craftActiveTab,
@@ -11135,6 +11193,8 @@
         craftOpenRepo,
         craftStartGithubLogin,
         craftLogoutGithub,
+        craftRepoInit,
+        craftRepoClone,
         craftOpenSubmit,
         craftCloseSubmit,
         craftSubmitOpen,
@@ -14102,59 +14162,76 @@
                 <div v-if="craftError" class="v3a-alert" style="margin-bottom: 12px;">{{ craftError }}</div>
                 <div v-if="craftLoading" class="v3a-muted">正在加载…</div>
 
-                <div v-else class="v3a-craft-split">
-                  <div class="v3a-craft-left">
-                    <div class="v3a-craft-left-head">
-                      <div class="v3a-craft-tabs" role="tablist" aria-label="列表切换">
-                        <button class="v3a-craft-tab" :class="{ active: craftActiveTab === 'projects' }" type="button" @click="craftActiveTab = 'projects'">项目</button>
-                        <button class="v3a-craft-tab" :class="{ active: craftActiveTab === 'pending' }" type="button" @click="craftActiveTab = 'pending'">待审核</button>
+                <div v-else>
+                  <div v-if="!craftRepoReady" class="v3a-card" style="margin-bottom: 12px;">
+                    <div class="hd"><div class="title">创意工坊仓库未就绪</div></div>
+                    <div class="bd">
+                      <div class="v3a-muted" style="margin-bottom: 10px;">需要一个服务器本地 Git 仓库来保存项目 JSON，并生成 commit。</div>
+                      <div v-if="craftIsAdmin && craftRepoRoot" class="v3a-muted" style="margin-bottom: 10px;">
+                        当前仓库路径：<span class="mono">{{ craftRepoRoot }}</span>
                       </div>
-                      <span class="v3a-muted">{{ craftCountText }}</span>
-                    </div>
-
-                    <div class="v3a-craft-toolbar">
-                      <div class="v3a-searchbox v3a-searchbox-full">
-                        <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
-                        <input class="v3a-input" v-model="craftKeywords" placeholder="搜索项目..." />
+                      <div v-if="craftIsAdmin" style="display:flex; gap: 10px; flex-wrap: wrap; align-items:center;">
+                        <button class="v3a-btn primary" type="button" @click="craftRepoInit()" :disabled="craftRepoSetupWorking">一键初始化</button>
+                        <button class="v3a-btn" type="button" @click="craftRepoClone()" :disabled="craftRepoSetupWorking || !craftRepoUrl">一键克隆</button>
+                        <div class="v3a-muted" style="font-size: 12px; line-height: 1.6;">克隆来源：{{ craftRepoUrl || '—' }}</div>
                       </div>
-                      <button class="v3a-btn primary" type="button" @click="craftOpenSubmit()" :disabled="!craftGithubUser || !craftOauthConfigured">提交项目</button>
-                    </div>
-
-                    <div class="v3a-craft-list">
-                      <div v-if="!craftFilteredList.length" class="v3a-craft-empty">
-                        <div class="v3a-muted">暂无项目</div>
-                      </div>
-                      <div v-else>
-                        <div
-                          v-for="it in craftFilteredList"
-                          :key="it.id"
-                          class="v3a-craft-item"
-                          :class="{ active: craftActiveKey === it.id }"
-                          role="button"
-                          tabindex="0"
-                          @click="craftActiveKey = it.id"
-                          @keyup.enter="craftActiveKey = it.id"
-                        >
-                          <div class="v3a-craft-item-main">
-                            <div class="v3a-craft-item-title-row">
-                              <div class="v3a-craft-item-title">{{ it.name || '（未命名）' }}</div>
-                              <span v-if="it.version" class="v3a-craft-item-id">v{{ it.version }}</span>
-                            </div>
-                            <div class="v3a-craft-item-meta">
-                              <span class="v3a-pill info">{{ it.type || '项目' }}</span>
-                              <span v-if="it.status === 'pending'" class="v3a-pill warn">待审核</span>
-                              <span v-else class="v3a-pill success">已上线</span>
-                              <span v-if="it.author" class="v3a-muted">· {{ it.author }}</span>
-                            </div>
-                          </div>
-                          <div class="v3a-craft-item-time">{{ formatTimeAgo(it.updatedAt || it.submittedAt) }}</div>
-                        </div>
-                      </div>
+                      <div v-else class="v3a-muted">请联系管理员初始化仓库。</div>
                     </div>
                   </div>
 
-                  <div class="v3a-craft-right">
-                    <div class="v3a-craft-right-head">
+                  <div v-else class="v3a-craft-split">
+                    <div class="v3a-craft-left">
+                      <div class="v3a-craft-left-head">
+                        <div class="v3a-craft-tabs" role="tablist" aria-label="列表切换">
+                          <button class="v3a-craft-tab" :class="{ active: craftActiveTab === 'projects' }" type="button" @click="craftActiveTab = 'projects'">项目</button>
+                          <button class="v3a-craft-tab" :class="{ active: craftActiveTab === 'pending' }" type="button" @click="craftActiveTab = 'pending'">待审核</button>
+                        </div>
+                        <span class="v3a-muted">{{ craftCountText }}</span>
+                      </div>
+
+                      <div class="v3a-craft-toolbar">
+                        <div class="v3a-searchbox v3a-searchbox-full">
+                          <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                          <input class="v3a-input" v-model="craftKeywords" placeholder="搜索项目..." />
+                        </div>
+                        <button class="v3a-btn primary" type="button" @click="craftOpenSubmit()" :disabled="!craftRepoReady || !craftGithubUser || !craftOauthConfigured">提交项目</button>
+                      </div>
+
+                      <div class="v3a-craft-list">
+                        <div v-if="!craftFilteredList.length" class="v3a-craft-empty">
+                          <div class="v3a-muted">暂无项目</div>
+                        </div>
+                        <div v-else>
+                          <div
+                            v-for="it in craftFilteredList"
+                            :key="it.id"
+                            class="v3a-craft-item"
+                            :class="{ active: craftActiveKey === it.id }"
+                            role="button"
+                            tabindex="0"
+                            @click="craftActiveKey = it.id"
+                            @keyup.enter="craftActiveKey = it.id"
+                          >
+                            <div class="v3a-craft-item-main">
+                              <div class="v3a-craft-item-title-row">
+                                <div class="v3a-craft-item-title">{{ it.name || '（未命名）' }}</div>
+                                <span v-if="it.version" class="v3a-craft-item-id">v{{ it.version }}</span>
+                              </div>
+                              <div class="v3a-craft-item-meta">
+                                <span class="v3a-pill info">{{ it.type || '项目' }}</span>
+                                <span v-if="it.status === 'pending'" class="v3a-pill warn">待审核</span>
+                                <span v-else class="v3a-pill success">已上线</span>
+                                <span v-if="it.author" class="v3a-muted">· {{ it.author }}</span>
+                              </div>
+                            </div>
+                            <div class="v3a-craft-item-time">{{ formatTimeAgo(it.updatedAt || it.submittedAt) }}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="v3a-craft-right">
+                      <div class="v3a-craft-right-head">
                       <div class="v3a-craft-right-titles">
                         <template v-if="craftActiveItem">
                           <div class="v3a-craft-right-title">{{ craftActiveItem.name || '项目详情' }}</div>
