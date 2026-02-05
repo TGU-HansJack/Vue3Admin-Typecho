@@ -6,7 +6,6 @@ use Typecho\Db;
 use Typecho\Plugin\Exception as PluginException;
 use Typecho\Plugin\PluginInterface;
 use Typecho\Widget\Helper\Form;
-use Typecho\Widget\Helper\Form\Element\Password;
 use Typecho\Widget\Helper\Form\Element\Text;
 
 if (!defined('__TYPECHO_ROOT_DIR__')) {
@@ -42,7 +41,6 @@ class Plugin implements PluginInterface
             __DIR__ . '/admin/theme-config.php',
             __DIR__ . '/admin/options-plugin.php',
             __DIR__ . '/admin/options-theme.php',
-            __DIR__ . '/admin/github-oauth.php',
             __DIR__ . '/admin/assets/app.js',
             __DIR__ . '/admin/assets/app.css',
         ];
@@ -459,42 +457,6 @@ class Plugin implements PluginInterface
             _t('Vditor cdn 基础路径，用于加载 Mermaid/KaTeX/Highlight.js 等内置资源。')
         );
         $form->addInput($vditorCdnBase);
-
-        $craftRepoPath = new Text(
-            'craftRepoPath',
-            null,
-            rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'Craft-Typecho',
-            _t('创意工坊仓库路径'),
-            _t('本地 git 仓库根目录，用于保存项目 JSON 并提交 commit。默认：<网站根目录>/Craft-Typecho（需为有效 git 仓库）。')
-        );
-        $form->addInput($craftRepoPath);
-
-        $craftRepoUrl = new Text(
-            'craftRepoUrl',
-            null,
-            'https://github.com/TGU-HansJack/Craft-Typecho',
-            _t('创意工坊仓库地址'),
-            _t('用于创意工坊页面的“跳转仓库”按钮。')
-        );
-        $form->addInput($craftRepoUrl);
-
-        $githubClientId = new Text(
-            'githubClientId',
-            null,
-            '',
-            _t('GitHub OAuth Client ID'),
-            _t('用于创意工坊 GitHub 登录。回调地址：/Vue3Admin/github-oauth.php?mode=callback（以你的后台目录为准）。')
-        );
-        $form->addInput($githubClientId);
-
-        $githubClientSecret = new Password(
-            'githubClientSecret',
-            null,
-            '',
-            _t('GitHub OAuth Client Secret'),
-            _t('用于创意工坊 GitHub 登录（仅保存于数据库 options 表）。')
-        );
-        $form->addInput($githubClientSecret);
     }
 
     public static function personalConfig(Form $form)
@@ -1354,7 +1316,6 @@ HTML;
                 'theme-config.php',
                 'options-plugin.php',
                 'options-theme.php',
-                'github-oauth.php',
                 'welcome.php',
                 'index.html',
                 'assets' . DIRECTORY_SEPARATOR . 'app.js',

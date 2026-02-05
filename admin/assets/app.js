@@ -221,8 +221,6 @@
     plus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
     copy: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>`,
     externalLink: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>`,
-    squareArrowOutUpRight: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-arrow-out-up-right-icon lucide-square-arrow-out-up-right"><path d="M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/><path d="m21 3-9 9"/><path d="M15 3h6v6"/></svg>`,
-    github: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-github-icon lucide-github"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>`,
     checkCheck: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>`,
     square: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`,
     squareCheck: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>`,
@@ -329,13 +327,6 @@
             access: "administrator",
           });
         }
-
-        out.push({
-          key: "extras-craft",
-          label: "创意工坊",
-          to: "/extras/craft",
-          access: "subscriber",
-        });
 
         for (const p of panels) {
           const panel = p && typeof p === "object" ? String(p.panel || "") : "";
@@ -725,10 +716,6 @@
       return "额外功能 / 守兔塔";
     }
 
-    if (path === "/extras/craft") {
-      return "额外功能 / 创意工坊";
-    }
-
     for (const top of MENU) {
       const topPath = top.to ? String(top.to).split("?")[0] : "";
       if (topPath && topPath === path) return top.label;
@@ -983,281 +970,6 @@
           setTimeout(resizeExtrasPanelIframe, 1000);
         }
       );
-
-      // Craft Workshop (extras)
-      const craftLoading = ref(false);
-      const craftError = ref("");
-      const craftRepoUrl = ref("https://github.com/TGU-HansJack/Craft-Typecho");
-      const craftOauthConfigured = ref(false);
-      const craftGithubUser = ref(null);
-      const craftIsAdmin = ref(false);
-      const craftRepoReady = ref(false);
-
-      const craftProjects = ref([]);
-      const craftPending = ref([]);
-
-      const craftActiveTab = ref("projects"); // projects|pending
-      const craftActiveKey = ref("");
-      const craftKeywords = ref("");
-
-      const craftSubmitOpen = ref(false);
-      const craftSubmitJson = ref("");
-      const craftSubmitMessage = ref("");
-      const craftSubmitting = ref(false);
-      const craftSubmitError = ref("");
-
-      const craftModerating = ref(false);
-
-      const craftActiveList = computed(() =>
-        craftActiveTab.value === "pending" ? craftPending.value : craftProjects.value
-      );
-
-      const craftFilteredList = computed(() => {
-        const list = Array.isArray(craftActiveList.value) ? craftActiveList.value : [];
-        const kw = String(craftKeywords.value || "").trim().toLowerCase();
-        if (!kw) return list;
-        return list.filter((it) => {
-          const name = String(it?.name || "");
-          const type = String(it?.type || "");
-          const author = String(it?.author || "");
-          return `${name} ${type} ${author}`.toLowerCase().includes(kw);
-        });
-      });
-
-      const craftCountText = computed(
-        () => `${formatNumber((craftFilteredList.value || []).length)} 个`
-      );
-
-      const craftActiveItem = computed(() => {
-        const key = String(craftActiveKey.value || "");
-        if (!key) return null;
-        return (craftActiveList.value || []).find((it) => it && String(it.id || "") === key) || null;
-      });
-
-      const craftActiveJsonText = computed(() => {
-        const item = craftActiveItem.value;
-        if (!item) return "";
-        const proj = item && typeof item === "object" ? item.project || item.json || item.data || item : item;
-        try {
-          return JSON.stringify(proj, null, 2);
-        } catch (e) {
-          return String(proj || "");
-        }
-      });
-
-      function craftOpenRepo() {
-        const url = String(craftRepoUrl.value || "").trim();
-        if (!url) {
-          toastError("缺少仓库地址");
-          return;
-        }
-        window.open(url, "_blank", "noreferrer");
-      }
-
-      function craftAdminUrl(relPath) {
-        try {
-          const base = String(V3A.adminUrl || "").trim();
-          const adminBase = base ? new URL(base, location.href) : new URL(".", location.href);
-          return new URL(String(relPath || ""), adminBase).toString();
-        } catch (e) {
-          return String(relPath || "");
-        }
-      }
-
-      function craftStartGithubLogin() {
-        if (!craftOauthConfigured.value) {
-          toastError("未配置 GitHub OAuth");
-          return;
-        }
-
-        const url = craftAdminUrl("github-oauth.php");
-        const w = 560;
-        const h = 720;
-        const left = Math.max(0, Math.floor((window.screen.width - w) / 2));
-        const top = Math.max(0, Math.floor((window.screen.height - h) / 2));
-        const win = window.open(
-          url,
-          "v3a_github_oauth",
-          `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
-        );
-        if (!win) {
-          toastError("弹窗被浏览器拦截，请允许弹窗后重试");
-          return;
-        }
-      }
-
-      async function craftLogoutGithub() {
-        if (!craftGithubUser.value) return;
-        if (!confirm("确认退出 GitHub 登录？")) return;
-        try {
-          await apiPost("craft.github.logout", {});
-          craftGithubUser.value = null;
-          toastSuccess("已退出 GitHub 登录");
-        } catch (e) {
-          toastError(e && e.message ? e.message : "退出失败");
-        }
-      }
-
-      async function fetchCraftMeta() {
-        const data = await apiGet("craft.meta");
-        craftRepoUrl.value = String(data && data.repoUrl ? data.repoUrl : craftRepoUrl.value || "").trim();
-        craftOauthConfigured.value = !!(data && data.oauthConfigured);
-        craftGithubUser.value = data && data.githubUser && typeof data.githubUser === "object" ? data.githubUser : null;
-        craftIsAdmin.value = !!(data && data.isAdmin);
-        craftRepoReady.value = !!(data && data.repoReady);
-      }
-
-      async function fetchCraftList() {
-        const data = await apiGet("craft.list");
-        craftProjects.value = data && Array.isArray(data.projects) ? data.projects : [];
-        craftPending.value = data && Array.isArray(data.pending) ? data.pending : [];
-      }
-
-      async function fetchCraftAll() {
-        if (craftLoading.value) return;
-        craftLoading.value = true;
-        craftError.value = "";
-        try {
-          await Promise.all([fetchCraftMeta(), fetchCraftList()]);
-        } catch (e) {
-          craftError.value = e && e.message ? e.message : "加载失败";
-        } finally {
-          craftLoading.value = false;
-        }
-      }
-
-      function ensureCraftActiveKey() {
-        const list = Array.isArray(craftActiveList.value) ? craftActiveList.value : [];
-        const cur = String(craftActiveKey.value || "");
-        if (cur && list.some((it) => it && String(it.id || "") === cur)) return;
-        craftActiveKey.value = list[0] ? String(list[0].id || "") : "";
-      }
-
-      watch(
-        () =>
-          [
-            routePath.value,
-            craftActiveTab.value,
-            (craftProjects.value || []).map((it) => String(it?.id || "")).join(","),
-            (craftPending.value || []).map((it) => String(it?.id || "")).join(","),
-          ].join("|"),
-        () => {
-          if (routePath.value !== "/extras/craft") return;
-          ensureCraftActiveKey();
-        },
-        { immediate: true }
-      );
-
-      function craftOpenSubmit() {
-        if (!craftOauthConfigured.value) {
-          toastError("未配置 GitHub OAuth，无法提交");
-          return;
-        }
-        if (!craftGithubUser.value) {
-          toastError("请先使用 GitHub 登录");
-          return;
-        }
-
-        craftSubmitError.value = "";
-        craftSubmitOpen.value = true;
-        if (!String(craftSubmitJson.value || "").trim()) {
-          craftSubmitJson.value = `{
-  \"name\": \"\",
-  \"type\": \"plugin\",
-  \"repo\": \"\",
-  \"download\": \"\",
-  \"description\": \"\",
-  \"typecho\": \"1.2.1\",
-  \"version\": \"1.0.0\",
-  \"author\": \"\",
-  \"donate\": \"\"
-}`;
-        }
-      }
-
-      function craftCloseSubmit() {
-        craftSubmitOpen.value = false;
-        craftSubmitError.value = "";
-      }
-
-      async function craftSubmitProject() {
-        if (craftSubmitting.value) return;
-        craftSubmitting.value = true;
-        craftSubmitError.value = "";
-        try {
-          await apiPost("craft.submit", {
-            json: String(craftSubmitJson.value || ""),
-            message: String(craftSubmitMessage.value || ""),
-          });
-          toastSuccess("已提交，等待审核");
-          craftSubmitOpen.value = false;
-          craftSubmitMessage.value = "";
-          await fetchCraftList();
-          craftActiveTab.value = "pending";
-          ensureCraftActiveKey();
-        } catch (e) {
-          craftSubmitError.value = e && e.message ? e.message : "提交失败";
-        } finally {
-          craftSubmitting.value = false;
-        }
-      }
-
-      async function craftApproveActive() {
-        if (craftModerating.value) return;
-        const item = craftActiveItem.value;
-        if (!item || item.status !== "pending") return;
-        if (!confirm("确认通过该项目？")) return;
-        craftModerating.value = true;
-        try {
-          await apiPost("craft.approve", { id: String(item.id || "") });
-          toastSuccess("已通过审核");
-          await fetchCraftList();
-          craftActiveTab.value = "projects";
-          ensureCraftActiveKey();
-        } catch (e) {
-          toastError(e && e.message ? e.message : "操作失败");
-        } finally {
-          craftModerating.value = false;
-        }
-      }
-
-      async function craftRejectActive() {
-        if (craftModerating.value) return;
-        const item = craftActiveItem.value;
-        if (!item || item.status !== "pending") return;
-        const reason = prompt("拒绝原因（可选）", "");
-        if (reason === null) return;
-        if (!confirm("确认拒绝该项目？")) return;
-        craftModerating.value = true;
-        try {
-          await apiPost("craft.reject", { id: String(item.id || ""), reason: String(reason || "") });
-          toastSuccess("已拒绝");
-          await fetchCraftList();
-          craftActiveTab.value = "pending";
-          ensureCraftActiveKey();
-        } catch (e) {
-          toastError(e && e.message ? e.message : "操作失败");
-        } finally {
-          craftModerating.value = false;
-        }
-      }
-
-      onMounted(() => {
-        try {
-          window.addEventListener("message", async (event) => {
-            const data = event && event.data && typeof event.data === "object" ? event.data : null;
-            if (!data || data.source !== "v3a-github-oauth") return;
-            if (data.ok) {
-              toastSuccess("GitHub 登录成功");
-              try {
-                await fetchCraftMeta();
-              } catch (e) {}
-            } else {
-              toastError(String(data.message || "GitHub 登录失败"));
-            }
-          });
-        } catch (e) {}
-      });
 
       const shouTuTaEnabled = computed(() => !!(V3A && V3A.extras && V3A.extras.shouTuTaEnabled));
       const shouTuTaLoading = ref(false);
@@ -10211,9 +9923,6 @@
             await fetchUpgradeSettings();
             await fetchUpgradeInfo();
           }
-          if (p === "/extras/craft") {
-            await fetchCraftAll();
-          }
           if (p === "/extras/shoutu") {
             await fetchShouTuTaStats();
             startShouTuTaPolling();
@@ -10389,9 +10098,6 @@
         if (routePath.value === "/maintenance/upgrade") {
           await fetchUpgradeSettings();
           await fetchUpgradeInfo();
-        }
-        if (routePath.value === "/extras/craft") {
-          await fetchCraftAll();
         }
         if (routePath.value === "/extras/shoutu") {
           await fetchShouTuTaStats();
@@ -11036,37 +10742,6 @@
         extrasPanelUrl,
         onExtrasPanelIframeLoad,
         reloadExtrasPanelIframe,
-        craftLoading,
-        craftError,
-        craftRepoUrl,
-        craftOauthConfigured,
-        craftGithubUser,
-        craftIsAdmin,
-        craftRepoReady,
-        craftProjects,
-        craftPending,
-        craftActiveTab,
-        craftActiveKey,
-        craftKeywords,
-        craftFilteredList,
-        craftCountText,
-        craftActiveItem,
-        craftActiveJsonText,
-        fetchCraftAll,
-        craftOpenRepo,
-        craftStartGithubLogin,
-        craftLogoutGithub,
-        craftOpenSubmit,
-        craftCloseSubmit,
-        craftSubmitOpen,
-        craftSubmitJson,
-        craftSubmitMessage,
-        craftSubmitting,
-        craftSubmitError,
-        craftSubmitProject,
-        craftModerating,
-        craftApproveActive,
-        craftRejectActive,
         shouTuTaEnabled,
         shouTuTaLoading,
         shouTuTaError,
@@ -13995,162 +13670,6 @@
                     </div>
                   </template>
                 </template>
-              </div>
-            </template>
-
-            <template v-else-if="routePath === '/extras/craft'">
-              <div class="v3a-container">
-                <div class="v3a-pagehead">
-                  <div class="v3a-head-left">
-                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
-                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
-                    </button>
-                    <div class="v3a-pagehead-title">{{ crumb }}</div>
-                  </div>
-                  <div class="v3a-pagehead-actions">
-                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="craftLoading" @click="fetchCraftAll()">
-                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
-                    </button>
-                    <button class="v3a-actionbtn" type="button" title="跳转仓库" :disabled="!craftRepoUrl" @click="craftOpenRepo()">
-                      <span class="v3a-icon" v-html="ICONS.squareArrowOutUpRight"></span>
-                    </button>
-                    <button class="v3a-actionbtn" type="button" :title="craftGithubUser ? ('已登录 @' + craftGithubUser.login + '（点击退出）') : '登录账号'" :disabled="!craftOauthConfigured" @click="craftGithubUser ? craftLogoutGithub() : craftStartGithubLogin()">
-                      <span class="v3a-icon" v-html="ICONS.github"></span>
-                    </button>
-                  </div>
-                </div>
-
-                <div v-if="craftError" class="v3a-alert" style="margin-bottom: 12px;">{{ craftError }}</div>
-                <div v-if="craftLoading" class="v3a-muted">正在加载…</div>
-
-                <div v-else class="v3a-craft-split">
-                  <div class="v3a-craft-left">
-                    <div class="v3a-craft-left-head">
-                      <div class="v3a-craft-tabs" role="tablist" aria-label="列表切换">
-                        <button class="v3a-craft-tab" :class="{ active: craftActiveTab === 'projects' }" type="button" @click="craftActiveTab = 'projects'">项目</button>
-                        <button class="v3a-craft-tab" :class="{ active: craftActiveTab === 'pending' }" type="button" @click="craftActiveTab = 'pending'">待审核</button>
-                      </div>
-                      <span class="v3a-muted">{{ craftCountText }}</span>
-                    </div>
-
-                    <div class="v3a-craft-toolbar">
-                      <div class="v3a-searchbox v3a-searchbox-full">
-                        <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
-                        <input class="v3a-input" v-model="craftKeywords" placeholder="搜索项目..." />
-                      </div>
-                      <button class="v3a-btn primary" type="button" @click="craftOpenSubmit()" :disabled="!craftGithubUser || !craftOauthConfigured">提交项目</button>
-                    </div>
-
-                    <div class="v3a-craft-list">
-                      <div v-if="!craftFilteredList.length" class="v3a-craft-empty">
-                        <div class="v3a-muted">暂无项目</div>
-                      </div>
-                      <div v-else>
-                        <div
-                          v-for="it in craftFilteredList"
-                          :key="it.id"
-                          class="v3a-craft-item"
-                          :class="{ active: craftActiveKey === it.id }"
-                          role="button"
-                          tabindex="0"
-                          @click="craftActiveKey = it.id"
-                          @keyup.enter="craftActiveKey = it.id"
-                        >
-                          <div class="v3a-craft-item-main">
-                            <div class="v3a-craft-item-title-row">
-                              <div class="v3a-craft-item-title">{{ it.name || '（未命名）' }}</div>
-                              <span v-if="it.version" class="v3a-craft-item-id">v{{ it.version }}</span>
-                            </div>
-                            <div class="v3a-craft-item-meta">
-                              <span class="v3a-pill info">{{ it.type || '项目' }}</span>
-                              <span v-if="it.status === 'pending'" class="v3a-pill warn">待审核</span>
-                              <span v-else class="v3a-pill success">已上线</span>
-                              <span v-if="it.author" class="v3a-muted">· {{ it.author }}</span>
-                            </div>
-                          </div>
-                          <div class="v3a-craft-item-time">{{ formatTimeAgo(it.updatedAt || it.submittedAt) }}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="v3a-craft-right">
-                    <div class="v3a-craft-right-head">
-                      <div class="v3a-craft-right-titles">
-                        <template v-if="craftActiveItem">
-                          <div class="v3a-craft-right-title">{{ craftActiveItem.name || '项目详情' }}</div>
-                          <div class="v3a-craft-right-sub v3a-muted">
-                            <span>{{ craftActiveItem.type || '—' }}</span>
-                            <template v-if="craftActiveItem.version"><span>·</span><span>v{{ craftActiveItem.version }}</span></template>
-                            <template v-if="craftActiveItem.author"><span>·</span><span>{{ craftActiveItem.author }}</span></template>
-                            <span>·</span>
-                            <span>{{ craftActiveItem.status === 'pending' ? '待审核' : '已上线' }}</span>
-                          </div>
-                        </template>
-                        <template v-else>
-                          <div class="v3a-craft-right-title">创意工坊</div>
-                          <div class="v3a-craft-right-sub v3a-muted">选择左侧项目查看详情</div>
-                        </template>
-                      </div>
-
-                      <div class="v3a-craft-right-actions">
-                        <template v-if="craftActiveItem && craftActiveItem.status === 'pending' && craftIsAdmin">
-                          <button class="v3a-btn primary" type="button" @click="craftApproveActive()" :disabled="craftModerating">通过</button>
-                          <button class="v3a-btn" type="button" style="color: var(--v3a-danger);" @click="craftRejectActive()" :disabled="craftModerating">拒绝</button>
-                        </template>
-                        <a v-if="craftActiveItem && craftActiveItem.repo" class="v3a-btn" :href="craftActiveItem.repo" target="_blank" rel="noreferrer">
-                          <span class="v3a-icon" v-html="ICONS.squareArrowOutUpRight"></span>
-                          仓库
-                        </a>
-                      </div>
-                    </div>
-
-                    <div class="v3a-craft-right-body">
-                      <div v-if="!craftActiveItem" class="v3a-craft-empty">
-                        <span class="v3a-icon v3a-craft-empty-icon" v-html="ICONS.cable"></span>
-                        <div class="v3a-muted">登录 GitHub 后可提交你的项目（需审核）。</div>
-                      </div>
-                      <div v-else class="v3a-card v3a-craft-detail-card">
-                        <div class="bd">
-                          <pre class="v3a-craft-json">{{ craftActiveJsonText }}</pre>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div v-if="craftSubmitOpen" class="v3a-modal">
-                  <div class="v3a-modal-mask" @click="craftCloseSubmit()"></div>
-                  <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 980px;">
-                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="craftCloseSubmit()">
-                      <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
-                    </button>
-                    <div class="v3a-modal-head">
-                      <div class="v3a-modal-title">提交项目</div>
-                      <div class="v3a-modal-subtitle">提交后进入待审核列表（会生成一次 Git Commit）。</div>
-                    </div>
-                    <div class="v3a-modal-body">
-                      <div v-if="craftSubmitError" class="v3a-alert" style="margin-bottom: 12px;">{{ craftSubmitError }}</div>
-
-                      <div class="v3a-modal-item">
-                        <label class="v3a-modal-label">提交说明（commit message）</label>
-                        <input class="v3a-input v3a-modal-input" v-model="craftSubmitMessage" placeholder="可留空（自动生成）" />
-                      </div>
-
-                      <div class="v3a-modal-item">
-                        <label class="v3a-modal-label">项目 JSON</label>
-                        <textarea class="v3a-textarea" v-model="craftSubmitJson" placeholder="粘贴 JSON…" style="min-height: 320px;"></textarea>
-                      </div>
-
-                      <div class="v3a-modal-actions">
-                        <button class="v3a-btn v3a-modal-btn" type="button" @click="craftCloseSubmit()">取消</button>
-                        <button class="v3a-btn primary v3a-modal-btn" type="button" @click="craftSubmitProject()" :disabled="craftSubmitting">
-                          {{ craftSubmitting ? "提交中…" : "提交" }}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </template>
 
