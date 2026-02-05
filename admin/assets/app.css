@@ -3162,6 +3162,246 @@ a {
   color: var(--v3a-text);
 }
 
+.v3a-craft-split {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--content-bg);
+  min-height: 560px;
+}
+
+@media (max-width: 48rem) {
+  .v3a-craft-split {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+}
+
+.v3a-craft-left {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--content-bg);
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 48rem) {
+  .v3a-craft-left {
+    border-right: 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+}
+
+.v3a-craft-left-head {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.v3a-craft-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.v3a-craft-tab {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.03);
+  color: rgba(0, 0, 0, 0.72);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.v3a-craft-tab.active {
+  background: #fff;
+  color: rgba(0, 0, 0, 0.82);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.v3a-craft-tab:active {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.v3a-craft-toolbar {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.v3a-craft-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0;
+}
+
+.v3a-craft-empty {
+  padding: 60px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.v3a-craft-empty-icon,
+.v3a-craft-empty-icon svg {
+  width: 32px;
+  height: 32px;
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.v3a-craft-item {
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.v3a-craft-item:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.v3a-craft-item.active {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.v3a-craft-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.v3a-craft-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.v3a-craft-item-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.82);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v3a-craft-item-id {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.38);
+  white-space: nowrap;
+}
+
+.v3a-craft-item-meta {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.v3a-craft-item-time {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.38);
+  white-space: nowrap;
+}
+
+.v3a-craft-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--page-bg);
+}
+
+.v3a-craft-right-head {
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  background: var(--content-bg);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.v3a-craft-right-titles {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.v3a-craft-right-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.82);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v3a-craft-right-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.v3a-craft-right-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.v3a-craft-right-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+
+.v3a-craft-detail-card {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.v3a-craft-json {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.7;
+  font-size: 12px;
+  color: var(--v3a-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+}
+
 .v3a-actionbtn {
   width: 34px;
   height: 34px;

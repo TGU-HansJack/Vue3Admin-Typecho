@@ -2623,6 +2623,428 @@ class V3A_CommentsEditProxy extends \Widget\Comments\Edit
     }
 }
 
+function v3a_craft_plugin_options($options)
+{
+    try {
+        return $options->plugin('Vue3Admin');
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+function v3a_craft_repo_root($options): string
+{
+    $path = '';
+    try {
+        $pluginOptions = v3a_craft_plugin_options($options);
+        $path = $pluginOptions ? (string) ($pluginOptions->craftRepoPath ?? '') : '';
+    } catch (\Throwable $e) {
+        $path = '';
+    }
+
+    if (trim($path) === '') {
+        $path = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'Craft-Typecho';
+    }
+
+    return rtrim((string) $path, '/\\');
+}
+
+function v3a_craft_repo_url($options): string
+{
+    $url = '';
+    try {
+        $pluginOptions = v3a_craft_plugin_options($options);
+        $url = $pluginOptions ? (string) ($pluginOptions->craftRepoUrl ?? '') : '';
+    } catch (\Throwable $e) {
+        $url = '';
+    }
+
+    $url = trim($url);
+    return $url !== '' ? $url : 'https://github.com/TGU-HansJack/Craft-Typecho';
+}
+
+function v3a_craft_oauth_configured($options): bool
+{
+    $id = '';
+    $secret = '';
+    try {
+        $pluginOptions = v3a_craft_plugin_options($options);
+        $id = $pluginOptions ? (string) ($pluginOptions->githubClientId ?? '') : '';
+        $secret = $pluginOptions ? (string) ($pluginOptions->githubClientSecret ?? '') : '';
+    } catch (\Throwable $e) {
+        $id = '';
+        $secret = '';
+    }
+
+    return trim($id) !== '' && trim($secret) !== '';
+}
+
+function v3a_craft_repo_ready(string $repoRoot): bool
+{
+    $root = rtrim($repoRoot, '/\\');
+    return $root !== '' && is_dir($root) && is_dir($root . DIRECTORY_SEPARATOR . '.git');
+}
+
+function v3a_craft_dirs(string $repoRoot): array
+{
+    $root = rtrim($repoRoot, '/\\');
+    $data = $root . DIRECTORY_SEPARATOR . 'data';
+    return [
+        'root' => $root,
+        'data' => $data,
+        'projects' => $data . DIRECTORY_SEPARATOR . 'projects',
+        'pending' => $data . DIRECTORY_SEPARATOR . 'pending',
+        'rejected' => $data . DIRECTORY_SEPARATOR . 'rejected',
+        'lock' => $data . DIRECTORY_SEPARATOR . '.v3a_craft.lock',
+    ];
+}
+
+function v3a_craft_ensure_dirs(string $repoRoot): array
+{
+    $dirs = v3a_craft_dirs($repoRoot);
+    v3a_mkdir_p($dirs['data']);
+    v3a_mkdir_p($dirs['projects']);
+    v3a_mkdir_p($dirs['pending']);
+    v3a_mkdir_p($dirs['rejected']);
+    return $dirs;
+}
+
+function v3a_craft_get_option_value($db, string $name, int $user = 0): string
+{
+    try {
+        $row = $db->fetchObject(
+            $db->select('value')->from('table.options')->where('name = ? AND user = ?', $name, $user)->limit(1)
+        );
+        return is_object($row) ? (string) ($row->value ?? '') : '';
+    } catch (\Throwable $e) {
+        return '';
+    }
+}
+
+function v3a_craft_delete_option($db, string $name, int $user = 0): void
+{
+    try {
+        $db->query(
+            $db->delete('table.options')->where('name = ? AND user = ?', $name, $user),
+            \Typecho\Db::WRITE
+        );
+    } catch (\Throwable $e) {
+    }
+}
+
+function v3a_craft_with_lock(string $repoRoot, callable $fn)
+{
+    $dirs = v3a_craft_ensure_dirs($repoRoot);
+    $lockPath = (string) ($dirs['lock'] ?? '');
+    if ($lockPath === '') {
+        return $fn();
+    }
+
+    $fp = @fopen($lockPath, 'c+');
+    if (!$fp) {
+        return $fn();
+    }
+
+    $locked = false;
+    try {
+        $locked = @flock($fp, LOCK_EX);
+    } catch (\Throwable $e) {
+        $locked = false;
+    }
+
+    try {
+        return $fn();
+    } finally {
+        try {
+            if ($locked) {
+                @flock($fp, LOCK_UN);
+            }
+        } catch (\Throwable $e) {
+        }
+        try {
+            @fclose($fp);
+        } catch (\Throwable $e) {
+        }
+    }
+}
+
+function v3a_craft_sanitize_commit_message(string $msg, string $fallback = 'Craft update'): string
+{
+    $s = trim((string) preg_replace('/\\s+/u', ' ', $msg));
+    if ($s === '') {
+        $s = $fallback;
+    }
+
+    if (function_exists('mb_substr')) {
+        $s = (string) mb_substr($s, 0, 120);
+    } else {
+        $s = substr($s, 0, 120);
+    }
+
+    return trim($s) !== '' ? trim($s) : $fallback;
+}
+
+function v3a_craft_slugify(string $name): string
+{
+    $s = strtolower(trim($name));
+    $s = (string) preg_replace('/\\s+/u', '-', $s);
+    $s = (string) preg_replace('/[^a-z0-9\\-_.]+/u', '-', $s);
+    $s = (string) preg_replace('/-+/u', '-', $s);
+    $s = trim($s, '-');
+    return $s;
+}
+
+function v3a_craft_parse_json_payload(string $raw): ?array
+{
+    $raw = trim($raw);
+    if ($raw === '') {
+        return null;
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return null;
+    }
+
+    if (isset($decoded['project']) && is_array($decoded['project'])) {
+        $project = (array) $decoded['project'];
+        $meta = isset($decoded['meta']) && is_array($decoded['meta']) ? (array) $decoded['meta'] : [];
+        return ['project' => $project, 'meta' => $meta];
+    }
+
+    return ['project' => $decoded, 'meta' => []];
+}
+
+function v3a_craft_project_summary(array $project): array
+{
+    $name = '';
+    $type = '';
+    $version = '';
+    $author = '';
+    $repo = '';
+    $download = '';
+
+    try {
+        $name = trim((string) ($project['name'] ?? $project['title'] ?? ''));
+        $type = trim((string) ($project['type'] ?? ''));
+        $version = trim((string) ($project['version'] ?? ''));
+        $author = trim((string) ($project['author'] ?? ''));
+        $repo = trim((string) ($project['repo'] ?? $project['repository'] ?? $project['repoUrl'] ?? ''));
+        $download = trim((string) ($project['download'] ?? $project['downloadUrl'] ?? ''));
+    } catch (\Throwable $e) {
+    }
+
+    if ($repo === '' && isset($project['links']) && is_array($project['links'])) {
+        try {
+            $repo = trim((string) ($project['links']['repo'] ?? $project['links']['repository'] ?? ''));
+            $download = trim((string) ($project['links']['download'] ?? $download));
+        } catch (\Throwable $e) {
+        }
+    }
+
+    return [
+        'name' => $name,
+        'type' => $type,
+        'version' => $version,
+        'author' => $author,
+        'repo' => $repo,
+        'download' => $download,
+    ];
+}
+
+function v3a_craft_item_from_file(string $path, string $status): ?array
+{
+    if (!is_file($path)) {
+        return null;
+    }
+
+    $raw = @file_get_contents($path);
+    if (!is_string($raw) || trim($raw) === '') {
+        return null;
+    }
+
+    $parsed = v3a_craft_parse_json_payload($raw);
+    if (!$parsed) {
+        return null;
+    }
+
+    $project = (array) ($parsed['project'] ?? []);
+    $meta = isset($parsed['meta']) && is_array($parsed['meta']) ? (array) $parsed['meta'] : [];
+
+    $summary = v3a_craft_project_summary($project);
+    $mtime = @filemtime($path);
+    $updatedAt = $mtime !== false ? (int) $mtime : 0;
+
+    $id = basename($path);
+    $id = preg_replace('/[^A-Za-z0-9._\\-]/', '', (string) $id);
+
+    $submittedAt = 0;
+    try {
+        $submittedAt = (int) ($meta['submittedAt'] ?? 0);
+    } catch (\Throwable $e) {
+        $submittedAt = 0;
+    }
+
+    return [
+        'id' => $id,
+        'status' => $status,
+        'name' => (string) ($summary['name'] ?? ''),
+        'type' => (string) ($summary['type'] ?? ''),
+        'version' => (string) ($summary['version'] ?? ''),
+        'author' => (string) ($summary['author'] ?? ''),
+        'repo' => (string) ($summary['repo'] ?? ''),
+        'download' => (string) ($summary['download'] ?? ''),
+        'updatedAt' => $updatedAt,
+        'submittedAt' => $submittedAt,
+        'project' => $project,
+        'meta' => $meta,
+    ];
+}
+
+function v3a_craft_shell_join(array $parts): string
+{
+    $out = [];
+    $i = 0;
+    foreach ($parts as $part) {
+        $s = (string) $part;
+        if ($s === '') {
+            $i++;
+            continue;
+        }
+
+        // Keep the binary name unquoted when possible (works on both Windows & Linux).
+        if ($i === 0 && preg_match('/\\s/', $s) !== 1) {
+            $out[] = $s;
+        } else {
+            $out[] = escapeshellarg($s);
+        }
+        $i++;
+    }
+
+    return implode(' ', $out);
+}
+
+function v3a_craft_proc_run($cmd, ?string $cwd = null, int $timeout = 20): array
+{
+    $timeout = max(3, min(60, (int) $timeout));
+
+    if (!function_exists('proc_open')) {
+        throw new \RuntimeException('proc_open is disabled');
+    }
+
+    if (is_array($cmd)) {
+        $cmd = v3a_craft_shell_join($cmd);
+    }
+
+    $cmd = trim((string) $cmd);
+    if ($cmd === '') {
+        throw new \RuntimeException('Empty command');
+    }
+
+    $descriptors = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+
+    $process = @proc_open($cmd, $descriptors, $pipes, $cwd ?: null);
+    if (!is_resource($process)) {
+        throw new \RuntimeException('Failed to start process');
+    }
+
+    @fclose($pipes[0]);
+    stream_set_blocking($pipes[1], false);
+    stream_set_blocking($pipes[2], false);
+
+    $stdout = '';
+    $stderr = '';
+    $start = microtime(true);
+
+    while (true) {
+        $stdout .= (string) stream_get_contents($pipes[1]);
+        $stderr .= (string) stream_get_contents($pipes[2]);
+
+        $status = proc_get_status($process);
+        if (!$status || empty($status['running'])) {
+            break;
+        }
+
+        if ((microtime(true) - $start) > $timeout) {
+            @proc_terminate($process);
+            throw new \RuntimeException('Process timeout');
+        }
+
+        usleep(20000);
+    }
+
+    $stdout .= (string) stream_get_contents($pipes[1]);
+    $stderr .= (string) stream_get_contents($pipes[2]);
+    @fclose($pipes[1]);
+    @fclose($pipes[2]);
+
+    $code = proc_close($process);
+
+    return ['code' => (int) $code, 'stdout' => $stdout, 'stderr' => $stderr];
+}
+
+function v3a_craft_git_run(string $repoRoot, array $args, int $timeout = 20): array
+{
+    $cmd = array_merge(['git', '-C', $repoRoot], $args);
+    $res = v3a_craft_proc_run($cmd, null, $timeout);
+    if ((int) ($res['code'] ?? 1) !== 0) {
+        $out = trim((string) ($res['stderr'] ?? ''));
+        if ($out === '') {
+            $out = trim((string) ($res['stdout'] ?? ''));
+        }
+        throw new \RuntimeException($out !== '' ? $out : 'Git command failed');
+    }
+    return $res;
+}
+
+function v3a_craft_git_require_clean(string $repoRoot): void
+{
+    $res = v3a_craft_git_run($repoRoot, ['status', '--porcelain'], 12);
+    $out = trim((string) ($res['stdout'] ?? ''));
+    if ($out !== '') {
+        throw new \RuntimeException('Craft 仓库存在未提交变更，请先在服务器中清理/提交后再操作。');
+    }
+}
+
+function v3a_craft_git_ensure_identity(string $repoRoot): void
+{
+    $name = '';
+    $email = '';
+
+    try {
+        $res = v3a_craft_proc_run(['git', '-C', $repoRoot, 'config', '--get', 'user.name'], null, 6);
+        $name = trim((string) ($res['stdout'] ?? ''));
+    } catch (\Throwable $e) {
+        $name = '';
+    }
+
+    try {
+        $res = v3a_craft_proc_run(['git', '-C', $repoRoot, 'config', '--get', 'user.email'], null, 6);
+        $email = trim((string) ($res['stdout'] ?? ''));
+    } catch (\Throwable $e) {
+        $email = '';
+    }
+
+    if ($name === '') {
+        v3a_craft_git_run($repoRoot, ['config', 'user.name', 'Vue3Admin'], 6);
+    }
+    if ($email === '') {
+        v3a_craft_git_run($repoRoot, ['config', 'user.email', 'vue3admin@local'], 6);
+    }
+}
+
+function v3a_craft_git_commit_all(string $repoRoot, string $message): string
+{
+    v3a_craft_git_run($repoRoot, ['add', '-A'], 30);
+    v3a_craft_git_run($repoRoot, ['commit', '--no-gpg-sign', '-m', $message], 30);
+    $head = v3a_craft_git_run($repoRoot, ['rev-parse', 'HEAD'], 10);
+    return trim((string) ($head['stdout'] ?? ''));
+}
+
 try {
     $db = \Typecho\Db::get();
 
@@ -4196,6 +4618,442 @@ try {
         }
 
         v3a_exit_json(0, ['ip' => $ip, 'score' => $score, 'data' => $decoded['data'] ?? null]);
+    }
+
+    if ($do === 'craft.meta') {
+        v3a_require_role($user, 'subscriber');
+
+        $repoRoot = v3a_craft_repo_root($options);
+        $repoReady = v3a_craft_repo_ready($repoRoot) ? 1 : 0;
+        $repoUrl = v3a_craft_repo_url($options);
+        $oauthConfigured = v3a_craft_oauth_configured($options) ? 1 : 0;
+
+        $githubUser = null;
+        try {
+            $uid = (int) ($user->uid ?? 0);
+            if ($uid > 0) {
+                $raw = v3a_craft_get_option_value($db, 'v3a_github_user', $uid);
+                $decoded = v3a_json_assoc($raw);
+                if (!empty($decoded)) {
+                    $githubUser = $decoded;
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        $isAdmin = 0;
+        try {
+            $isAdmin = $user->pass('administrator', true) ? 1 : 0;
+        } catch (\Throwable $e) {
+            $isAdmin = 0;
+        }
+
+        v3a_exit_json(0, [
+            'repoUrl' => $repoUrl,
+            'repoReady' => $repoReady,
+            'oauthConfigured' => $oauthConfigured,
+            'githubUser' => $githubUser,
+            'isAdmin' => $isAdmin,
+        ]);
+    }
+
+    if ($do === 'craft.list') {
+        v3a_require_role($user, 'subscriber');
+
+        $repoRoot = v3a_craft_repo_root($options);
+        if (!v3a_craft_repo_ready($repoRoot)) {
+            v3a_exit_json(500, null, 'Craft 仓库未就绪，请检查插件设置与服务器目录。');
+        }
+
+        $dirs = v3a_craft_ensure_dirs($repoRoot);
+        $projectsDir = (string) ($dirs['projects'] ?? '');
+        $pendingDir = (string) ($dirs['pending'] ?? '');
+
+        $isAdmin = 0;
+        try {
+            $isAdmin = $user->pass('administrator', true) ? 1 : 0;
+        } catch (\Throwable $e) {
+            $isAdmin = 0;
+        }
+
+        $projects = [];
+        if ($projectsDir !== '' && is_dir($projectsDir)) {
+            foreach ((array) glob($projectsDir . DIRECTORY_SEPARATOR . '*.json') as $path) {
+                $item = v3a_craft_item_from_file((string) $path, 'approved');
+                if (!$item) {
+                    continue;
+                }
+                $item['id'] = 'projects/' . (string) ($item['id'] ?? '');
+                $projects[] = $item;
+            }
+        }
+
+        $pending = [];
+        if ($pendingDir !== '' && is_dir($pendingDir)) {
+            foreach ((array) glob($pendingDir . DIRECTORY_SEPARATOR . '*.json') as $path) {
+                $item = v3a_craft_item_from_file((string) $path, 'pending');
+                if (!$item) {
+                    continue;
+                }
+
+                if (!$isAdmin) {
+                    $byUid = 0;
+                    try {
+                        $byUid = (int) ($item['meta']['submittedBy']['uid'] ?? 0);
+                    } catch (\Throwable $e) {
+                        $byUid = 0;
+                    }
+                    if ($byUid !== (int) ($user->uid ?? 0)) {
+                        continue;
+                    }
+                }
+
+                $item['id'] = 'pending/' . (string) ($item['id'] ?? '');
+                $pending[] = $item;
+            }
+        }
+
+        usort($projects, function ($a, $b) {
+            return (int) ($b['updatedAt'] ?? 0) <=> (int) ($a['updatedAt'] ?? 0);
+        });
+        usort($pending, function ($a, $b) {
+            return (int) ($b['submittedAt'] ?? ($b['updatedAt'] ?? 0)) <=> (int) ($a['submittedAt'] ?? ($a['updatedAt'] ?? 0));
+        });
+
+        v3a_exit_json(0, [
+            'projects' => $projects,
+            'pending' => $pending,
+        ]);
+    }
+
+    if ($do === 'craft.github.logout') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'subscriber');
+
+        $uid = (int) ($user->uid ?? 0);
+        if ($uid > 0) {
+            v3a_craft_delete_option($db, 'v3a_github_user', $uid);
+        }
+
+        v3a_exit_json(0, ['ok' => 1]);
+    }
+
+    if ($do === 'craft.submit') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'subscriber');
+
+        if (!v3a_craft_oauth_configured($options)) {
+            v3a_exit_json(400, null, 'GitHub OAuth 未配置');
+        }
+
+        $uid = (int) ($user->uid ?? 0);
+        $gh = $uid > 0 ? v3a_json_assoc(v3a_craft_get_option_value($db, 'v3a_github_user', $uid)) : [];
+        $ghLogin = trim((string) ($gh['login'] ?? ''));
+        if ($ghLogin === '') {
+            v3a_exit_json(400, null, '请先登录 GitHub');
+        }
+
+        $repoRoot = v3a_craft_repo_root($options);
+        if (!v3a_craft_repo_ready($repoRoot)) {
+            v3a_exit_json(500, null, 'Craft 仓库未就绪，请检查插件设置与服务器目录。');
+        }
+
+        $payload = v3a_payload();
+        $rawJson = (string) ($payload['json'] ?? '');
+        $rawMsg = (string) ($payload['message'] ?? '');
+
+        if (strlen($rawJson) > 200000) {
+            v3a_exit_json(400, null, 'JSON 内容过大（限制 200KB）');
+        }
+
+        $parsed = v3a_craft_parse_json_payload($rawJson);
+        if (!$parsed) {
+            v3a_exit_json(400, null, 'JSON 格式错误');
+        }
+
+        $project = (array) ($parsed['project'] ?? []);
+        $summary = v3a_craft_project_summary($project);
+        $name = trim((string) ($summary['name'] ?? ''));
+        if ($name === '') {
+            v3a_exit_json(400, null, '缺少字段：name');
+        }
+
+        $repoUrl = trim((string) ($summary['repo'] ?? ''));
+        $downloadUrl = trim((string) ($summary['download'] ?? ''));
+        if ($repoUrl === '' && $downloadUrl === '') {
+            v3a_exit_json(400, null, '缺少字段：repo 或 download');
+        }
+
+        $ts = time();
+        $rand = '';
+        try {
+            $rand = bin2hex(random_bytes(4));
+        } catch (\Throwable $e) {
+            $rand = (string) mt_rand(100000, 999999);
+        }
+        $fileId = date('YmdHis', $ts) . '_' . $uid . '_' . $rand . '.json';
+        $fileId = preg_replace('/[^A-Za-z0-9._\\-]/', '', (string) $fileId);
+
+        $result = v3a_craft_with_lock($repoRoot, function () use ($db, $user, $repoRoot, $fileId, $project, $summary, $rawMsg, $gh, $ts) {
+            v3a_craft_git_require_clean($repoRoot);
+            v3a_craft_git_ensure_identity($repoRoot);
+
+            $dirs = v3a_craft_ensure_dirs($repoRoot);
+            $pendingDir = (string) ($dirs['pending'] ?? '');
+            if ($pendingDir === '' || !is_dir($pendingDir)) {
+                throw new \RuntimeException('Pending directory missing');
+            }
+
+            $path = $pendingDir . DIRECTORY_SEPARATOR . $fileId;
+            if (file_exists($path)) {
+                throw new \RuntimeException('Duplicate submission id');
+            }
+
+            $msg = v3a_craft_sanitize_commit_message($rawMsg, 'Submit: ' . (string) ($summary['name'] ?? ''));
+
+            $meta = [
+                'status' => 'pending',
+                'submittedAt' => $ts,
+                'submittedBy' => [
+                    'uid' => (int) ($user->uid ?? 0),
+                    'name' => (string) ($user->screenName ?? ''),
+                    'github' => (string) ($gh['login'] ?? ''),
+                    'githubId' => (int) ($gh['id'] ?? 0),
+                ],
+                'message' => $msg,
+            ];
+
+            $doc = ['project' => $project, 'meta' => $meta];
+            $encoded = json_encode($doc, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            if (!is_string($encoded) || trim($encoded) === '') {
+                throw new \RuntimeException('Encode failed');
+            }
+
+            if (@file_put_contents($path, $encoded . PHP_EOL, LOCK_EX) === false) {
+                throw new \RuntimeException('Write failed');
+            }
+
+            try {
+                $commit = v3a_craft_git_commit_all($repoRoot, $msg);
+            } catch (\Throwable $e) {
+                try {
+                    v3a_craft_git_run($repoRoot, ['reset', '--hard'], 20);
+                    v3a_craft_git_run($repoRoot, ['clean', '-fd'], 20);
+                } catch (\Throwable $e2) {
+                }
+                throw $e;
+            }
+
+            return [
+                'id' => 'pending/' . $fileId,
+                'commit' => $commit,
+            ];
+        });
+
+        v3a_exit_json(0, $result);
+    }
+
+    if ($do === 'craft.approve') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+
+        $repoRoot = v3a_craft_repo_root($options);
+        if (!v3a_craft_repo_ready($repoRoot)) {
+            v3a_exit_json(500, null, 'Craft 仓库未就绪，请检查插件设置与服务器目录。');
+        }
+
+        $payload = v3a_payload();
+        $idRaw = trim((string) ($payload['id'] ?? ''));
+        $idRaw = str_replace('\\', '/', $idRaw);
+        $id = $idRaw !== '' ? basename($idRaw) : '';
+        if (!preg_match('/^[A-Za-z0-9._\\-]+\\.json$/', $id)) {
+            v3a_exit_json(400, null, 'Invalid id');
+        }
+
+        $result = v3a_craft_with_lock($repoRoot, function () use ($repoRoot, $user, $id) {
+            v3a_craft_git_require_clean($repoRoot);
+            v3a_craft_git_ensure_identity($repoRoot);
+
+            $dirs = v3a_craft_ensure_dirs($repoRoot);
+            $pendingDir = (string) ($dirs['pending'] ?? '');
+            $projectsDir = (string) ($dirs['projects'] ?? '');
+            if ($pendingDir === '' || $projectsDir === '') {
+                throw new \RuntimeException('Directories missing');
+            }
+
+            $src = $pendingDir . DIRECTORY_SEPARATOR . $id;
+            if (!is_file($src)) {
+                throw new \RuntimeException('Pending item not found');
+            }
+
+            $raw = (string) @file_get_contents($src);
+            $parsed = v3a_craft_parse_json_payload($raw);
+            if (!$parsed) {
+                throw new \RuntimeException('Invalid JSON');
+            }
+
+            $project = (array) ($parsed['project'] ?? []);
+            $meta = isset($parsed['meta']) && is_array($parsed['meta']) ? (array) $parsed['meta'] : [];
+            $summary = v3a_craft_project_summary($project);
+            $name = trim((string) ($summary['name'] ?? ''));
+
+            $slug = v3a_craft_slugify($name);
+            if ($slug === '') {
+                $slug = 'project-' . preg_replace('/\\.json$/', '', $id);
+            }
+
+            $destFile = $slug . '.json';
+            $dest = $projectsDir . DIRECTORY_SEPARATOR . $destFile;
+            if (is_file($dest)) {
+                $destFile = $slug . '-' . substr(md5($id), 0, 6) . '.json';
+                $dest = $projectsDir . DIRECTORY_SEPARATOR . $destFile;
+            }
+
+            $meta['status'] = 'approved';
+            $meta['approvedAt'] = time();
+            $meta['approvedBy'] = [
+                'uid' => (int) ($user->uid ?? 0),
+                'name' => (string) ($user->screenName ?? ''),
+            ];
+
+            $doc = ['project' => $project, 'meta' => $meta];
+            $encoded = json_encode($doc, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            if (!is_string($encoded) || trim($encoded) === '') {
+                throw new \RuntimeException('Encode failed');
+            }
+
+            if (!@rename($src, $dest)) {
+                throw new \RuntimeException('Move failed');
+            }
+            if (@file_put_contents($dest, $encoded . PHP_EOL, LOCK_EX) === false) {
+                throw new \RuntimeException('Write failed');
+            }
+
+            $msg = v3a_craft_sanitize_commit_message('', 'Approve: ' . ($name !== '' ? $name : $destFile));
+
+            try {
+                $commit = v3a_craft_git_commit_all($repoRoot, $msg);
+            } catch (\Throwable $e) {
+                try {
+                    v3a_craft_git_run($repoRoot, ['reset', '--hard'], 20);
+                    v3a_craft_git_run($repoRoot, ['clean', '-fd'], 20);
+                } catch (\Throwable $e2) {
+                }
+                throw $e;
+            }
+
+            return [
+                'ok' => 1,
+                'id' => 'projects/' . $destFile,
+                'commit' => $commit,
+            ];
+        });
+
+        v3a_exit_json(0, $result);
+    }
+
+    if ($do === 'craft.reject') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+
+        $repoRoot = v3a_craft_repo_root($options);
+        if (!v3a_craft_repo_ready($repoRoot)) {
+            v3a_exit_json(500, null, 'Craft 仓库未就绪，请检查插件设置与服务器目录。');
+        }
+
+        $payload = v3a_payload();
+        $idRaw = trim((string) ($payload['id'] ?? ''));
+        $reason = trim((string) ($payload['reason'] ?? ''));
+        $idRaw = str_replace('\\', '/', $idRaw);
+        $id = $idRaw !== '' ? basename($idRaw) : '';
+        if (!preg_match('/^[A-Za-z0-9._\\-]+\\.json$/', $id)) {
+            v3a_exit_json(400, null, 'Invalid id');
+        }
+
+        $result = v3a_craft_with_lock($repoRoot, function () use ($repoRoot, $user, $id, $reason) {
+            v3a_craft_git_require_clean($repoRoot);
+            v3a_craft_git_ensure_identity($repoRoot);
+
+            $dirs = v3a_craft_ensure_dirs($repoRoot);
+            $pendingDir = (string) ($dirs['pending'] ?? '');
+            $rejectedDir = (string) ($dirs['rejected'] ?? '');
+            if ($pendingDir === '' || $rejectedDir === '') {
+                throw new \RuntimeException('Directories missing');
+            }
+
+            $src = $pendingDir . DIRECTORY_SEPARATOR . $id;
+            if (!is_file($src)) {
+                throw new \RuntimeException('Pending item not found');
+            }
+
+            $raw = (string) @file_get_contents($src);
+            $parsed = v3a_craft_parse_json_payload($raw);
+            if (!$parsed) {
+                throw new \RuntimeException('Invalid JSON');
+            }
+
+            $project = (array) ($parsed['project'] ?? []);
+            $meta = isset($parsed['meta']) && is_array($parsed['meta']) ? (array) $parsed['meta'] : [];
+            $summary = v3a_craft_project_summary($project);
+            $name = trim((string) ($summary['name'] ?? ''));
+
+            $meta['status'] = 'rejected';
+            $meta['rejectedAt'] = time();
+            $meta['rejectedBy'] = [
+                'uid' => (int) ($user->uid ?? 0),
+                'name' => (string) ($user->screenName ?? ''),
+            ];
+            if ($reason !== '') {
+                $meta['reason'] = $reason;
+            }
+
+            $doc = ['project' => $project, 'meta' => $meta];
+            $encoded = json_encode($doc, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            if (!is_string($encoded) || trim($encoded) === '') {
+                throw new \RuntimeException('Encode failed');
+            }
+
+            $dest = $rejectedDir . DIRECTORY_SEPARATOR . $id;
+            if (!@rename($src, $dest)) {
+                throw new \RuntimeException('Move failed');
+            }
+            if (@file_put_contents($dest, $encoded . PHP_EOL, LOCK_EX) === false) {
+                throw new \RuntimeException('Write failed');
+            }
+
+            $msg = v3a_craft_sanitize_commit_message('', 'Reject: ' . ($name !== '' ? $name : $id));
+
+            try {
+                $commit = v3a_craft_git_commit_all($repoRoot, $msg);
+            } catch (\Throwable $e) {
+                try {
+                    v3a_craft_git_run($repoRoot, ['reset', '--hard'], 20);
+                    v3a_craft_git_run($repoRoot, ['clean', '-fd'], 20);
+                } catch (\Throwable $e2) {
+                }
+                throw $e;
+            }
+
+            return [
+                'ok' => 1,
+                'id' => 'rejected/' . $id,
+                'commit' => $commit,
+            ];
+        });
+
+        v3a_exit_json(0, $result);
     }
 
     if ($do === 'dashboard') {
