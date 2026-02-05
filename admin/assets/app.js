@@ -13511,8 +13511,9 @@
                                     @click="installWorkshopProject(row)"
                                   >{{ workshopInstallingId === String(row.id || row.name || row.link || '') ? '安装中…' : (row.installed ? '覆盖安装' : '安装') }}</button>
                                   <a v-if="row.link" class="v3a-mini-btn" :href="row.link" target="_blank" rel="noreferrer">跳转</a>
+                                  <a v-if="row.readme" class="v3a-mini-btn" :href="row.readme" target="_blank" rel="noreferrer">使用文档</a>
                                   <a v-if="row.donate" class="v3a-mini-btn" :href="row.donate" target="_blank" rel="noreferrer">赞赏</a>
-                                  <span v-if="!row.canInstall && !row.link && !row.donate" class="v3a-muted">—</span>
+                                  <span v-if="!row.canInstall && !row.link && !row.readme && !row.donate" class="v3a-muted">—</span>
                                 </div>
                               </td>
                             </tr>
