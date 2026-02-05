@@ -249,6 +249,8 @@
     logout: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-door-open-icon lucide-door-open"><path d="M11 20H2"/><path d="M11 4.562v16.157a1 1 0 0 0 1.242.97L19 20V5.562a2 2 0 0 0-1.515-1.94l-4-1A2 2 0 0 0 11 4.561z"/><path d="M11 4H8a2 2 0 0 0-2 2v14"/><path d="M14 12h.01"/><path d="M22 20h-3"/></svg>`,
     hardDriveDownload: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hard-drive-download-icon lucide-hard-drive-download"><path d="M12 2v8"/><path d="m16 6-4 4-4-4"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 18h.01"/><path d="M10 18h.01"/></svg>`,
     wifiCog: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wifi-cog-icon lucide-wifi-cog"><path d="m14.305 19.53.923-.382"/><path d="m15.228 16.852-.923-.383"/><path d="m16.852 15.228-.383-.923"/><path d="m16.852 20.772-.383.924"/><path d="m19.148 15.228.383-.923"/><path d="m19.53 21.696-.382-.924"/><path d="M2 7.82a15 15 0 0 1 20 0"/><path d="m20.772 16.852.924-.383"/><path d="m20.772 19.148.924.383"/><path d="M5 11.858a10 10 0 0 1 11.5-1.785"/><path d="M8.5 15.429a5 5 0 0 1 2.413-1.31"/><circle cx="18" cy="18" r="3"/></svg>`,
+    filePen: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-pen-icon lucide-file-pen"><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/></svg>`,
+    cloud: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cloud-icon lucide-cloud"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path></svg>`,
   };
 
   const SETTINGS = [
@@ -288,6 +290,7 @@
         { key: "posts-taxonomy", label: "分类/标签", to: "/posts/taxonomy", access: "editor" },
       ],
     },
+    { key: "drafts", label: "草稿箱", icon: "filePen", to: "/drafts", access: "contributor" },
     { key: "comments", label: "评论", icon: "comments", to: "/comments", badgeKey: "commentsWaiting", access: "editor" },
     {
       key: "pages",
@@ -645,6 +648,24 @@
     return `${Math.floor(diff / 31536000)} 年前`;
   }
 
+  function formatTimeAgoFine(ts) {
+    const n = Number(ts || 0);
+    if (!n) return "—";
+
+    const now = Math.floor(Date.now() / 1000);
+    let diff = now - n;
+    if (!Number.isFinite(diff)) return "—";
+    if (diff < 0) diff = 0;
+
+    if (diff < 3) return "刚刚";
+    if (diff < 60) return `${diff} 秒前`;
+    if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
+    if (diff < 2592000) return `${Math.floor(diff / 86400)} 天前`;
+    if (diff < 31536000) return `${Math.floor(diff / 2592000)} 个月前`;
+    return `${Math.floor(diff / 31536000)} 年前`;
+  }
+
   function getRoute() {
     const raw = (location.hash || "#/dashboard").replace(/^#/, "");
     return raw.startsWith("/") ? raw : "/" + raw;
@@ -729,7 +750,7 @@
       let mobileNavSwipeStartY = 0;
 
       function onMobileNavSwipeStart(e) {
-        if (!isNarrowScreen.value || !mobileNavOpen.value || !settingsOpen.value) return;
+        if (!mobileNavHasSettingsPanel.value || !mobileNavOpen.value) return;
         const t = e?.touches?.[0];
         if (!t) return;
         mobileNavSwipeActive = true;
@@ -740,7 +761,7 @@
       function onMobileNavSwipeEnd(e) {
         if (!mobileNavSwipeActive) return;
         mobileNavSwipeActive = false;
-        if (!settingsOpen.value) return;
+        if (!mobileNavHasSettingsPanel.value) return;
         const t = e?.changedTouches?.[0];
         if (!t) return;
         const dx = t.clientX - mobileNavSwipeStartX;
@@ -824,6 +845,9 @@
 
       const menuItems = computed(() => v3aFilterMenu(MENU));
       const settingsItems = computed(() => v3aFilterSettings(SETTINGS));
+      const mobileNavHasSettingsPanel = computed(
+        () => isNarrowScreen.value && settingsOpen.value && (settingsItems.value || []).length > 0
+      );
 
       function settingsKeyExists(key) {
         const k = normalizeSettingsKey(key);
@@ -2437,6 +2461,116 @@
       const postsSelectAllEl = ref(null);
       const postsPageJump = ref(1);
 
+      // Draft box
+      const draftsKeywords = ref("");
+      const draftsScope = ref("mine"); // mine|all (editors only)
+      const draftsPostsLoading = ref(false);
+      const draftsPostsError = ref("");
+      const draftsPostsItems = ref([]);
+      const draftsPostsPagination = reactive({
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        pageCount: 1,
+      });
+      const draftsPostsPageJump = ref(1);
+
+      const draftsPagesLoading = ref(false);
+      const draftsPagesError = ref("");
+      const draftsPagesItems = ref([]);
+
+      const draftsTab = ref("all"); // all|post|page
+      const draftsActiveKey = ref("");
+
+      function draftsItemAt(item) {
+        const created = Number(item?.created || 0) || 0;
+        const modified = Number(item?.modified || 0) || 0;
+        return modified && modified > created ? modified : created;
+      }
+
+      function draftsItemTitle(item) {
+        const title = String(item?.title || "").trim();
+        if (title) return title;
+        const cid = Number(item?.cid || 0) || 0;
+        const t = String(item?._draftType || item?.type || "");
+        if (t === "page") return cid > 0 ? `#${cid}` : "（无标题）";
+        return "（无标题）";
+      }
+
+      const draftsListItems = computed(() => {
+        const posts = (draftsPostsItems.value || [])
+          .map((p) => ({
+            ...p,
+            _draftType: "post",
+            _draftKey: `post:${Number(p?.cid || 0) || 0}`,
+            _draftAt: draftsItemAt(p),
+          }))
+          .filter((p) => Number(p?.cid || 0) > 0);
+
+        const pages = (draftsPagesItems.value || [])
+          .map((p) => ({
+            ...p,
+            _draftType: "page",
+            _draftKey: `page:${Number(p?.cid || 0) || 0}`,
+            _draftAt: draftsItemAt(p),
+          }))
+          .filter((p) => Number(p?.cid || 0) > 0);
+
+        if (draftsTab.value === "post") return posts;
+        if (draftsTab.value === "page") return pages;
+
+        const merged = posts.concat(pages);
+        merged.sort((a, b) => Number(b?._draftAt || 0) - Number(a?._draftAt || 0));
+        return merged;
+      });
+
+      const draftsTabCountText = computed(() => {
+        if (draftsTab.value === "post") {
+          return `${formatNumber(draftsPostsPagination.total || 0)} 个`;
+        }
+        if (draftsTab.value === "page") {
+          return `${formatNumber((draftsPagesItems.value || []).length)} 个`;
+        }
+        return `${formatNumber((draftsPostsPagination.total || 0) + (draftsPagesItems.value || []).length)} 个`;
+      });
+
+      const draftsActiveItem = computed(() => {
+        const key = String(draftsActiveKey.value || "");
+        if (!key) return null;
+        return (draftsListItems.value || []).find((d) => d && d._draftKey === key) || null;
+      });
+
+      function draftsOpenActiveDraft() {
+        const d = draftsActiveItem.value;
+        if (!d) return;
+        if (d._draftType === "page") {
+          openPageEditor(d.cid);
+          return;
+        }
+        openPostEditor(d.cid);
+      }
+
+      async function draftsDeleteActiveDraft() {
+        const d = draftsActiveItem.value;
+        if (!d) return;
+        if (d._draftType === "page") {
+          await deletePage(d.cid);
+          return;
+        }
+        await deletePost(d.cid);
+      }
+
+      watch(
+        () => [routePath.value, draftsTab.value, (draftsListItems.value || []).map((d) => d._draftKey).join(",")].join("|"),
+        () => {
+          if (routePath.value !== "/drafts") return;
+          if (draftsActiveItem.value) return;
+          const first = (draftsListItems.value || [])[0];
+          draftsActiveKey.value = first ? String(first._draftKey || "") : "";
+        },
+        { immediate: true }
+      );
+
       const postsSelectedAll = computed(() => {
         const items = postsItems.value || [];
         return items.length > 0 && postsSelectedCids.value.length === items.length;
@@ -2475,6 +2609,409 @@
         fields: [],
       });
       const postDefaultFields = ref([]);
+
+      // Post draft auto-save (enabled via settings: userOptions.autoSave)
+      const postDraftSaveState = ref("idle"); // idle|saving|saved|error
+      const postDraftLastSavedAt = ref(0); // unix seconds
+      const postDraftLastSavedHash = ref("");
+      const postDraftSaveError = ref("");
+      let postDraftAutoSaveTimer = null;
+      const postDraftNowTick = ref(0);
+      let postDraftNowTimer = null;
+      let postDraftSavingPromise = null;
+      let postDraftSaveQueued = false;
+      let postDraftBeaconSent = false;
+
+      function postDraftHashValue() {
+        const cats = Array.isArray(postForm.categories)
+          ? postForm.categories
+              .map((c) => Number(c || 0))
+              .filter((n) => n > 0)
+              .sort((a, b) => a - b)
+              .join(",")
+          : "";
+        const fields = Array.isArray(postForm.fields)
+          ? postForm.fields
+              .map((f) => {
+                if (!f || typeof f !== "object") return "";
+                const name = String(f.name || "");
+                if (!name) return "";
+                const type = String(f.type || "str");
+                const value = String(f.value ?? "");
+                return `${name}@${type}=${value}`;
+              })
+              .filter(Boolean)
+              .join("|")
+          : "";
+        const pwd =
+          String(postForm.visibility || "") === "password"
+            ? String(postForm.password || "")
+            : "";
+        return [
+          String(postForm.cid || 0),
+          String(postForm.title || ""),
+          String(postForm.slug || ""),
+          String(postForm.text || ""),
+          String(postForm.tags || ""),
+          String(postForm.visibility || ""),
+          pwd,
+          postForm.markdown ? "1" : "0",
+          cats,
+          fields,
+        ].join("\u0001");
+      }
+
+      function markPostDraftSaved(ts, savedHash) {
+        postDraftSaveState.value = "saved";
+        postDraftSaveError.value = "";
+        postDraftLastSavedAt.value = Number(ts || 0) || Math.floor(Date.now() / 1000);
+        if (typeof savedHash === "string") {
+          postDraftLastSavedHash.value = savedHash;
+        } else {
+          postDraftLastSavedHash.value = postDraftHashValue();
+        }
+      }
+
+      function markPostDraftSaving() {
+        postDraftSaveState.value = "saving";
+        postDraftSaveError.value = "";
+      }
+
+      function markPostDraftError(err) {
+        postDraftSaveState.value = "error";
+        postDraftSaveError.value = String(err || "保存失败");
+      }
+
+      function patchPostDraftHash(hash, patch) {
+        const sep = "\u0001";
+        const parts = String(hash || "").split(sep);
+        if (!parts.length) return String(hash || "");
+
+        const p = patch && typeof patch === "object" ? patch : {};
+        if (Object.prototype.hasOwnProperty.call(p, "cid")) {
+          parts[0] = String(Number(p.cid || 0) || 0);
+        }
+        if (Object.prototype.hasOwnProperty.call(p, "slug")) {
+          parts[2] = String(p.slug ?? "");
+        }
+        return parts.join(sep);
+      }
+
+      function clearPostDraftAutoSaveTimer() {
+        if (!postDraftAutoSaveTimer) return;
+        try {
+          clearTimeout(postDraftAutoSaveTimer);
+        } catch (e) {}
+        postDraftAutoSaveTimer = null;
+      }
+
+      function startPostDraftNowTicker() {
+        if (postDraftNowTimer) return;
+        postDraftNowTick.value = Date.now();
+        postDraftNowTimer = setInterval(() => {
+          postDraftNowTick.value = Date.now();
+        }, 1000);
+      }
+
+      function stopPostDraftNowTicker() {
+        if (!postDraftNowTimer) return;
+        try {
+          clearInterval(postDraftNowTimer);
+        } catch (e) {}
+        postDraftNowTimer = null;
+      }
+
+      function schedulePostDraftAutoSave(delayMs = 1800) {
+        if (!postAutoSaveEnabled.value) return;
+        if (routePath.value !== "/posts/write") return;
+        if (postLoading.value) return;
+        clearPostDraftAutoSaveTimer();
+        const d = Math.max(400, Number(delayMs || 0) || 0);
+        postDraftAutoSaveTimer = setTimeout(() => {
+          runPostDraftAutoSave("auto");
+        }, d);
+      }
+
+      async function flushPostDraftAutoSave(source) {
+        if (!postAutoSaveEnabled.value) return;
+        if (routePath.value !== "/posts/write") return;
+        clearPostDraftAutoSaveTimer();
+        await runPostDraftAutoSave(source || "exit");
+      }
+
+      async function runPostDraftAutoSave(source) {
+        if (!postAutoSaveEnabled.value) return;
+        if (routePath.value !== "/posts/write") return;
+        if (postLoading.value) return;
+        if (postSaving.value) {
+          clearPostDraftAutoSaveTimer();
+          postDraftAutoSaveTimer = setTimeout(() => {
+            runPostDraftAutoSave(source);
+          }, 1200);
+          return;
+        }
+
+        syncPostTextFromEditor();
+        const hash = postDraftHashValue();
+        if (hash && hash === postDraftLastSavedHash.value) return;
+
+        await savePostDraftSilently(source || "auto", hash);
+      }
+
+      async function savePostDraftSilently(source, hashToSave) {
+        if (!postAutoSaveEnabled.value) return;
+        if (routePath.value !== "/posts/write") return;
+        if (postLoading.value) return;
+        if (postSaving.value) return;
+
+        const titleTrim = String(postForm.title || "").trim();
+        const textTrim = String(postForm.text || "").trim();
+        if (!titleTrim && !textTrim) return;
+
+        if (postDraftSavingPromise) {
+          postDraftSaveQueued = true;
+          return postDraftSavingPromise;
+        }
+
+        markPostDraftSaving();
+
+        const baseHash = typeof hashToSave === "string" ? hashToSave : postDraftHashValue();
+
+        const slugWasEmpty = !String(postForm.slug || "").trim();
+        const currentCid = Number(postForm.cid || 0) || 0;
+        const payloadSlug =
+          slugWasEmpty && currentCid > 0 ? String(currentCid) : String(postForm.slug ?? "");
+
+        const postFieldsMap = new Map();
+        const postDefaults = Array.isArray(postDefaultFields.value) ? postDefaultFields.value : [];
+        for (const f of postDefaults) {
+          if (!f || typeof f !== "object") continue;
+          const name = String(f.name || "");
+          if (!name) continue;
+          const v = f.value;
+          const isObj = v !== null && typeof v === "object";
+          postFieldsMap.set(name, {
+            name,
+            type: isObj ? "json" : "str",
+            value: isObj ? v : String(v ?? ""),
+          });
+        }
+        for (const f of postForm.fields) {
+          if (!f || typeof f !== "object") continue;
+          const name = String(f.name || "");
+          if (!name) continue;
+          const type = String(f.type || "str");
+          postFieldsMap.set(name, {
+            name,
+            type,
+            value: type === "json" ? safeJsonParse(f.value) : f.value,
+          });
+        }
+
+        const payload = {
+          cid: currentCid || 0,
+          title: postForm.title,
+          slug: payloadSlug,
+          text: postForm.text,
+          tags: postForm.tags,
+          visibility: postForm.visibility,
+          password: postForm.visibility === "password" ? postForm.password : "",
+          allowComment: postForm.allowComment,
+          allowPing: postForm.allowPing,
+          allowFeed: postForm.allowFeed,
+          markdown: postForm.markdown ? 1 : 0,
+          category: postForm.categories,
+          fields: Array.from(postFieldsMap.values()),
+          source: String(source || "auto"),
+        };
+
+        postDraftSavingPromise = (async () => {
+          try {
+            const data = await apiPost("posts.save", payload);
+            const savedCid = Number(data.cid || 0) || 0;
+            const savedSlugRaw = Object.prototype.hasOwnProperty.call(data || {}, "slug")
+              ? String(data.slug ?? "").trim()
+              : "";
+            const savedSlug =
+              slugWasEmpty && savedCid > 0
+                ? (savedSlugRaw || String(savedCid))
+                : String(payload.slug ?? "");
+            const savedHash = patchPostDraftHash(baseHash, { cid: savedCid || currentCid, slug: savedSlug });
+
+            if (routePath.value === "/posts/write") {
+              if (savedCid > 0) {
+                postForm.cid = savedCid;
+              }
+              if (slugWasEmpty && savedSlug) {
+                postForm.slug = savedSlug;
+              }
+
+              if (savedCid > 0) {
+                const currentCidInRoute = Number(routeQuery.value?.cid || 0);
+                if (!currentCidInRoute || currentCidInRoute !== savedCid) {
+                  skipNextWriteLoad = true;
+                  navTo(`/posts/write?cid=${encodeURIComponent(String(savedCid))}`);
+                }
+              }
+
+              markPostDraftSaved(Math.floor(Date.now() / 1000), savedHash);
+            }
+          } catch (e) {
+            if (routePath.value === "/posts/write") {
+              markPostDraftError(e && e.message ? e.message : "保存失败");
+            }
+          } finally {
+            postDraftSavingPromise = null;
+            if (postDraftSaveQueued) {
+              postDraftSaveQueued = false;
+              schedulePostDraftAutoSave(600);
+            }
+          }
+        })();
+
+        return postDraftSavingPromise;
+      }
+
+      function beaconSavePostDraft(source) {
+        try {
+          if (!postAutoSaveEnabled.value) return;
+          if (routePath.value !== "/posts/write") return;
+          if (postLoading.value) return;
+          if (postDraftBeaconSent) return;
+
+          syncPostTextFromEditor();
+          const hash = postDraftHashValue();
+          if (hash && hash === postDraftLastSavedHash.value) return;
+
+          const titleTrim = String(postForm.title || "").trim();
+          const textTrim = String(postForm.text || "").trim();
+          if (!titleTrim && !textTrim) return;
+
+          const slugWasEmpty = !String(postForm.slug || "").trim();
+          const currentCid = Number(postForm.cid || 0) || 0;
+          const payloadSlug =
+            slugWasEmpty && currentCid > 0 ? String(currentCid) : String(postForm.slug ?? "");
+
+          const postFieldsMap = new Map();
+          const postDefaults = Array.isArray(postDefaultFields.value) ? postDefaultFields.value : [];
+          for (const f of postDefaults) {
+            if (!f || typeof f !== "object") continue;
+            const name = String(f.name || "");
+            if (!name) continue;
+            const v = f.value;
+            const isObj = v !== null && typeof v === "object";
+            postFieldsMap.set(name, {
+              name,
+              type: isObj ? "json" : "str",
+              value: isObj ? v : String(v ?? ""),
+            });
+          }
+          for (const f of postForm.fields) {
+            if (!f || typeof f !== "object") continue;
+            const name = String(f.name || "");
+            if (!name) continue;
+            const type = String(f.type || "str");
+            postFieldsMap.set(name, {
+              name,
+              type,
+              value: type === "json" ? safeJsonParse(f.value) : f.value,
+            });
+          }
+
+          const payload = {
+            cid: currentCid || 0,
+            title: postForm.title,
+            slug: payloadSlug,
+            text: postForm.text,
+            tags: postForm.tags,
+            visibility: postForm.visibility,
+            password: postForm.visibility === "password" ? postForm.password : "",
+            allowComment: postForm.allowComment,
+            allowPing: postForm.allowPing,
+            allowFeed: postForm.allowFeed,
+            markdown: postForm.markdown ? 1 : 0,
+            category: postForm.categories,
+            fields: Array.from(postFieldsMap.values()),
+            source: String(source || "exit"),
+          };
+
+          const url = buildApiUrl("posts.save", null, true);
+          const body = JSON.stringify(payload || {});
+          postDraftBeaconSent = true;
+
+          if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+            const blob = new Blob([body], { type: "application/json" });
+            navigator.sendBeacon(url, blob);
+            return;
+          }
+
+          fetch(url, {
+            method: "POST",
+            credentials: "same-origin",
+            keepalive: true,
+            headers: {
+              "Content-Type": "application/json",
+              "X-Requested-With": "XMLHttpRequest",
+              Accept: "application/json",
+            },
+            body,
+          });
+        } catch (e) {}
+      }
+
+      watch(
+        () => postForm.title,
+        () => {
+          schedulePostDraftAutoSave();
+        }
+      );
+      watch(
+        () => postForm.tags,
+        () => {
+          schedulePostDraftAutoSave();
+        }
+      );
+      watch(
+        () => postForm.slug,
+        () => {
+          schedulePostDraftAutoSave();
+        }
+      );
+      watch(
+        () => postForm.visibility,
+        () => {
+          schedulePostDraftAutoSave();
+        }
+      );
+      watch(
+        () => postForm.password,
+        () => {
+          schedulePostDraftAutoSave();
+        }
+      );
+      watch(
+        () => (Array.isArray(postForm.categories) ? postForm.categories.slice().join(",") : ""),
+        () => {
+          schedulePostDraftAutoSave();
+        }
+      );
+      watch(
+        () =>
+          Array.isArray(postForm.fields)
+            ? postForm.fields
+                .map((f) => {
+                  if (!f || typeof f !== "object") return "";
+                  const name = String(f.name || "");
+                  if (!name) return "";
+                  return `${name}@${String(f.type || "str")}=${String(f.value ?? "")}`;
+                })
+                .filter(Boolean)
+                .join("|")
+            : "",
+        () => {
+          schedulePostDraftAutoSave();
+        }
+      );
 
       const postTextEl = ref(null);
       const postEditorType = ref("vditor");
@@ -2623,10 +3160,12 @@
             input: (value) => {
               if (postVditorSyncing) return;
               postForm.text = String(value || "");
+              schedulePostDraftAutoSave();
             },
             blur: (value) => {
               if (postVditorSyncing) return;
               postForm.text = String(value || "");
+              schedulePostDraftAutoSave(600);
             },
             upload: uploadUrl
               ? {
@@ -4670,6 +5209,45 @@
         lists: { langs: [], frontPagePages: [], frontPageFiles: [], timezones: SETTINGS_TIMEZONES },
       });
 
+      const userOptionsLoaded = ref(false);
+
+      async function ensureUserOptionsLoaded() {
+        if (userOptionsLoaded.value) return;
+        try {
+          const data = await apiGet("settings.get");
+          Object.assign(settingsData.userOptions, data.userOptions || {});
+          userOptionsLoaded.value = true;
+        } catch (e) {}
+      }
+
+      const postAutoSaveEnabled = computed(() => Number(settingsData.userOptions.autoSave || 0) ? true : false);
+
+      watch(
+        [postAutoSaveEnabled, routePath],
+        ([enabled, p]) => {
+          if (enabled && String(p || "") === "/posts/write") {
+            startPostDraftNowTicker();
+            return;
+          }
+          stopPostDraftNowTicker();
+        },
+        { immediate: true }
+      );
+
+      const postDraftTimeAgo = computed(() => {
+        postDraftNowTick.value;
+        const ts = Number(postDraftLastSavedAt.value || 0);
+        return ts > 0 ? formatTimeAgoFine(ts) : "";
+      });
+
+      const postDraftStatusText = computed(() => {
+        const st = String(postDraftSaveState.value || "idle");
+        if (st === "saving") return "保存中";
+        if (st === "saved") return "已保存草稿";
+        if (st === "error") return "保存失败";
+        return "未保存草稿";
+      });
+
       const settingsProfileForm = reactive({
         screenName: "",
         mail: "",
@@ -5577,12 +6155,12 @@
       function toggleSidebar() {
         if (isNarrowScreen.value) {
           const nextOpen = !mobileNavOpen.value;
-          mobileNavOpen.value = nextOpen;
-          if (nextOpen) {
-            setMobileNavTab(routePath.value === "/settings" ? 1 : 0);
-          }
-          return;
-        }
+           mobileNavOpen.value = nextOpen;
+           if (nextOpen) {
+             setMobileNavTab(mobileNavHasSettingsPanel.value ? 1 : 0);
+           }
+           return;
+         }
         sidebarCollapsed.value = !sidebarCollapsed.value;
         try {
           localStorage.setItem(
@@ -5647,6 +6225,10 @@
         }
 
         const p = normalized.split("?")[0] || "/";
+        const from = routePath.value;
+        if (from === "/posts/write" && p !== "/posts/write") {
+          flushPostDraftAutoSave("nav");
+        }
         settingsOpen.value = p === "/settings";
         ensureExpandedForRoute(p);
         persistExpanded();
@@ -5876,6 +6458,73 @@
         navTo(`/posts/write?cid=${encodeURIComponent(String(id))}`);
       }
 
+      async function fetchDraftsPosts() {
+        draftsPostsLoading.value = true;
+        draftsPostsError.value = "";
+        try {
+          const scopeAllAllowed =
+            !!V3A.canPublish &&
+            (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll));
+          let scope = String(draftsScope.value || "mine");
+          if (scope === "all" && !scopeAllAllowed) {
+            scope = "mine";
+            draftsScope.value = "mine";
+          }
+
+          const data = await apiGet("posts.list", {
+            page: draftsPostsPagination.page,
+            pageSize: draftsPostsPagination.pageSize,
+            status: "draft",
+            keywords: draftsKeywords.value,
+            scope,
+          });
+          draftsPostsItems.value = data.items || [];
+          const p = data.pagination || {};
+          draftsPostsPagination.page = Number(p.page || draftsPostsPagination.page) || 1;
+          draftsPostsPagination.pageSize =
+            Number(p.pageSize || draftsPostsPagination.pageSize) || 20;
+          draftsPostsPagination.total = Number(p.total || 0) || 0;
+          draftsPostsPagination.pageCount = Number(p.pageCount || 1) || 1;
+        } catch (e) {
+          draftsPostsError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          draftsPostsLoading.value = false;
+        }
+      }
+
+      async function fetchDraftsPages() {
+        draftsPagesLoading.value = true;
+        draftsPagesError.value = "";
+        try {
+          const data = await apiGet("pages.list", {
+            keywords: draftsKeywords.value,
+            status: "draft",
+          });
+          draftsPagesItems.value = data.items || [];
+        } catch (e) {
+          draftsPagesError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          draftsPagesLoading.value = false;
+        }
+      }
+
+      async function fetchDrafts() {
+        await Promise.all([fetchDraftsPosts(), fetchDraftsPages()]);
+      }
+
+      function applyDraftsFilters() {
+        draftsPostsPagination.page = 1;
+        draftsPostsPageJump.value = 1;
+        fetchDrafts();
+      }
+
+      function draftsPostsGoPage(p) {
+        const next = Math.max(1, Math.min(draftsPostsPagination.pageCount || 1, p));
+        if (next === draftsPostsPagination.page) return;
+        draftsPostsPagination.page = next;
+        fetchDraftsPosts();
+      }
+
       function isPostSelected(cid) {
         const id = Number(cid || 0);
         return id > 0 && postsSelectedCids.value.includes(id);
@@ -5980,6 +6629,14 @@
       );
 
       watch(
+        () => draftsPostsPagination.page,
+        (p) => {
+          draftsPostsPageJump.value = Number(p || 1) || 1;
+        },
+        { immediate: true }
+      );
+
+      watch(
         [postsSelectedIndeterminate, postsSelectAllEl],
         ([indeterminate, el]) => {
           if (el) {
@@ -6053,6 +6710,7 @@
         postLoading.value = true;
         postError.value = "";
         postMessage.value = "";
+        clearPostDraftAutoSaveTimer();
         try {
           await ensureCategoriesLoaded();
           await ensureTagsLoaded();
@@ -6074,6 +6732,10 @@
             if (!postCapabilities.value.markdownEnabled) {
               postForm.markdown = false;
             }
+            postDraftSaveState.value = "idle";
+            postDraftSaveError.value = "";
+            postDraftLastSavedAt.value = 0;
+            postDraftLastSavedHash.value = postDraftHashValue();
             return;
           }
 
@@ -6119,6 +6781,11 @@
                   : JSON.stringify(f.value ?? ""),
             });
           }
+
+          postDraftSaveState.value = "saved";
+          postDraftSaveError.value = "";
+          postDraftLastSavedAt.value = Number(postForm.modified || 0) || Math.floor(Date.now() / 1000);
+          postDraftLastSavedHash.value = postDraftHashValue();
         } catch (e) {
           postError.value = e && e.message ? e.message : "加载失败";
         } finally {
@@ -6205,6 +6872,9 @@
             mode === "publish"
               ? "发布已提交"
               : "草稿已保存";
+          if (mode !== "publish" && postAutoSaveEnabled.value) {
+            markPostDraftSaved(Math.floor(Date.now() / 1000));
+          }
 
           if (routePath.value === "/posts/manage") {
             fetchPosts();
@@ -6221,14 +6891,17 @@
         if (!id) return;
         if (!confirm("确认删除该文章吗？此操作不可恢复。")) return;
 
-        postsError.value = "";
-        try {
-          await apiPost("posts.delete", { cids: [id] });
-          if (routePath.value === "/posts/manage") {
-            fetchPosts();
-          }
-          if (routePath.value === "/posts/write") {
-            const currentCid = Number(routeQuery.value?.cid || 0);
+         postsError.value = "";
+         try {
+           await apiPost("posts.delete", { cids: [id] });
+           if (routePath.value === "/drafts") {
+             await fetchDrafts();
+           }
+           if (routePath.value === "/posts/manage") {
+             fetchPosts();
+           }
+           if (routePath.value === "/posts/write") {
+             const currentCid = Number(routeQuery.value?.cid || 0);
             if (currentCid === id) {
               navTo("/posts/manage");
             }
@@ -7154,21 +7827,25 @@
         if (!id) return;
         if (!confirm("确认删除该页面吗？此操作不可恢复。")) return;
 
-        pagesError.value = "";
-        try {
-          await apiPost("pages.delete", { cids: [id] });
-          if (routePath.value === "/pages/edit") {
-            const currentCid = Number(routeQuery.value?.cid || 0);
-            if (currentCid === id) {
-              navTo("/pages/manage");
-            }
-          }
-          await fetchPages();
-          await fetchDashboard();
-        } catch (e) {
-          pagesError.value = e && e.message ? e.message : "删除失败";
-        }
-      }
+         pagesError.value = "";
+         try {
+           await apiPost("pages.delete", { cids: [id] });
+           if (routePath.value === "/pages/edit") {
+             const currentCid = Number(routeQuery.value?.cid || 0);
+             if (currentCid === id) {
+               navTo("/pages/manage");
+             }
+           }
+           if (routePath.value === "/drafts") {
+             await fetchDrafts();
+           } else {
+             await fetchPages();
+             await fetchDashboard();
+           }
+         } catch (e) {
+           pagesError.value = e && e.message ? e.message : "删除失败";
+         }
+       }
 
       // Settings
       function parseAttachmentTypesValue(raw) {
@@ -7220,6 +7897,7 @@
           settingsData.isAdmin = !!data.isAdmin;
           Object.assign(settingsData.profile, data.profile || {});
           Object.assign(settingsData.userOptions, data.userOptions || {});
+          userOptionsLoaded.value = true;
           Object.assign(settingsData.site, data.site || {});
           Object.assign(settingsData.storage, data.storage || {});
           Object.assign(settingsData.reading, data.reading || {});
@@ -9138,6 +9816,7 @@
             await fetchPosts();
           }
           if (p === "/posts/write") {
+            await ensureUserOptionsLoaded();
             if (skipNextWriteLoad) {
               skipNextWriteLoad = false;
             } else {
@@ -9161,6 +9840,9 @@
           }
           if (p === "/posts/taxonomy") {
             await fetchTaxonomy();
+          }
+          if (p === "/drafts") {
+            await fetchDrafts();
           }
           if (p === "/comments") {
             await fetchComments();
@@ -9298,6 +9980,10 @@
         window.addEventListener("resize", v3aUpdateVditorToolbarStickyTop, {
           passive: true,
         });
+        try {
+          window.addEventListener("pagehide", () => beaconSavePostDraft("pagehide"));
+          window.addEventListener("beforeunload", () => beaconSavePostDraft("unload"));
+        } catch (e) {}
 
         listenHash();
         const desired = getRoute();
@@ -9314,6 +10000,7 @@
           await fetchPosts();
         }
         if (routePath.value === "/posts/write") {
+          await ensureUserOptionsLoaded();
           await loadPostEditorFromRoute();
           await nextTick();
           initPostVditor();
@@ -9333,6 +10020,9 @@
         }
         if (routePath.value === "/posts/taxonomy") {
           await fetchTaxonomy();
+        }
+        if (routePath.value === "/drafts") {
+          await fetchDrafts();
         }
         if (routePath.value === "/comments") {
           await fetchComments();
@@ -9508,6 +10198,7 @@
         onMobileNavSwipeCancel,
         sidebarToggleIcon,
         sidebarToggleTitle,
+        mobileNavHasSettingsPanel,
         settingsOpen,
         settingsActiveKey,
         isThemeSettingsActive,
@@ -9533,6 +10224,28 @@
         postsSelectedAll,
         postsSelectAllEl,
         postsPageJump,
+        draftsKeywords,
+        draftsScope,
+        draftsPostsLoading,
+        draftsPostsError,
+        draftsPostsItems,
+        draftsPostsPagination,
+        draftsPostsPageJump,
+        draftsPagesLoading,
+        draftsPagesError,
+        draftsPagesItems,
+        draftsTab,
+        draftsTabCountText,
+        draftsActiveKey,
+        draftsListItems,
+        draftsActiveItem,
+        draftsItemAt,
+        draftsItemTitle,
+        draftsOpenActiveDraft,
+        draftsDeleteActiveDraft,
+        fetchDrafts,
+        applyDraftsFilters,
+        draftsPostsGoPage,
         getPostBadge,
         postStatusIcon,
         applyPostsFilters,
@@ -9550,6 +10263,11 @@
         postError,
         postMessage,
         postCapabilities,
+        postAutoSaveEnabled,
+        postDraftSaveState,
+        postDraftLastSavedAt,
+        postDraftStatusText,
+        postDraftTimeAgo,
         postForm,
         postDefaultFields,
         postSlugPrefix,
@@ -10034,14 +10752,18 @@
           <div v-if="isNarrowScreen" class="v3a-mobile-nav-handle" @click="closeMobileNav()" role="button" aria-label="收起菜单">
             <div class="v3a-mobile-nav-handle-bar"></div>
           </div>
-          <nav
-            class="v3a-menu"
-            :class="{ 'v3a-menu--swipe': isNarrowScreen && settingsOpen }"
-            @touchstart="onMobileNavSwipeStart"
-            @touchend="onMobileNavSwipeEnd"
-            @touchcancel="onMobileNavSwipeCancel"
-          >
-            <div class="v3a-menu-swipe" :style="{ transform: (isNarrowScreen && settingsOpen) ? 'translate3d(-' + (mobileNavTab * 100) + '%,0,0)' : '' }">
+           <nav
+             class="v3a-menu"
+            :class="{ 'v3a-menu--swipe': mobileNavHasSettingsPanel }"
+             @touchstart="onMobileNavSwipeStart"
+             @touchend="onMobileNavSwipeEnd"
+             @touchcancel="onMobileNavSwipeCancel"
+           >
+            <div v-if="mobileNavHasSettingsPanel" class="v3a-menu-tabs" role="tablist" aria-label="菜单切换">
+              <button class="v3a-menu-tab" :class="{ active: mobileNavTab === 0 }" type="button" @click="mobileNavTab = 0">菜单</button>
+              <button class="v3a-menu-tab" :class="{ active: mobileNavTab === 1 }" type="button" @click="mobileNavTab = 1">设定</button>
+            </div>
+            <div class="v3a-menu-swipe" :style="{ transform: mobileNavHasSettingsPanel ? 'translate3d(-' + (mobileNavTab * 100) + '%,0,0)' : '' }">
               <div class="v3a-menu-panel v3a-menu-panel--main">
                 <div v-for="item in menuItems" :key="item.key">
                   <div
@@ -10077,7 +10799,7 @@
                 </div>
               </div>
 
-              <div v-if="isNarrowScreen && settingsOpen" class="v3a-menu-panel v3a-menu-panel--settings">
+              <div v-if="mobileNavHasSettingsPanel" class="v3a-menu-panel v3a-menu-panel--settings">
                 <div class="v3a-subsidebar-bd">
                   <template v-for="s in settingsItems" :key="s.key">
                     <template v-if="s.key === 'theme'">
@@ -10609,6 +11331,11 @@
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div v-if="postAutoSaveEnabled" class="v3a-draft-status" :class="postDraftSaveState">
+                      <span class="v3a-icon" v-html="ICONS.cloud"></span>
+                      <span>{{ postDraftStatusText }}</span>
+                      <span v-if="postDraftTimeAgo" class="v3a-draft-status-time">· {{ postDraftTimeAgo }}</span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions" data-tour="write-post-actions">
                     <button class="v3a-iconbtn v3a-write-side-toggle" type="button" @click="toggleWriteSidebar()" :title="writeSidebarOpen ? '收起发布设置' : '展开发布设置'" data-tour="write-side-toggle">
@@ -11022,6 +11749,297 @@
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/drafts'">
+              <div class="v3a-container v3a-container-drafts">
+                <div class="v3a-pagehead v3a-pagehead-sticky">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
+                    </button>
+                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="draftsPostsLoading || draftsPagesLoading" @click="fetchDrafts()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                    <button class="v3a-actionbtn" type="button" title="新增文章" @click="openPostEditor(0)">
+                      <span class="v3a-icon" v-html="ICONS.plus"></span>
+                    </button>
+                    <button class="v3a-actionbtn" type="button" title="新增页面" @click="openPageEditor(0)">
+                      <span class="v3a-icon" v-html="ICONS.plus"></span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="v3a-drafts-split">
+                  <div class="v3a-drafts-left">
+                    <div class="v3a-drafts-left-head">
+                      <div class="v3a-drafts-tabs" role="tablist" aria-label="草稿类型">
+                        <button class="v3a-drafts-tab" :class="{ active: draftsTab === 'all' }" type="button" @click="draftsTab = 'all'">全部</button>
+                        <button class="v3a-drafts-tab" :class="{ active: draftsTab === 'post' }" type="button" @click="draftsTab = 'post'">文章</button>
+                        <button class="v3a-drafts-tab" :class="{ active: draftsTab === 'page' }" type="button" @click="draftsTab = 'page'">页面</button>
+                      </div>
+                      <span class="v3a-muted">{{ draftsTabCountText }}</span>
+                    </div>
+
+                    <div class="v3a-drafts-toolbar">
+                      <div class="v3a-searchbox v3a-searchbox-full">
+                        <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                        <input class="v3a-input" v-model="draftsKeywords" @keyup.enter="applyDraftsFilters()" placeholder="搜索标题..." />
+                      </div>
+                      <select v-if="V3A.canPublish && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))" class="v3a-select" v-model="draftsScope" @change="applyDraftsFilters()" style="width: 128px;">
+                        <option value="mine">我的</option>
+                        <option value="all">全部</option>
+                      </select>
+                      <button class="v3a-btn" type="button" @click="applyDraftsFilters()" :disabled="draftsPostsLoading || draftsPagesLoading">搜索</button>
+                    </div>
+
+                    <div class="v3a-drafts-list">
+                      <div v-if="draftsPostsLoading || draftsPagesLoading" class="v3a-drafts-empty">
+                        <div class="v3a-muted">正在加载…</div>
+                      </div>
+                      <div v-else-if="draftsPostsError || draftsPagesError" class="v3a-drafts-empty">
+                        <div class="v3a-muted">{{ draftsPostsError || draftsPagesError }}</div>
+                      </div>
+                      <div v-else-if="!draftsListItems.length" class="v3a-drafts-empty">
+                        <div class="v3a-muted">暂无草稿</div>
+                      </div>
+                      <div v-else>
+                        <div
+                          v-for="d in draftsListItems"
+                          :key="d._draftKey"
+                          class="v3a-drafts-item"
+                          :class="{ active: draftsActiveKey === d._draftKey }"
+                          role="button"
+                          tabindex="0"
+                          @click="draftsActiveKey = d._draftKey"
+                          @keyup.enter="draftsActiveKey = d._draftKey"
+                        >
+                          <div class="v3a-drafts-item-main">
+                            <div class="v3a-drafts-item-title-row">
+                              <div class="v3a-drafts-item-title">{{ draftsItemTitle(d) }}</div>
+                              <span class="v3a-drafts-item-id">#{{ d.cid }}</span>
+                            </div>
+                            <div class="v3a-drafts-item-meta">
+                              <span class="v3a-pill info v3a-drafts-type-pill">
+                                <span class="v3a-icon" v-html="d._draftType === 'page' ? ICONS.pages : ICONS.posts"></span>
+                                {{ d._draftType === 'page' ? '页面' : '文章' }}
+                              </span>
+                              <span class="v3a-pill warn">草稿</span>
+                            </div>
+                          </div>
+                          <div class="v3a-drafts-item-time">{{ formatTimeAgo(d._draftAt) }}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div v-if="draftsTab === 'post' && draftsPostsPagination.pageCount > 1" class="v3a-pagination v3a-drafts-pagination">
+                      <button class="v3a-pagebtn" type="button" @click="draftsPostsGoPage(draftsPostsPagination.page - 1)" :disabled="draftsPostsPagination.page <= 1">
+                        <span class="v3a-icon" v-html="ICONS.collapse"></span>
+                      </button>
+                      <div class="v3a-pagecurrent">{{ draftsPostsPagination.page }}</div>
+                      <button class="v3a-pagebtn" type="button" @click="draftsPostsGoPage(draftsPostsPagination.page + 1)" :disabled="draftsPostsPagination.page >= draftsPostsPagination.pageCount">
+                        <span class="v3a-icon" v-html="ICONS.expand"></span>
+                      </button>
+                      <span class="v3a-muted">跳至</span>
+                      <input class="v3a-pagejump" type="number" min="1" :max="draftsPostsPagination.pageCount" v-model.number="draftsPostsPageJump" @keyup.enter="draftsPostsGoPage(draftsPostsPageJump)" @blur="draftsPostsGoPage(draftsPostsPageJump)" />
+                    </div>
+                  </div>
+
+                  <div class="v3a-drafts-right">
+                    <div class="v3a-drafts-right-head">
+                      <div class="v3a-drafts-right-titles">
+                        <template v-if="draftsActiveItem">
+                          <div class="v3a-drafts-right-title">{{ draftsItemTitle(draftsActiveItem) }}</div>
+                          <div class="v3a-drafts-right-sub v3a-muted">
+                            <span>{{ draftsActiveItem._draftType === 'page' ? '页面' : '文章' }}</span>
+                            <span>·</span>
+                            <span>#{{ draftsActiveItem.cid }}</span>
+                            <template v-if="draftsActiveItem._draftType === 'post' && draftsActiveItem.author && draftsActiveItem.author.name && draftsScope === 'all'">
+                              <span>·</span>
+                              <span>{{ draftsActiveItem.author.name }}</span>
+                            </template>
+                            <span>·</span>
+                            <span>{{ formatTimeAgo(draftsItemAt(draftsActiveItem)) }}</span>
+                          </div>
+                        </template>
+                        <template v-else>
+                          <div class="v3a-drafts-right-title">草稿详情</div>
+                          <div class="v3a-drafts-right-sub v3a-muted">选择一个草稿查看详情</div>
+                        </template>
+                      </div>
+                      <div class="v3a-drafts-right-actions">
+                        <button v-if="draftsActiveItem" class="v3a-btn" type="button" @click="draftsOpenActiveDraft()">
+                          <span class="v3a-icon" v-html="ICONS.edit"></span>
+                          编辑
+                        </button>
+                        <button v-if="draftsActiveItem" class="v3a-btn" type="button" style="color: var(--v3a-danger);" @click="draftsDeleteActiveDraft()">
+                          <span class="v3a-icon" v-html="ICONS.trash"></span>
+                          删除
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="v3a-drafts-right-body">
+                      <div v-if="!draftsActiveItem" class="v3a-drafts-empty">
+                        <span class="v3a-icon v3a-drafts-empty-icon" v-html="ICONS.filePen"></span>
+                        <div class="v3a-muted">选择一个草稿查看详情</div>
+                      </div>
+                      <div v-else class="v3a-card v3a-drafts-detail-card">
+                        <div class="hd"><div class="title">信息</div></div>
+                        <div class="bd">
+                          <div class="v3a-kv">
+                            <div class="v3a-muted">类型</div>
+                            <div>{{ draftsActiveItem._draftType === 'page' ? '页面' : '文章' }}</div>
+
+                            <div class="v3a-muted">状态</div>
+                            <div>草稿</div>
+
+                            <div class="v3a-muted">最近更新</div>
+                            <div>{{ formatTimeAgo(draftsItemAt(draftsActiveItem)) }}</div>
+
+                            <template v-if="draftsActiveItem._draftType === 'post' && draftsActiveItem.author && draftsActiveItem.author.name && draftsScope === 'all'">
+                              <div class="v3a-muted">作者</div>
+                              <div>{{ draftsActiveItem.author.name }}</div>
+                            </template>
+
+                            <div class="v3a-muted">操作</div>
+                            <div class="v3a-kv-inline">
+                              <button class="v3a-mini-btn" type="button" @click="draftsOpenActiveDraft()">编辑</button>
+                              <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="draftsDeleteActiveDraft()">删除</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/drafts-old'">
+              <div class="v3a-container">
+                <div class="v3a-pagehead v3a-pagehead-sticky">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
+                    </button>
+                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="draftsPostsLoading || draftsPagesLoading" @click="fetchDrafts()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                    <button class="v3a-actionbtn" type="button" title="新增文章" @click="openPostEditor(0)">
+                      <span class="v3a-icon" v-html="ICONS.plus"></span>
+                    </button>
+                    <button class="v3a-actionbtn" type="button" title="新增页面" @click="openPageEditor(0)">
+                      <span class="v3a-icon" v-html="ICONS.plus"></span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="v3a-posts-search">
+                  <div class="v3a-searchbox">
+                    <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                    <input class="v3a-input" v-model="draftsKeywords" @keyup.enter="applyDraftsFilters()" placeholder="搜索标题..." />
+                  </div>
+                  <select v-if="V3A.canPublish && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))" class="v3a-select" v-model="draftsScope" @change="applyDraftsFilters()" style="width: 140px;">
+                    <option value="mine">我的草稿</option>
+                    <option value="all">全部草稿</option>
+                  </select>
+                  <button class="v3a-btn" type="button" @click="applyDraftsFilters()" :disabled="draftsPostsLoading || draftsPagesLoading">搜索</button>
+                  <div class="v3a-muted">{{ formatNumber(draftsPostsPagination.total) }} 篇 · {{ formatNumber(draftsPagesItems.length) }} 页</div>
+                </div>
+
+                <div class="v3a-drafts-grid">
+                  <div class="v3a-card">
+                    <div class="hd"><div class="title">文章草稿</div></div>
+                    <div class="bd" style="padding: 0;">
+                      <div v-if="draftsPostsLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+                      <div v-else-if="draftsPostsError" class="v3a-muted" style="padding: 16px;">{{ draftsPostsError }}</div>
+                      <table v-else class="v3a-table">
+                        <thead>
+                          <tr>
+                            <th>标题</th>
+                            <th v-if="V3A.canPublish && draftsScope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))">作者</th>
+                            <th>修改于</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="p in draftsPostsItems" :key="p.cid">
+                            <td>
+                              <a href="###" @click.prevent="openPostEditor(p.cid)">{{ p.title || '（无标题）' }}</a>
+                            </td>
+                            <td v-if="V3A.canPublish && draftsScope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))" class="v3a-muted">
+                              {{ (p.author && p.author.name) ? p.author.name : '—' }}
+                            </td>
+                            <td>{{ (p.modified && p.modified > p.created) ? formatTimeAgo(p.modified) : formatTimeAgo(p.created) }}</td>
+                            <td>
+                              <span class="v3a-pill" :class="getPostBadge(p).tone">
+                                <span class="v3a-icon" v-html="postStatusIcon(p)"></span>
+                                {{ getPostBadge(p).text }}
+                              </span>
+                            </td>
+                            <td style="white-space: nowrap;">
+                              <button class="v3a-mini-btn" type="button" @click="openPostEditor(p.cid)">编辑</button>
+                              <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deletePost(p.cid)">删除</button>
+                            </td>
+                          </tr>
+                          <tr v-if="!draftsPostsItems.length">
+                            <td :colspan="(V3A.canPublish && draftsScope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))) ? 5 : 4" class="v3a-muted" style="padding: 16px;">暂无文章草稿</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div class="v3a-card">
+                    <div class="hd"><div class="title">页面草稿</div></div>
+                    <div class="bd" style="padding: 0;">
+                      <div v-if="draftsPagesLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+                      <div v-else-if="draftsPagesError" class="v3a-muted" style="padding: 16px;">{{ draftsPagesError }}</div>
+                      <table v-else class="v3a-table">
+                        <thead><tr><th>标题</th><th>状态</th><th>日期</th><th>操作</th></tr></thead>
+                        <tbody>
+                          <tr v-for="p in draftsPagesItems" :key="p.cid">
+                            <td>
+                              <a href="###" @click.prevent="openPageEditor(p.cid)" :style="{ display: 'inline-block', paddingLeft: (Number(p.levels || 0) * 12) + 'px' }">{{ p.title || ('#' + p.cid) }}</a>
+                            </td>
+                            <td>
+                              <span class="v3a-pill" :class="getPageBadge(p).tone">{{ getPageBadge(p).text }}</span>
+                            </td>
+                            <td>{{ formatTime(p.created, settingsData.site.timezone) }}</td>
+                            <td style="white-space: nowrap;">
+                              <button class="v3a-mini-btn" type="button" @click="openPageEditor(p.cid)">编辑</button>
+                              <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="deletePage(p.cid)">删除</button>
+                            </td>
+                          </tr>
+                          <tr v-if="!draftsPagesItems.length">
+                            <td colspan="4" class="v3a-muted" style="padding: 16px;">暂无页面草稿</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="v3a-pagination">
+                  <button class="v3a-pagebtn" type="button" @click="draftsPostsGoPage(draftsPostsPagination.page - 1)" :disabled="draftsPostsPagination.page <= 1">
+                    <span class="v3a-icon" v-html="ICONS.collapse"></span>
+                  </button>
+                  <div class="v3a-pagecurrent">{{ draftsPostsPagination.page }}</div>
+                  <button class="v3a-pagebtn" type="button" @click="draftsPostsGoPage(draftsPostsPagination.page + 1)" :disabled="draftsPostsPagination.page >= draftsPostsPagination.pageCount">
+                    <span class="v3a-icon" v-html="ICONS.expand"></span>
+                  </button>
+                  <span class="v3a-muted">跳至</span>
+                  <input class="v3a-pagejump" type="number" min="1" :max="draftsPostsPagination.pageCount" v-model.number="draftsPostsPageJump" @keyup.enter="draftsPostsGoPage(draftsPostsPageJump)" @blur="draftsPostsGoPage(draftsPostsPageJump)" />
                 </div>
               </div>
             </template>
