@@ -179,6 +179,7 @@
     settingsKey: "v3a_settings_key",
     dashboardTourDone: "v3a_tour_dashboard_done",
     mainTourDone: "v3a_tour_main_done",
+    themeMode: "v3a_theme_mode",
   };
 
   const ICONS = {
@@ -243,6 +244,9 @@
     mapPin: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg>`,
     monitor: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>`,
     smartphone: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" x2="12.01" y1="18" y2="18"></line></svg>`,
+    monitorSmartphone: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-monitor-smartphone-icon lucide-monitor-smartphone"><path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8"></path><path d="M10 19v-3.96 3.15"></path><path d="M7 19h5"></path><rect width="6" height="10" x="16" y="12" rx="2"></rect></svg>`,
+    moon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-moon-icon lucide-moon"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>`,
+    sun: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sun-icon lucide-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>`,
     smilePlus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11v1a10 10 0 1 1-9-10"></path><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" x2="9.01" y1="9" y2="9"></line><line x1="15" x2="15.01" y1="9" y2="9"></line><path d="M16 5h6"></path><path d="M19 2v6"></path></svg>`,
     info: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>`,
     home: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-house-icon lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
@@ -1583,6 +1587,134 @@
           expanded.value.pages = !!obj.pages;
           expanded.value.extras = !!obj.extras;
           expanded.value.maintenance = !!obj.maintenance;
+        }
+      } catch (e) {}
+
+      // Theme mode: system / light / dark
+      const themeMode = ref("system");
+      function normalizeThemeMode(raw) {
+        const v = String(raw || "")
+          .trim()
+          .toLowerCase();
+        if (v === "dark" || v === "night") return "dark";
+        if (v === "light" || v === "day") return "light";
+        if (v === "system" || v === "auto" || v === "browser" || v === "follow") return "system";
+        return "system";
+      }
+
+      const themeEffective = computed(() => {
+        const mode = String(themeMode.value || "system");
+        if (mode === "dark" || mode === "light") return mode;
+        let prefersDark = false;
+        try {
+          prefersDark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        } catch (e) {}
+        return prefersDark ? "dark" : "light";
+      });
+
+      let themeRefreshTimer = null;
+      function scheduleThemeRefresh() {
+        try {
+          if (themeRefreshTimer) clearTimeout(themeRefreshTimer);
+        } catch (e) {}
+        themeRefreshTimer = setTimeout(async () => {
+          themeRefreshTimer = null;
+          const p = String(route.value || "/").split("?")[0] || "/";
+
+          try {
+            if (p === "/dashboard") {
+              await nextTick();
+              renderCharts();
+            }
+          } catch (e) {}
+
+          try {
+            if (p === "/posts/write" && postVditor) {
+              const value = String(postForm.text || "");
+              destroyPostVditor();
+              await nextTick();
+              initPostVditor();
+              setTimeout(() => setPostEditorValue(value, true), 0);
+              v3aUpdateVditorToolbarStickyTop();
+            }
+          } catch (e) {}
+
+          try {
+            if (p === "/pages/edit" && pageVditor) {
+              const value = String(pageForm.text || "");
+              destroyPageVditor();
+              await nextTick();
+              initPageVditor();
+              setTimeout(() => setPageEditorValue(value, true), 0);
+              v3aUpdateVditorToolbarStickyTop();
+            }
+          } catch (e) {}
+        }, 0);
+      }
+
+      let themeEffectiveApplied = "";
+      let themeBooted = false;
+      onMounted(() => {
+        themeBooted = true;
+      });
+
+      function applyThemeMode() {
+        try {
+          const root = document && document.documentElement;
+          if (!root || !root.classList) return;
+          const eff = String(themeEffective.value || "light");
+          root.classList.toggle("dark", eff === "dark");
+          root.dataset.v3aThemeMode = String(themeMode.value || "system");
+          if (eff !== themeEffectiveApplied) {
+            themeEffectiveApplied = eff;
+            if (themeBooted) scheduleThemeRefresh();
+          }
+        } catch (e) {}
+      }
+
+      function setThemeMode(next) {
+        themeMode.value = normalizeThemeMode(next);
+        try {
+          localStorage.setItem(STORAGE_KEYS.themeMode, themeMode.value);
+        } catch (e) {}
+        applyThemeMode();
+      }
+
+      function cycleThemeMode() {
+        const cur = String(themeMode.value || "system");
+        if (cur === "system") return setThemeMode("light");
+        if (cur === "light") return setThemeMode("dark");
+        return setThemeMode("system");
+      }
+
+      const themeToggleIcon = computed(() => {
+        const cur = String(themeMode.value || "system");
+        if (cur === "dark") return ICONS.moon || ICONS.monitor;
+        if (cur === "light") return ICONS.sun || ICONS.monitor;
+        return ICONS.monitorSmartphone || ICONS.monitor;
+      });
+
+      const themeToggleTitle = computed(() => {
+        const cur = String(themeMode.value || "system");
+        if (cur === "dark") return "主题：夜间（点击切换）";
+        if (cur === "light") return "主题：日间（点击切换）";
+        return "主题：跟随浏览器（点击切换）";
+      });
+
+      try {
+        themeMode.value = normalizeThemeMode(localStorage.getItem(STORAGE_KEYS.themeMode));
+      } catch (e) {}
+      applyThemeMode();
+
+      try {
+        const mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+        if (mq) {
+          const handler = () => {
+            if (String(themeMode.value || "system") !== "system") return;
+            applyThemeMode();
+          };
+          if (typeof mq.addEventListener === "function") mq.addEventListener("change", handler);
+          else if (typeof mq.addListener === "function") mq.addListener(handler);
         }
       } catch (e) {}
 
@@ -10395,6 +10527,9 @@
         crumb,
         crumbPath,
         crumbCurrent,
+        themeToggleIcon,
+        themeToggleTitle,
+        cycleThemeMode,
         sidebarCollapsed,
         isNarrowScreen,
         mobileNavOpen,
@@ -11077,6 +11212,11 @@
               </div>
             </div>
           </nav>
+          <div class="v3a-sidebar-footer">
+            <button class="v3a-actionbtn v3a-theme-toggle-btn" type="button" :title="themeToggleTitle" @click="cycleThemeMode()">
+              <span class="v3a-icon" v-html="themeToggleIcon"></span>
+            </button>
+          </div>
         </aside>
 
         <aside class="v3a-subsidebar" v-show="settingsOpen && !sidebarCollapsed && !isNarrowScreen" data-tour="settings-nav">
