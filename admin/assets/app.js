@@ -247,6 +247,7 @@
     info: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>`,
     home: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-house-icon lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
     logout: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-door-open-icon lucide-door-open"><path d="M11 20H2"/><path d="M11 4.562v16.157a1 1 0 0 0 1.242.97L19 20V5.562a2 2 0 0 0-1.515-1.94l-4-1A2 2 0 0 0 11 4.561z"/><path d="M11 4H8a2 2 0 0 0-2 2v14"/><path d="M14 12h.01"/><path d="M22 20h-3"/></svg>`,
+    github: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-github-icon lucide-github"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>`,
     hardDriveDownload: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hard-drive-download-icon lucide-hard-drive-download"><path d="M12 2v8"/><path d="m16 6-4 4-4-4"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 18h.01"/><path d="M10 18h.01"/></svg>`,
     wifiCog: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wifi-cog-icon lucide-wifi-cog"><path d="m14.305 19.53.923-.382"/><path d="m15.228 16.852-.923-.383"/><path d="m16.852 15.228-.383-.923"/><path d="m16.852 20.772-.383.924"/><path d="m19.148 15.228.383-.923"/><path d="m19.53 21.696-.382-.924"/><path d="M2 7.82a15 15 0 0 1 20 0"/><path d="m20.772 16.852.924-.383"/><path d="m20.772 19.148.924.383"/><path d="M5 11.858a10 10 0 0 1 11.5-1.785"/><path d="M8.5 15.429a5 5 0 0 1 2.413-1.31"/><circle cx="18" cy="18" r="3"/></svg>`,
     filePen: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-pen-icon lucide-file-pen"><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/></svg>`,
@@ -327,6 +328,14 @@
             access: "administrator",
           });
         }
+
+        // Reserved: Creative Workshop (Craft-Typecho)
+        out.push({
+          key: "extras-workshop",
+          label: "创意工坊",
+          to: "/extras/workshop",
+          access: "administrator",
+        });
 
         for (const p of panels) {
           const panel = p && typeof p === "object" ? String(p.panel || "") : "";
@@ -970,6 +979,100 @@
           setTimeout(resizeExtrasPanelIframe, 1000);
         }
       );
+
+      // Creative Workshop (Craft-Typecho)
+      const workshopRepoUrl = "https://github.com/TGU-HansJack/Craft-Typecho";
+      const workshopListUrl = "https://github.com/TGU-HansJack/Craft-Typecho/repo.json";
+      const workshopLoginUrl = "https://github.com/login";
+
+      const workshopLoading = ref(false);
+      const workshopError = ref("");
+      const workshopItems = ref([]);
+      const workshopMeta = ref({});
+      const workshopInstallingId = ref("");
+
+      function workshopTypeLabel(type) {
+        const t = String(type || "").toLowerCase();
+        if (t === "plugin") return "插件";
+        if (t === "theme") return "主题";
+        if (!t) return "—";
+        return t;
+      }
+
+      function workshopTypeTone(type) {
+        const t = String(type || "").toLowerCase();
+        if (t === "plugin") return "info";
+        if (t === "theme") return "success";
+        return "";
+      }
+
+      function workshopTypechoText(v) {
+        if (v === null || v === undefined) return "";
+        if (Array.isArray(v)) {
+          return v
+            .map((x) => String(x || "").trim())
+            .filter(Boolean)
+            .join(", ");
+        }
+        if (typeof v === "object") {
+          const min = String(v.min || v.from || "").trim();
+          const max = String(v.max || v.to || "").trim();
+          if (min && max) return `${min} - ${max}`;
+          if (min) return `>= ${min}`;
+          if (max) return `<= ${max}`;
+          return String(v.range || v.text || "").trim();
+        }
+        return String(v || "").trim();
+      }
+
+      async function fetchWorkshopProjects(force) {
+        if (workshopLoading.value) return;
+        workshopLoading.value = true;
+        workshopError.value = "";
+        try {
+          const data = await apiGet("workshop.list", { force: force ? 1 : 0 });
+          workshopItems.value = data && Array.isArray(data.items) ? data.items : [];
+          workshopMeta.value = data && data.meta && typeof data.meta === "object" ? data.meta : {};
+        } catch (e) {
+          workshopError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          workshopLoading.value = false;
+        }
+      }
+
+      async function installWorkshopProject(row) {
+        const item = row && typeof row === "object" ? row : null;
+        if (!item) return;
+        if (!item.canInstall) return;
+        if (workshopInstallingId.value) return;
+
+        const id = String(item.id || item.name || item.link || "");
+        const name = String(item.name || "").trim() || "该项目";
+        const installed = !!item.installed;
+        const ok = installed
+          ? confirm(`已检测到“${name}”可能已安装，是否覆盖安装？`)
+          : confirm(`确认安装“${name}”？`);
+        if (!ok) return;
+
+        workshopInstallingId.value = id;
+        try {
+          await apiPost("workshop.install", {
+            id: item.id || "",
+            type: item.type || "",
+            link: item.link || "",
+            branch: item.branch || "",
+            subdir: item.subdir || "",
+            dir: item.dir || "",
+            overwrite: installed ? 1 : 0,
+          });
+          toastSuccess("安装完成");
+          await fetchWorkshopProjects(true);
+        } catch (e) {
+          toastError(e && e.message ? e.message : "安装失败");
+        } finally {
+          workshopInstallingId.value = "";
+        }
+      }
 
       const shouTuTaEnabled = computed(() => !!(V3A && V3A.extras && V3A.extras.shouTuTaEnabled));
       const shouTuTaLoading = ref(false);
@@ -9923,6 +10026,9 @@
             await fetchUpgradeSettings();
             await fetchUpgradeInfo();
           }
+          if (p === "/extras/workshop") {
+            await fetchWorkshopProjects();
+          }
           if (p === "/extras/shoutu") {
             await fetchShouTuTaStats();
             startShouTuTaPolling();
@@ -10098,6 +10204,9 @@
         if (routePath.value === "/maintenance/upgrade") {
           await fetchUpgradeSettings();
           await fetchUpgradeInfo();
+        }
+        if (routePath.value === "/extras/workshop") {
+          await fetchWorkshopProjects();
         }
         if (routePath.value === "/extras/shoutu") {
           await fetchShouTuTaStats();
@@ -10742,6 +10851,19 @@
         extrasPanelUrl,
         onExtrasPanelIframeLoad,
         reloadExtrasPanelIframe,
+        workshopRepoUrl,
+        workshopListUrl,
+        workshopLoginUrl,
+        workshopLoading,
+        workshopError,
+        workshopItems,
+        workshopMeta,
+        workshopInstallingId,
+        fetchWorkshopProjects,
+        installWorkshopProject,
+        workshopTypeLabel,
+        workshopTypeTone,
+        workshopTypechoText,
         shouTuTaEnabled,
         shouTuTaLoading,
         shouTuTaError,
@@ -13253,6 +13375,105 @@
                       :src="extrasPanelUrl"
                       @load="onExtrasPanelIframeLoad"
                     ></iframe>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/extras/workshop'">
+              <div class="v3a-container">
+                <div class="v3a-pagehead">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
+                    </button>
+                    <div class="v3a-pagehead-title">{{ crumb }}</div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="workshopLoading" @click="fetchWorkshopProjects(true)">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                    <a class="v3a-actionbtn" :href="workshopRepoUrl" target="_blank" rel="noreferrer" title="跳转仓库">
+                      <span class="v3a-icon" v-html="ICONS.github"></span>
+                    </a>
+                    <a class="v3a-actionbtn" :href="workshopLoginUrl" target="_blank" rel="noreferrer" title="登录账号">
+                      <span class="v3a-icon" v-html="ICONS.user"></span>
+                    </a>
+                  </div>
+                </div>
+
+                <div class="v3a-card">
+                  <div class="hd split">
+                    <div class="title">项目列表</div>
+                    <div class="v3a-muted" style="font-size: 12px;">
+                      <span v-if="workshopMeta && workshopMeta.sourceText">{{ workshopMeta.sourceText }}</span>
+                      <span v-if="workshopMeta && workshopMeta.updatedAt"> · 更新于 {{ formatTime(workshopMeta.updatedAt, settingsData.site.timezone) }}</span>
+                      <span> · <a :href="(workshopMeta && workshopMeta.url) || workshopListUrl" target="_blank" rel="noreferrer">repo.json</a></span>
+                    </div>
+                  </div>
+                  <div class="bd" style="padding: 0;">
+                    <div v-if="workshopError" class="v3a-alert" style="margin: 16px;">{{ workshopError }}</div>
+                    <div v-else-if="workshopLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+
+                    <template v-else>
+                      <div v-if="!workshopItems.length" class="v3a-muted" style="padding: 16px;">暂无项目</div>
+
+                      <table v-else class="v3a-table">
+                        <thead>
+                          <tr>
+                            <th>项目</th>
+                            <th style="width: 80px;">类型</th>
+                            <th style="width: 80px;">版本</th>
+                            <th style="width: 140px;">作者</th>
+                            <th style="width: 140px;">Typecho</th>
+                            <th>介绍</th>
+                            <th style="width: 160px; text-align: right;">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="row in workshopItems" :key="row.id || row.name">
+                            <td style="max-width: 260px;">
+                              <div style="display:flex; align-items:center; gap:8px; flex-wrap: wrap;">
+                                <a v-if="row.link" :href="row.link" target="_blank" rel="noreferrer">{{ row.name || '—' }}</a>
+                                <span v-else>{{ row.name || '—' }}</span>
+                                <span v-if="row.installed" class="v3a-pill success">已安装</span>
+                                <span v-if="row.isGithub" class="v3a-pill info">GitHub</span>
+                                <span v-if="row.direct" class="v3a-pill success">直装</span>
+                              </div>
+                              <div v-if="row.donate" class="v3a-muted" style="font-size: 12px;">
+                                <a :href="row.donate" target="_blank" rel="noreferrer">赞赏</a>
+                              </div>
+                            </td>
+                            <td style="width: 80px;">
+                              <span class="v3a-pill" :class="workshopTypeTone(row.type)">{{ workshopTypeLabel(row.type) }}</span>
+                            </td>
+                            <td style="width: 80px;">
+                              <span>{{ row.version || '—' }}</span>
+                            </td>
+                            <td style="width: 140px;">
+                              <span>{{ row.author || '—' }}</span>
+                            </td>
+                            <td style="width: 140px;">
+                              <span class="v3a-muted">{{ workshopTypechoText(row.typecho) || '—' }}</span>
+                            </td>
+                            <td style="word-break: break-word;">
+                              <span>{{ row.description || '—' }}</span>
+                            </td>
+                            <td style="width: 160px; text-align: right; white-space: nowrap;">
+                              <button
+                                v-if="row.canInstall"
+                                class="v3a-mini-btn primary"
+                                type="button"
+                                :disabled="workshopInstallingId === String(row.id || row.name || row.link || '')"
+                                @click="installWorkshopProject(row)"
+                              >{{ workshopInstallingId === String(row.id || row.name || row.link || '') ? '安装中…' : (row.installed ? '覆盖安装' : '安装') }}</button>
+                              <a v-if="row.link" class="v3a-mini-btn" :href="row.link" target="_blank" rel="noreferrer">跳转</a>
+                              <span v-else class="v3a-muted">—</span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </template>
                   </div>
                 </div>
               </div>

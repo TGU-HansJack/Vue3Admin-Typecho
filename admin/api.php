@@ -3085,6 +3085,554 @@ try {
         }
     }
 
+    if ($do === 'workshop.list') {
+        v3a_require_role($user, 'administrator');
+
+        $parseGithub = function (string $url): array {
+            $url = trim($url);
+            if ($url === '') {
+                return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+            }
+
+            // git@github.com:owner/repo(.git)
+            if (preg_match('/^git@github\\.com:([^\\/\\s]+)\\/([^\\s]+?)(?:\\.git)?$/i', $url, $m)) {
+                return ['owner' => (string) ($m[1] ?? ''), 'repo' => (string) ($m[2] ?? ''), 'branch' => '', 'subdir' => ''];
+            }
+
+            if (!preg_match('/^https?:\\/\\//i', $url)) {
+                return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+            }
+
+            $parts = @parse_url($url);
+            if (!is_array($parts)) {
+                return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+            }
+
+            $host = strtolower((string) ($parts['host'] ?? ''));
+            if ($host === 'www.github.com') {
+                $host = 'github.com';
+            }
+
+            $path = (string) ($parts['path'] ?? '');
+            $segs = array_values(array_filter(explode('/', trim($path, '/')), fn($v) => $v !== ''));
+
+            if ($host === 'github.com') {
+                if (count($segs) < 2) {
+                    return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+                }
+
+                $owner = (string) ($segs[0] ?? '');
+                $repo = (string) ($segs[1] ?? '');
+                $repo = preg_replace('/\\.git$/i', '', $repo);
+
+                $branch = '';
+                $subdir = '';
+                if (isset($segs[2]) && $segs[2] === 'tree' && isset($segs[3])) {
+                    $branch = (string) ($segs[3] ?? '');
+                    $rest = array_slice($segs, 4);
+                    $subdir = $rest ? implode('/', $rest) : '';
+                }
+
+                return ['owner' => $owner, 'repo' => $repo, 'branch' => $branch, 'subdir' => $subdir];
+            }
+
+            if ($host === 'raw.githubusercontent.com') {
+                if (count($segs) < 3) {
+                    return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+                }
+                $owner = (string) ($segs[0] ?? '');
+                $repo = (string) ($segs[1] ?? '');
+                $branch = (string) ($segs[2] ?? '');
+                $rest = array_slice($segs, 3);
+                $subdir = $rest ? implode('/', $rest) : '';
+                return ['owner' => $owner, 'repo' => $repo, 'branch' => $branch, 'subdir' => $subdir];
+            }
+
+            return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+        };
+
+        $pickStr = function (array $item, array $keys, string $default = ''): string {
+            foreach ($keys as $k) {
+                if (!array_key_exists($k, $item)) {
+                    continue;
+                }
+                $v = $item[$k];
+                if (is_string($v) || is_numeric($v)) {
+                    $s = trim((string) $v);
+                    if ($s !== '') {
+                        return $s;
+                    }
+                }
+            }
+            return $default;
+        };
+
+        $pickAny = function (array $item, array $keys) {
+            foreach ($keys as $k) {
+                if (array_key_exists($k, $item)) {
+                    return $item[$k];
+                }
+            }
+            return null;
+        };
+
+        $pickBool = function (array $item, array $keys, ?bool $default = null): ?bool {
+            foreach ($keys as $k) {
+                if (!array_key_exists($k, $item)) {
+                    continue;
+                }
+                $v = $item[$k];
+                if (is_bool($v)) {
+                    return $v;
+                }
+                if (is_numeric($v)) {
+                    return ((int) $v) ? true : false;
+                }
+                if (is_string($v)) {
+                    $vv = strtolower(trim($v));
+                    if (in_array($vv, ['1', 'true', 'yes', 'on'], true)) {
+                        return true;
+                    }
+                    if (in_array($vv, ['0', 'false', 'no', 'off'], true)) {
+                        return false;
+                    }
+                }
+            }
+            return $default;
+        };
+
+        $localRepo = '';
+        $localFile = '';
+        try {
+            $rootDir = defined('__TYPECHO_ROOT_DIR__') ? (string) __TYPECHO_ROOT_DIR__ : dirname(__DIR__);
+            $parent = rtrim(dirname(rtrim($rootDir, "/\\")), "/\\");
+            $localRepo = $parent . DIRECTORY_SEPARATOR . 'Craft-Typecho';
+            $localFile = rtrim($localRepo, "/\\") . DIRECTORY_SEPARATOR . 'repo.json';
+        } catch (\Throwable $e) {
+            $localRepo = '';
+            $localFile = '';
+        }
+
+        $meta = [
+            'source' => '',
+            'sourceText' => '',
+            'path' => '',
+            'url' => '',
+            'updatedAt' => 0,
+            'fetchedAt' => time(),
+            'candidates' => [],
+        ];
+
+        $decoded = null;
+        if ($localFile !== '' && is_file($localFile)) {
+            $raw = (string) @file_get_contents($localFile);
+            $decoded = json_decode($raw, true);
+            if (!is_array($decoded)) {
+                v3a_exit_json(400, null, 'Invalid local repo.json');
+            }
+
+            $meta['source'] = 'local';
+            $meta['sourceText'] = '本地';
+            $meta['path'] = $localFile;
+            $meta['updatedAt'] = (int) (@filemtime($localFile) ?: 0);
+        } else {
+            $candidates = [
+                'https://raw.githubusercontent.com/TGU-HansJack/Craft-Typecho/main/repo.json',
+                'https://raw.githubusercontent.com/TGU-HansJack/Craft-Typecho/master/repo.json',
+                'https://github.com/TGU-HansJack/Craft-Typecho/raw/main/repo.json',
+                'https://github.com/TGU-HansJack/Craft-Typecho/raw/master/repo.json',
+                // Provided by user (may 404 if not committed)
+                'https://github.com/TGU-HansJack/Craft-Typecho/repo.json',
+            ];
+            $meta['candidates'] = $candidates;
+
+            $headers = [
+                'Accept' => 'application/json',
+                'User-Agent' => 'Vue3Admin-Typecho',
+            ];
+
+            $lastErr = '';
+            foreach ($candidates as $u) {
+                try {
+                    $decoded = v3a_http_get_json($u, $headers, 15);
+                    $meta['source'] = 'remote';
+                    $meta['sourceText'] = '远程';
+                    $meta['url'] = $u;
+                    $meta['updatedAt'] = time();
+                    break;
+                } catch (\Throwable $e) {
+                    $lastErr = $e->getMessage();
+                    $decoded = null;
+                }
+            }
+
+            if (!is_array($decoded)) {
+                $suffix = $lastErr !== '' ? (': ' . $lastErr) : '';
+                v3a_exit_json(404, null, 'repo.json not found' . $suffix);
+            }
+        }
+
+        $itemsRaw = [];
+        if (is_array($decoded)) {
+            if (array_values($decoded) === $decoded) {
+                $itemsRaw = $decoded;
+            } elseif (isset($decoded['projects']) && is_array($decoded['projects'])) {
+                $itemsRaw = $decoded['projects'];
+            } elseif (isset($decoded['items']) && is_array($decoded['items'])) {
+                $itemsRaw = $decoded['items'];
+            } elseif (isset($decoded['list']) && is_array($decoded['list'])) {
+                $itemsRaw = $decoded['list'];
+            } elseif (isset($decoded['data']) && is_array($decoded['data'])) {
+                if (isset($decoded['data']['projects']) && is_array($decoded['data']['projects'])) {
+                    $itemsRaw = $decoded['data']['projects'];
+                } elseif (array_values($decoded['data']) === $decoded['data']) {
+                    $itemsRaw = $decoded['data'];
+                }
+            }
+
+            if (!$meta['updatedAt'] && isset($decoded['updatedAt'])) {
+                $ua = $decoded['updatedAt'];
+                if (is_numeric($ua)) {
+                    $meta['updatedAt'] = (int) $ua;
+                } elseif (is_string($ua)) {
+                    $ts = @strtotime($ua);
+                    if (is_int($ts) && $ts > 0) {
+                        $meta['updatedAt'] = $ts;
+                    }
+                }
+            }
+        }
+
+        $pluginBase = rtrim((string) __TYPECHO_ROOT_DIR__, "/\\") . (string) __TYPECHO_PLUGIN_DIR__;
+        $themeBase = rtrim((string) __TYPECHO_ROOT_DIR__, "/\\") . (string) __TYPECHO_THEME_DIR__;
+
+        $out = [];
+        foreach ((array) $itemsRaw as $idx => $it) {
+            if (!is_array($it)) {
+                continue;
+            }
+
+            $name = $pickStr($it, ['name', 'title', 'projectName', '项目名称'], '');
+            $typeRaw = strtolower($pickStr($it, ['type', 'projectType', '项目类型'], ''));
+            if ($typeRaw === '插件') {
+                $typeRaw = 'plugin';
+            } elseif ($typeRaw === '主题') {
+                $typeRaw = 'theme';
+            }
+            $type = $typeRaw;
+
+            $link = $pickStr($it, ['link', 'url', 'repo', 'projectLink', '项目链接'], '');
+            $desc = $pickStr($it, ['description', 'desc', 'intro', 'projectIntro', '项目介绍'], '');
+            $typecho = $pickAny($it, ['typecho', 'typechoVersion', 'typechoVersions', 'supportTypecho', '支持Typecho版本']);
+            $ver = $pickStr($it, ['version', 'projectVersion', '项目的版本号'], '');
+            $author = $pickStr($it, ['author', '作者'], '');
+            $donate = $pickStr($it, ['donate', 'donateUrl', 'sponsor', '赞赏链接'], '');
+
+            $gh = $parseGithub($link);
+            $isGithub = $pickBool($it, ['isGithub', 'isGitHub', 'github', '是否GitHub仓库'], null);
+            if ($isGithub === null) {
+                $isGithub = ($gh['owner'] !== '' && $gh['repo'] !== '');
+            }
+
+            $direct = $pickBool($it, ['direct', 'directFetch', 'supportDirect', 'supportsDirect', '是否支持直接获取', '支持直接获取'], null);
+            if ($direct === null) {
+                $direct = $isGithub ? true : false;
+            }
+
+            $branch = $pickStr($it, ['branch', 'ref', 'defaultBranch'], '');
+            if ($branch === '') {
+                $branch = (string) ($gh['branch'] ?? '');
+            }
+            $subdir = $pickStr($it, ['subdir', 'path', 'subPath', '子目录'], '');
+            if ($subdir === '') {
+                $subdir = (string) ($gh['subdir'] ?? '');
+            }
+
+            $dir = $pickStr($it, ['dir', 'installDir', 'folder', 'directory', 'slug', '目录'], '');
+            if ($dir === '' && $gh['repo'] !== '') {
+                $dir = (string) $gh['repo'];
+            }
+
+            $dir = trim($dir);
+            if ($dir !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]*$/', $dir)) {
+                $dir = '';
+            }
+
+            $canInstall = false;
+            if (in_array($type, ['plugin', 'theme'], true) && $link !== '' && $isGithub && $direct && $dir !== '') {
+                $canInstall = true;
+            }
+
+            $installed = false;
+            if ($canInstall) {
+                $base = $type === 'theme' ? $themeBase : $pluginBase;
+                $target = rtrim($base, "/\\") . DIRECTORY_SEPARATOR . $dir;
+                $installed = is_dir($target);
+            }
+
+            $id = $pickStr($it, ['id', 'key'], '');
+            if ($id === '') {
+                $id = substr(md5($type . '|' . $dir . '|' . $link . '|' . (string) $idx), 0, 12);
+            }
+
+            $out[] = [
+                'id' => $id,
+                'name' => $name !== '' ? $name : ($dir !== '' ? $dir : ('项目' . (string) ($idx + 1))),
+                'type' => $type,
+                'link' => $link,
+                'description' => $desc,
+                'typecho' => $typecho,
+                'version' => $ver,
+                'author' => $author,
+                'donate' => $donate,
+                'isGithub' => $isGithub ? 1 : 0,
+                'direct' => $direct ? 1 : 0,
+                'branch' => $branch,
+                'subdir' => $subdir,
+                'dir' => $dir,
+                'canInstall' => $canInstall ? 1 : 0,
+                'installed' => $installed ? 1 : 0,
+            ];
+        }
+
+        v3a_exit_json(0, [
+            'items' => $out,
+            'meta' => $meta,
+        ]);
+    }
+
+    if ($do === 'workshop.install') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+
+        $payload = v3a_payload();
+        $type = strtolower(v3a_string($payload['type'] ?? '', ''));
+        if (!in_array($type, ['plugin', 'theme'], true)) {
+            v3a_exit_json(400, null, 'Invalid type');
+        }
+
+        $link = v3a_string($payload['link'] ?? '', '');
+        if ($link === '') {
+            v3a_exit_json(400, null, 'Missing link');
+        }
+
+        $parseGithub = function (string $url): array {
+            $url = trim($url);
+            if ($url === '') {
+                return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+            }
+
+            if (preg_match('/^git@github\\.com:([^\\/\\s]+)\\/([^\\s]+?)(?:\\.git)?$/i', $url, $m)) {
+                return ['owner' => (string) ($m[1] ?? ''), 'repo' => (string) ($m[2] ?? ''), 'branch' => '', 'subdir' => ''];
+            }
+
+            if (!preg_match('/^https?:\\/\\//i', $url)) {
+                return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+            }
+
+            $parts = @parse_url($url);
+            if (!is_array($parts)) {
+                return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+            }
+
+            $host = strtolower((string) ($parts['host'] ?? ''));
+            if ($host === 'www.github.com') {
+                $host = 'github.com';
+            }
+
+            $path = (string) ($parts['path'] ?? '');
+            $segs = array_values(array_filter(explode('/', trim($path, '/')), fn($v) => $v !== ''));
+
+            if ($host === 'github.com') {
+                if (count($segs) < 2) {
+                    return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+                }
+
+                $owner = (string) ($segs[0] ?? '');
+                $repo = (string) ($segs[1] ?? '');
+                $repo = preg_replace('/\\.git$/i', '', $repo);
+
+                $branch = '';
+                $subdir = '';
+                if (isset($segs[2]) && $segs[2] === 'tree' && isset($segs[3])) {
+                    $branch = (string) ($segs[3] ?? '');
+                    $rest = array_slice($segs, 4);
+                    $subdir = $rest ? implode('/', $rest) : '';
+                }
+
+                return ['owner' => $owner, 'repo' => $repo, 'branch' => $branch, 'subdir' => $subdir];
+            }
+
+            if ($host === 'raw.githubusercontent.com') {
+                if (count($segs) < 3) {
+                    return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+                }
+                $owner = (string) ($segs[0] ?? '');
+                $repo = (string) ($segs[1] ?? '');
+                $branch = (string) ($segs[2] ?? '');
+                $rest = array_slice($segs, 3);
+                $subdir = $rest ? implode('/', $rest) : '';
+                return ['owner' => $owner, 'repo' => $repo, 'branch' => $branch, 'subdir' => $subdir];
+            }
+
+            return ['owner' => '', 'repo' => '', 'branch' => '', 'subdir' => ''];
+        };
+
+        $gh = $parseGithub($link);
+        $owner = trim((string) ($gh['owner'] ?? ''));
+        $repo = trim((string) ($gh['repo'] ?? ''));
+        if ($owner === '' || $repo === '') {
+            v3a_exit_json(400, null, 'Not a GitHub repository link');
+        }
+
+        $dir = v3a_string($payload['dir'] ?? '', '');
+        $dir = $dir !== '' ? $dir : $repo;
+        $dir = trim($dir);
+        if ($dir === '' || !preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]*$/', $dir)) {
+            v3a_exit_json(400, null, 'Invalid install dir');
+        }
+
+        $branch = v3a_string($payload['branch'] ?? '', '');
+        if ($branch === '') {
+            $branch = trim((string) ($gh['branch'] ?? ''));
+        }
+
+        $subdir = v3a_string($payload['subdir'] ?? '', '');
+        if ($subdir === '') {
+            $subdir = trim((string) ($gh['subdir'] ?? ''));
+        }
+        $subdir = trim($subdir, "/\\");
+        if ($subdir !== '' && (strpos($subdir, '..') !== false || preg_match('/^[A-Za-z]:/', $subdir))) {
+            v3a_exit_json(400, null, 'Invalid subdir');
+        }
+
+        $overwrite = !empty($payload['overwrite']) ? 1 : 0;
+
+        // Determine default branch (best-effort)
+        if ($branch === '') {
+            try {
+                $headers = [
+                    'Accept' => 'application/vnd.github+json',
+                    'User-Agent' => 'Vue3Admin-Typecho',
+                ];
+                $info = v3a_http_get_json('https://api.github.com/repos/' . rawurlencode($owner) . '/' . rawurlencode($repo), $headers, 10);
+                if (is_array($info) && isset($info['default_branch'])) {
+                    $branch = trim((string) $info['default_branch']);
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+        if ($branch === '') {
+            $branch = 'main';
+        }
+
+        $ref = $branch;
+        $zipUrls = [];
+        if (strpos($ref, 'refs/') === 0) {
+            $zipUrls[] = 'https://codeload.github.com/' . rawurlencode($owner) . '/' . rawurlencode($repo) . '/zip/' . $ref;
+        } else {
+            $zipUrls[] = 'https://codeload.github.com/' . rawurlencode($owner) . '/' . rawurlencode($repo) . '/zip/refs/heads/' . rawurlencode($ref);
+        }
+        if ($ref === 'main') {
+            $zipUrls[] = 'https://codeload.github.com/' . rawurlencode($owner) . '/' . rawurlencode($repo) . '/zip/refs/heads/master';
+        } elseif ($ref === 'master') {
+            $zipUrls[] = 'https://codeload.github.com/' . rawurlencode($owner) . '/' . rawurlencode($repo) . '/zip/refs/heads/main';
+        }
+
+        $tmpDir = '';
+        try {
+            $tmpRoot = rtrim((string) @sys_get_temp_dir(), '/\\');
+            if ($tmpRoot === '') {
+                $tmpRoot = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr' . DIRECTORY_SEPARATOR . 'uploads';
+            }
+            $tmpDir = $tmpRoot . DIRECTORY_SEPARATOR . 'v3a_workshop_' . date('Ymd_His') . '_' . substr(md5((string) mt_rand()), 0, 8);
+            $zipPath = $tmpDir . DIRECTORY_SEPARATOR . 'package.zip';
+            $extractDir = $tmpDir . DIRECTORY_SEPARATOR . 'extract';
+            v3a_mkdir_p($extractDir);
+
+            $downloadHeaders = [
+                'Accept' => 'application/octet-stream',
+                'User-Agent' => 'Vue3Admin-Typecho',
+            ];
+
+            $downloadedFrom = '';
+            $lastErr = '';
+            foreach ($zipUrls as $u) {
+                try {
+                    $downloadedFrom = $u;
+                    v3a_http_download_to_file($u, $zipPath, $downloadHeaders, 60);
+                    $lastErr = '';
+                    break;
+                } catch (\Throwable $e) {
+                    $lastErr = $e->getMessage();
+                    $downloadedFrom = '';
+                    @unlink($zipPath);
+                }
+            }
+            if ($downloadedFrom === '') {
+                throw new \RuntimeException('Download failed' . ($lastErr !== '' ? (': ' . $lastErr) : ''));
+            }
+
+            if (!is_file($zipPath) || (int) (@filesize($zipPath) ?: 0) < 1024) {
+                throw new \RuntimeException('Downloaded zip is too small');
+            }
+            $sig = @file_get_contents($zipPath, false, null, 0, 4);
+            if (!is_string($sig) || substr($sig, 0, 2) !== 'PK') {
+                throw new \RuntimeException('Invalid zip file');
+            }
+
+            v3a_extract_zip_to($zipPath, $extractDir);
+
+            $dirs = glob(rtrim($extractDir, "/\\") . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR);
+            if (!is_array($dirs) || count($dirs) !== 1) {
+                throw new \RuntimeException('Invalid package structure');
+            }
+            $pkgRoot = (string) ($dirs[0] ?? '');
+            if ($pkgRoot === '' || !is_dir($pkgRoot)) {
+                throw new \RuntimeException('Invalid package root');
+            }
+
+            $src = $pkgRoot;
+            if ($subdir !== '') {
+                $src = rtrim($pkgRoot, "/\\") . DIRECTORY_SEPARATOR . $subdir;
+            }
+            if (!is_dir($src)) {
+                throw new \RuntimeException('Subdir not found: ' . $subdir);
+            }
+
+            $base = rtrim((string) __TYPECHO_ROOT_DIR__, "/\\") . ($type === 'theme' ? (string) __TYPECHO_THEME_DIR__ : (string) __TYPECHO_PLUGIN_DIR__);
+            $dest = rtrim($base, "/\\") . DIRECTORY_SEPARATOR . $dir;
+
+            if (is_dir($dest)) {
+                if (!$overwrite) {
+                    throw new \RuntimeException('Target already exists');
+                }
+                v3a_rmdir_recursive($dest);
+            }
+
+            v3a_copy_directory($src, $dest);
+
+            v3a_rmdir_recursive($tmpDir);
+            $tmpDir = '';
+
+            v3a_exit_json(0, [
+                'installed' => 1,
+                'type' => $type,
+                'dir' => $dir,
+                'target' => $dest,
+                'downloadedFrom' => $downloadedFrom,
+            ]);
+        } catch (\Throwable $e) {
+            if ($tmpDir !== '') {
+                v3a_rmdir_recursive($tmpDir);
+            }
+            v3a_exit_json(500, null, $e->getMessage() !== '' ? $e->getMessage() : 'Install failed');
+        }
+    }
+
     if ($do === 'shoutu.stats') {
         v3a_require_role($user, 'administrator');
 
