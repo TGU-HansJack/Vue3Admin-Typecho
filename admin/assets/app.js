@@ -1017,6 +1017,10 @@
         });
       });
 
+      function applyWorkshopFilters() {
+        workshopSearch.value = String(workshopSearch.value || "").trim();
+      }
+
       function workshopTypeLabel(type) {
         const t = String(type || "").toLowerCase();
         if (t === "plugin") return "插件";
@@ -10888,6 +10892,7 @@
         workshopSearch,
         workshopTypeFilter,
         workshopFilteredItems,
+        applyWorkshopFilters,
         fetchWorkshopProjects,
         installWorkshopProject,
         workshopTypeLabel,
@@ -13417,6 +13422,12 @@
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
                     </button>
                     <div class="v3a-pagehead-title">{{ crumb }}</div>
+                    <div v-if="workshopMeta && (workshopMeta.sourceText || workshopMeta.updatedAt || workshopMeta.url)" class="v3a-draft-status idle v3a-workshop-meta">
+                      <span class="v3a-icon" v-html="ICONS.cloud"></span>
+                      <span>{{ workshopMeta.sourceText || '—' }}</span>
+                      <span v-if="workshopMeta.updatedAt" class="v3a-draft-status-time">· 更新于 {{ formatTime(workshopMeta.updatedAt, settingsData.site.timezone) }}</span>
+                      <span class="v3a-draft-status-time">· <a :href="(workshopMeta && workshopMeta.url) || workshopListUrl" target="_blank" rel="noreferrer">repo.json</a></span>
+                    </div>
                   </div>
                   <div class="v3a-pagehead-actions">
                     <button class="v3a-actionbtn" type="button" title="刷新" :disabled="workshopLoading" @click="fetchWorkshopProjects(true)">
@@ -13431,29 +13442,21 @@
                   </div>
                 </div>
 
-                <div class="v3a-card v3a-workshop-card">
-                  <div class="hd split">
-                    <div class="title">项目列表</div>
-                    <div class="v3a-workshop-hd-tools">
-                      <div class="v3a-searchbox v3a-workshop-searchbox">
-                        <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
-                        <input class="v3a-input" v-model="workshopSearch" placeholder="搜索项目..." />
-                      </div>
-                      <select class="v3a-select" v-model="workshopTypeFilter" style="width: 120px;">
-                        <option value="all">全部类型</option>
-                        <option value="plugin">插件</option>
-                        <option value="theme">主题</option>
-                      </select>
-                      <div class="v3a-muted" style="font-size: 12px;">
-                        {{ formatNumber(workshopFilteredItems.length) }} / {{ formatNumber(workshopItems.length) }}
-                      </div>
-                      <div class="v3a-muted v3a-workshop-meta" style="font-size: 12px;">
-                        <span v-if="workshopMeta && workshopMeta.sourceText">{{ workshopMeta.sourceText }}</span>
-                        <span v-if="workshopMeta && workshopMeta.updatedAt"> · 更新于 {{ formatTime(workshopMeta.updatedAt, settingsData.site.timezone) }}</span>
-                        <span> · <a :href="(workshopMeta && workshopMeta.url) || workshopListUrl" target="_blank" rel="noreferrer">repo.json</a></span>
-                      </div>
-                    </div>
+                <div class="v3a-posts-search" data-tour="workshop-filters">
+                  <div class="v3a-searchbox">
+                    <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                    <input class="v3a-input" v-model="workshopSearch" @keyup.enter="applyWorkshopFilters()" placeholder="搜索项目..." />
                   </div>
+                  <select class="v3a-select" v-model="workshopTypeFilter" @change="applyWorkshopFilters()" style="width: 140px;">
+                    <option value="all">全部类型</option>
+                    <option value="plugin">插件</option>
+                    <option value="theme">主题</option>
+                  </select>
+                  <button class="v3a-btn" type="button" @click="applyWorkshopFilters()" :disabled="workshopLoading">搜索</button>
+                  <div class="v3a-muted">{{ formatNumber(workshopFilteredItems.length) }} 条</div>
+                </div>
+
+                <div class="v3a-card v3a-workshop-card">
                   <div class="bd" style="padding: 0;">
                     <div v-if="workshopError" class="v3a-alert" style="margin: 16px;">{{ workshopError }}</div>
                     <div v-else-if="workshopLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>

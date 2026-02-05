@@ -3261,25 +3261,13 @@ a {
   box-shadow: none;
 }
 
-.v3a-workshop-card .hd {
-  flex-wrap: wrap;
-  align-items: flex-start;
+.v3a-workshop-meta a {
+  color: inherit;
+  text-decoration: none;
 }
 
-.v3a-workshop-hd-tools {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: calc(var(--spacing) * 3);
-}
-
-.v3a-workshop-searchbox {
-  width: 280px;
-}
-
-.v3a-workshop-meta {
-  white-space: nowrap;
+.v3a-workshop-meta a:hover {
+  text-decoration: underline;
 }
 
 .v3a-searchbox {
@@ -3309,15 +3297,7 @@ a {
 }
 
 @media (max-width: 48rem) {
-  .v3a-workshop-hd-tools {
-    justify-content: flex-start;
-  }
-
-  .v3a-workshop-searchbox {
-    width: 100%;
-  }
-
-  .v3a-workshop-meta {
+  .v3a-draft-status.v3a-workshop-meta {
     white-space: normal;
   }
 }
