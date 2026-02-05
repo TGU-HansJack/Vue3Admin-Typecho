@@ -2979,32 +2979,10 @@ a {
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.v3a-drafts-tabs {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.v3a-drafts-tab {
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(0, 0, 0, 0.03);
-  color: rgba(0, 0, 0, 0.72);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.v3a-drafts-tab.active {
-  background: #fff;
-  color: rgba(0, 0, 0, 0.82);
-  border-color: rgba(0, 0, 0, 0.12);
-}
-
-.v3a-drafts-tab:active {
-  background: rgba(0, 0, 0, 0.06);
+.v3a-drafts-left-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--v3a-text);
 }
 
 .v3a-drafts-toolbar {
@@ -3173,6 +3151,15 @@ a {
 
 .v3a-drafts-detail-card {
   max-width: 860px;
+  margin: 0 auto;
+}
+
+.v3a-drafts-preview-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.7;
+  font-size: 14px;
+  color: var(--v3a-text);
 }
 
 .v3a-actionbtn {

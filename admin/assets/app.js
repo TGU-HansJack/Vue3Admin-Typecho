@@ -250,6 +250,8 @@
     hardDriveDownload: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hard-drive-download-icon lucide-hard-drive-download"><path d="M12 2v8"/><path d="m16 6-4 4-4-4"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 18h.01"/><path d="M10 18h.01"/></svg>`,
     wifiCog: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wifi-cog-icon lucide-wifi-cog"><path d="m14.305 19.53.923-.382"/><path d="m15.228 16.852-.923-.383"/><path d="m16.852 15.228-.383-.923"/><path d="m16.852 20.772-.383.924"/><path d="m19.148 15.228.383-.923"/><path d="m19.53 21.696-.382-.924"/><path d="M2 7.82a15 15 0 0 1 20 0"/><path d="m20.772 16.852.924-.383"/><path d="m20.772 19.148.924.383"/><path d="M5 11.858a10 10 0 0 1 11.5-1.785"/><path d="M8.5 15.429a5 5 0 0 1 2.413-1.31"/><circle cx="18" cy="18" r="3"/></svg>`,
     filePen: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-pen-icon lucide-file-pen"><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/></svg>`,
+    filePenLine: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-pen-line-icon lucide-file-pen-line"><path d="m18.226 5.226-2.52-2.52A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-.351"/><path d="M21.378 12.626a1 1 0 0 0-3.004-3.004l-4.01 4.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/><path d="M8 18h1"/></svg>`,
+    squarePen: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-pen-icon lucide-square-pen"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>`,
     cloud: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cloud-icon lucide-cloud"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path></svg>`,
   };
 
@@ -2479,7 +2481,6 @@
       const draftsPagesError = ref("");
       const draftsPagesItems = ref([]);
 
-      const draftsTab = ref("all"); // all|post|page
       const draftsActiveKey = ref("");
 
       function draftsItemAt(item) {
@@ -2516,23 +2517,15 @@
           }))
           .filter((p) => Number(p?.cid || 0) > 0);
 
-        if (draftsTab.value === "post") return posts;
-        if (draftsTab.value === "page") return pages;
-
         const merged = posts.concat(pages);
         merged.sort((a, b) => Number(b?._draftAt || 0) - Number(a?._draftAt || 0));
         return merged;
       });
 
-      const draftsTabCountText = computed(() => {
-        if (draftsTab.value === "post") {
-          return `${formatNumber(draftsPostsPagination.total || 0)} 个`;
-        }
-        if (draftsTab.value === "page") {
-          return `${formatNumber((draftsPagesItems.value || []).length)} 个`;
-        }
-        return `${formatNumber((draftsPostsPagination.total || 0) + (draftsPagesItems.value || []).length)} 个`;
-      });
+      const draftsCountText = computed(
+        () =>
+          `${formatNumber((draftsPostsPagination.total || 0) + (draftsPagesItems.value || []).length)} 个`
+      );
 
       const draftsActiveItem = computed(() => {
         const key = String(draftsActiveKey.value || "");
@@ -2560,8 +2553,67 @@
         await deletePost(d.cid);
       }
 
+      const draftsPreviewLoading = ref(false);
+      const draftsPreviewError = ref("");
+      const draftsPreviewText = ref("");
+      const draftsPreviewCache = new Map();
+      let draftsPreviewToken = 0;
+
       watch(
-        () => [routePath.value, draftsTab.value, (draftsListItems.value || []).map((d) => d._draftKey).join(",")].join("|"),
+        () => [routePath.value, draftsActiveKey.value].join("|"),
+        async () => {
+          if (routePath.value !== "/drafts") return;
+
+          const key = String(draftsActiveKey.value || "");
+          draftsPreviewError.value = "";
+
+          if (!key) {
+            draftsPreviewLoading.value = false;
+            draftsPreviewText.value = "";
+            return;
+          }
+
+          if (draftsPreviewCache.has(key)) {
+            draftsPreviewLoading.value = false;
+            draftsPreviewText.value = String(draftsPreviewCache.get(key) || "");
+            return;
+          }
+
+          const d = draftsActiveItem.value;
+          if (!d) {
+            draftsPreviewLoading.value = false;
+            draftsPreviewText.value = "";
+            return;
+          }
+
+          const token = ++draftsPreviewToken;
+          draftsPreviewLoading.value = true;
+          draftsPreviewText.value = "";
+          try {
+            let text = "";
+            if (d._draftType === "page") {
+              const data = await apiGet("pages.get", { cid: d.cid || "", parent: "" });
+              text = String(data?.page?.text || "");
+            } else {
+              const data = await apiGet("posts.get", { cid: d.cid || "" });
+              text = String(data?.post?.text || "");
+            }
+
+            draftsPreviewCache.set(key, text);
+            if (token !== draftsPreviewToken) return;
+            draftsPreviewText.value = text;
+          } catch (e) {
+            if (token !== draftsPreviewToken) return;
+            draftsPreviewError.value = e && e.message ? e.message : "加载失败";
+          } finally {
+            if (token === draftsPreviewToken) draftsPreviewLoading.value = false;
+          }
+        },
+        { immediate: true }
+      );
+
+      watch(
+        () => [routePath.value, (draftsListItems.value || []).map((d) => d._draftKey).join(",")].join("|"),
         () => {
           if (routePath.value !== "/drafts") return;
           if (draftsActiveItem.value) return;
@@ -10234,8 +10286,7 @@
         draftsPagesLoading,
         draftsPagesError,
         draftsPagesItems,
-        draftsTab,
-        draftsTabCountText,
+        draftsCountText,
         draftsActiveKey,
         draftsListItems,
         draftsActiveItem,
@@ -10243,6 +10294,9 @@
         draftsItemTitle,
         draftsOpenActiveDraft,
         draftsDeleteActiveDraft,
+        draftsPreviewLoading,
+        draftsPreviewError,
+        draftsPreviewText,
         fetchDrafts,
         applyDraftsFilters,
         draftsPostsGoPage,
@@ -11763,10 +11817,10 @@
                       <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
                     </button>
                     <button class="v3a-actionbtn" type="button" title="新增文章" @click="openPostEditor(0)">
-                      <span class="v3a-icon" v-html="ICONS.plus"></span>
+                      <span class="v3a-icon" v-html="ICONS.filePenLine"></span>
                     </button>
                     <button class="v3a-actionbtn" type="button" title="新增页面" @click="openPageEditor(0)">
-                      <span class="v3a-icon" v-html="ICONS.plus"></span>
+                      <span class="v3a-icon" v-html="ICONS.squarePen"></span>
                     </button>
                   </div>
                 </div>
@@ -11774,12 +11828,8 @@
                 <div class="v3a-drafts-split">
                   <div class="v3a-drafts-left">
                     <div class="v3a-drafts-left-head">
-                      <div class="v3a-drafts-tabs" role="tablist" aria-label="草稿类型">
-                        <button class="v3a-drafts-tab" :class="{ active: draftsTab === 'all' }" type="button" @click="draftsTab = 'all'">全部</button>
-                        <button class="v3a-drafts-tab" :class="{ active: draftsTab === 'post' }" type="button" @click="draftsTab = 'post'">文章</button>
-                        <button class="v3a-drafts-tab" :class="{ active: draftsTab === 'page' }" type="button" @click="draftsTab = 'page'">页面</button>
-                      </div>
-                      <span class="v3a-muted">{{ draftsTabCountText }}</span>
+                      <div class="v3a-drafts-left-title">全部草稿</div>
+                      <span class="v3a-muted">{{ draftsCountText }}</span>
                     </div>
 
                     <div class="v3a-drafts-toolbar">
@@ -11833,7 +11883,7 @@
                       </div>
                     </div>
 
-                    <div v-if="draftsTab === 'post' && draftsPostsPagination.pageCount > 1" class="v3a-pagination v3a-drafts-pagination">
+                    <div v-if="draftsPostsPagination.pageCount > 1" class="v3a-pagination v3a-drafts-pagination">
                       <button class="v3a-pagebtn" type="button" @click="draftsPostsGoPage(draftsPostsPagination.page - 1)" :disabled="draftsPostsPagination.page <= 1">
                         <span class="v3a-icon" v-html="ICONS.collapse"></span>
                       </button>
@@ -11886,29 +11936,10 @@
                         <div class="v3a-muted">选择一个草稿查看详情</div>
                       </div>
                       <div v-else class="v3a-card v3a-drafts-detail-card">
-                        <div class="hd"><div class="title">信息</div></div>
                         <div class="bd">
-                          <div class="v3a-kv">
-                            <div class="v3a-muted">类型</div>
-                            <div>{{ draftsActiveItem._draftType === 'page' ? '页面' : '文章' }}</div>
-
-                            <div class="v3a-muted">状态</div>
-                            <div>草稿</div>
-
-                            <div class="v3a-muted">最近更新</div>
-                            <div>{{ formatTimeAgo(draftsItemAt(draftsActiveItem)) }}</div>
-
-                            <template v-if="draftsActiveItem._draftType === 'post' && draftsActiveItem.author && draftsActiveItem.author.name && draftsScope === 'all'">
-                              <div class="v3a-muted">作者</div>
-                              <div>{{ draftsActiveItem.author.name }}</div>
-                            </template>
-
-                            <div class="v3a-muted">操作</div>
-                            <div class="v3a-kv-inline">
-                              <button class="v3a-mini-btn" type="button" @click="draftsOpenActiveDraft()">编辑</button>
-                              <button class="v3a-mini-btn" type="button" style="color: var(--v3a-danger);" @click="draftsDeleteActiveDraft()">删除</button>
-                            </div>
-                          </div>
+                          <div v-if="draftsPreviewLoading" class="v3a-muted">正在加载…</div>
+                          <div v-else-if="draftsPreviewError" class="v3a-muted" style="color: var(--v3a-danger);">{{ draftsPreviewError }}</div>
+                          <div v-else class="v3a-drafts-preview-text">{{ draftsPreviewText || '（无内容）' }}</div>
                         </div>
                       </div>
                     </div>
@@ -11931,10 +11962,10 @@
                       <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
                     </button>
                     <button class="v3a-actionbtn" type="button" title="新增文章" @click="openPostEditor(0)">
-                      <span class="v3a-icon" v-html="ICONS.plus"></span>
+                      <span class="v3a-icon" v-html="ICONS.filePenLine"></span>
                     </button>
                     <button class="v3a-actionbtn" type="button" title="新增页面" @click="openPageEditor(0)">
-                      <span class="v3a-icon" v-html="ICONS.plus"></span>
+                      <span class="v3a-icon" v-html="ICONS.squarePen"></span>
                     </button>
                   </div>
                 </div>
