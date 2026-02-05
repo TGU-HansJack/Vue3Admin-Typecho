@@ -1001,17 +1001,7 @@
       const craftKeywords = ref("");
 
       const craftSubmitOpen = ref(false);
-      const craftSubmitForm = reactive({
-        name: "",
-        type: "plugin",
-        repo: "",
-        download: "",
-        description: "",
-        typecho: "1.2.1",
-        version: "1.0.0",
-        author: "",
-        donate: "",
-      });
+      const craftSubmitJson = ref("");
       const craftSubmitMessage = ref("");
       const craftSubmitting = ref(false);
       const craftSubmitError = ref("");
@@ -1170,20 +1160,19 @@
 
         craftSubmitError.value = "";
         craftSubmitOpen.value = true;
-
-        craftSubmitForm.name = "";
-        craftSubmitForm.type = "plugin";
-        craftSubmitForm.repo = "";
-        craftSubmitForm.download = "";
-        craftSubmitForm.description = "";
-        craftSubmitForm.typecho = "1.2.1";
-        craftSubmitForm.version = "1.0.0";
-        craftSubmitForm.author = String(
-          (craftGithubUser.value && craftGithubUser.value.login) ||
-            (V3A.user && V3A.user.name) ||
-            ""
-        ).trim();
-        craftSubmitForm.donate = "";
+        if (!String(craftSubmitJson.value || "").trim()) {
+          craftSubmitJson.value = `{
+  \"name\": \"\",
+  \"type\": \"plugin\",
+  \"repo\": \"\",
+  \"download\": \"\",
+  \"description\": \"\",
+  \"typecho\": \"1.2.1\",
+  \"version\": \"1.0.0\",
+  \"author\": \"\",
+  \"donate\": \"\"
+}`;
+        }
       }
 
       function craftCloseSubmit() {
@@ -1191,86 +1180,18 @@
         craftSubmitError.value = "";
       }
 
-      function craftBuildSubmitProject() {
-        const out = {};
-
-        const name = String(craftSubmitForm.name || "").trim();
-        if (name) out.name = name;
-
-        const type = String(craftSubmitForm.type || "").trim() || "plugin";
-        out.type = type;
-
-        const repo = String(craftSubmitForm.repo || "").trim();
-        if (repo) out.repo = repo;
-
-        const download = String(craftSubmitForm.download || "").trim();
-        if (download) out.download = download;
-
-        const description = String(craftSubmitForm.description || "").trim();
-        if (description) out.description = description;
-
-        const typecho = String(craftSubmitForm.typecho || "").trim();
-        if (typecho) out.typecho = typecho;
-
-        const version = String(craftSubmitForm.version || "").trim();
-        if (version) out.version = version;
-
-        const author = String(craftSubmitForm.author || "").trim();
-        if (author) out.author = author;
-
-        const donate = String(craftSubmitForm.donate || "").trim();
-        if (donate) out.donate = donate;
-
-        return out;
-      }
-
       async function craftSubmitProject() {
         if (craftSubmitting.value) return;
-        const project = craftBuildSubmitProject();
-
-        const name = String(project.name || "").trim();
-        if (!name) {
-          craftSubmitError.value = "请填写项目名称";
-          return;
-        }
-
-        const repo = String(project.repo || "").trim();
-        const download = String(project.download || "").trim();
-        if (!repo && !download) {
-          craftSubmitError.value = "请至少填写仓库链接或下载链接";
-          return;
-        }
-
         craftSubmitting.value = true;
         craftSubmitError.value = "";
         try {
-          let jsonText = "";
-          try {
-            jsonText = JSON.stringify(project, null, 2);
-          } catch (e) {
-            jsonText = "";
-          }
-          if (!String(jsonText || "").trim()) {
-            craftSubmitError.value = "生成 JSON 失败，请检查填写内容";
-            return;
-          }
-
           await apiPost("craft.submit", {
-            json: String(jsonText || ""),
+            json: String(craftSubmitJson.value || ""),
             message: String(craftSubmitMessage.value || ""),
           });
           toastSuccess("已提交，等待审核");
           craftSubmitOpen.value = false;
           craftSubmitMessage.value = "";
-          craftSubmitForm.name = "";
-          craftSubmitForm.type = "plugin";
-          craftSubmitForm.repo = "";
-          craftSubmitForm.download = "";
-          craftSubmitForm.description = "";
-          craftSubmitForm.typecho = "1.2.1";
-          craftSubmitForm.version = "1.0.0";
-          craftSubmitForm.author = "";
-          craftSubmitForm.donate = "";
           await fetchCraftList();
           craftActiveTab.value = "pending";
           ensureCraftActiveKey();
@@ -11138,7 +11059,7 @@
         craftOpenSubmit,
         craftCloseSubmit,
         craftSubmitOpen,
-        craftSubmitForm,
+        craftSubmitJson,
         craftSubmitMessage,
         craftSubmitting,
         craftSubmitError,
@@ -14199,7 +14120,7 @@
                 </div>
 
                 <div v-if="craftSubmitOpen" class="v3a-modal-mask" @click.self="craftCloseSubmit()">
-                  <div class="v3a-modal-card v3a-scroll-modal" role="dialog" aria-modal="true" style="max-width: 980px;">
+                  <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 980px;">
                     <button class="v3a-modal-close" type="button" aria-label="关闭" @click="craftCloseSubmit()">
                       <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
                     </button>
@@ -14210,63 +14131,14 @@
                     <div class="v3a-modal-body">
                       <div v-if="craftSubmitError" class="v3a-alert" style="margin-bottom: 12px;">{{ craftSubmitError }}</div>
 
-                      <div class="v3a-modal-form">
-                        <div class="v3a-modal-item">
-                          <label class="v3a-modal-label">提交说明（commit message）</label>
-                          <input class="v3a-input v3a-modal-input" v-model="craftSubmitMessage" :disabled="craftSubmitting" placeholder="可留空（自动生成）" />
-                        </div>
+                      <div class="v3a-modal-item">
+                        <label class="v3a-modal-label">提交说明（commit message）</label>
+                        <input class="v3a-input v3a-modal-input" v-model="craftSubmitMessage" placeholder="可留空（自动生成）" />
+                      </div>
 
-                        <div class="v3a-modal-item">
-                          <label class="v3a-modal-label">项目名称<span class="v3a-required">*</span></label>
-                          <input class="v3a-input v3a-modal-input" v-model="craftSubmitForm.name" :disabled="craftSubmitting" placeholder="请输入项目名称…" />
-                        </div>
-
-                        <div class="v3a-modal-item">
-                          <label class="v3a-modal-label">项目类型</label>
-                          <select class="v3a-select v3a-modal-input" v-model="craftSubmitForm.type" :disabled="craftSubmitting">
-                            <option value="plugin">插件</option>
-                            <option value="theme">主题</option>
-                            <option value="tool">工具</option>
-                            <option value="snippet">代码片段</option>
-                            <option value="other">其他</option>
-                          </select>
-                        </div>
-
-                        <div class="v3a-modal-item">
-                          <label class="v3a-modal-label">仓库链接</label>
-                          <input class="v3a-input v3a-modal-input" v-model="craftSubmitForm.repo" :disabled="craftSubmitting" placeholder="https://github.com/..." />
-                        </div>
-
-                        <div class="v3a-modal-item">
-                          <label class="v3a-modal-label">下载链接</label>
-                          <input class="v3a-input v3a-modal-input" v-model="craftSubmitForm.download" :disabled="craftSubmitting" placeholder="https://..." />
-                          <div class="v3a-muted" style="font-size: 12px; line-height: 1.6;">仓库链接或下载链接至少填写一个。</div>
-                        </div>
-
-                        <div class="v3a-modal-item">
-                          <label class="v3a-modal-label">项目介绍</label>
-                          <textarea class="v3a-textarea v3a-modal-textarea" v-model="craftSubmitForm.description" :disabled="craftSubmitting" placeholder="简要介绍你的项目…"></textarea>
-                        </div>
-
-                        <div class="v3a-modal-item">
-                          <label class="v3a-modal-label">支持 Typecho 版本</label>
-                          <input class="v3a-input v3a-modal-input" v-model="craftSubmitForm.typecho" :disabled="craftSubmitting" placeholder="例如：1.2.1" />
-                        </div>
-
-                        <div class="v3a-modal-item">
-                          <label class="v3a-modal-label">项目版本号</label>
-                          <input class="v3a-input v3a-modal-input" v-model="craftSubmitForm.version" :disabled="craftSubmitting" placeholder="例如：1.0.0" />
-                        </div>
-
-                        <div class="v3a-modal-item">
-                          <label class="v3a-modal-label">作者</label>
-                          <input class="v3a-input v3a-modal-input" v-model="craftSubmitForm.author" :disabled="craftSubmitting" placeholder="作者名…" />
-                        </div>
-
-                        <div class="v3a-modal-item">
-                          <label class="v3a-modal-label">赞赏链接</label>
-                          <input class="v3a-input v3a-modal-input" v-model="craftSubmitForm.donate" :disabled="craftSubmitting" placeholder="https://..." />
-                        </div>
+                      <div class="v3a-modal-item">
+                        <label class="v3a-modal-label">项目 JSON</label>
+                        <textarea class="v3a-textarea" v-model="craftSubmitJson" placeholder="粘贴 JSON…" style="min-height: 320px;"></textarea>
                       </div>
 
                       <div class="v3a-modal-actions">
