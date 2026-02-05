@@ -3265,6 +3265,12 @@ a {
   border: 1px solid var(--sidebar-border);
   border-radius: 4px;
   overflow: hidden;
+  box-shadow: var(--content-shadow);
+  transition: box-shadow 0.2s ease;
+}
+
+.v3a-workshop-tablebox:hover {
+  box-shadow: var(--content-shadow-hover);
 }
 
 .v3a-workshop-tablebox .v3a-table tbody tr:last-child td {
