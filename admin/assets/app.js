@@ -10759,10 +10759,6 @@
              @touchend="onMobileNavSwipeEnd"
              @touchcancel="onMobileNavSwipeCancel"
            >
-            <div v-if="mobileNavHasSettingsPanel" class="v3a-menu-tabs" role="tablist" aria-label="菜单切换">
-              <button class="v3a-menu-tab" :class="{ active: mobileNavTab === 0 }" type="button" @click="mobileNavTab = 0">菜单</button>
-              <button class="v3a-menu-tab" :class="{ active: mobileNavTab === 1 }" type="button" @click="mobileNavTab = 1">设定</button>
-            </div>
             <div class="v3a-menu-swipe" :style="{ transform: mobileNavHasSettingsPanel ? 'translate3d(-' + (mobileNavTab * 100) + '%,0,0)' : '' }">
               <div class="v3a-menu-panel v3a-menu-panel--main">
                 <div v-for="item in menuItems" :key="item.key">

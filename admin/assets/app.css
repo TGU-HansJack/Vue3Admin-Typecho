@@ -2222,37 +2222,6 @@ a {
     touch-action: pan-y;
   }
 
-  .v3a-menu-tabs {
-    padding: 10px 12px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-    background: var(--content-bg);
-    display: flex;
-    gap: 8px;
-    flex: 0 0 auto;
-  }
-
-  .v3a-menu-tab {
-    flex: 1;
-    height: 32px;
-    border-radius: 999px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    background: rgba(0, 0, 0, 0.03);
-    color: rgba(0, 0, 0, 0.72);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .v3a-menu-tab.active {
-    background: #fff;
-    color: rgba(0, 0, 0, 0.82);
-    border-color: rgba(0, 0, 0, 0.12);
-  }
-
-  .v3a-menu-tab:active {
-    background: rgba(0, 0, 0, 0.06);
-  }
-
   .v3a-menu.v3a-menu--swipe .v3a-menu-swipe {
     flex: 1;
     display: flex;
