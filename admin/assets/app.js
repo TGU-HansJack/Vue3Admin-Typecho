@@ -717,9 +717,46 @@
       const permissionInfoOpen = ref(false);
       const isNarrowScreen = ref(false);
       const mobileNavOpen = ref(false);
+      const mobileNavTab = ref(0);
+
+      function setMobileNavTab(next) {
+        const n = Number(next || 0);
+        mobileNavTab.value = n >= 1 ? 1 : 0;
+      }
+
+      let mobileNavSwipeActive = false;
+      let mobileNavSwipeStartX = 0;
+      let mobileNavSwipeStartY = 0;
+
+      function onMobileNavSwipeStart(e) {
+        if (!isNarrowScreen.value || !mobileNavOpen.value) return;
+        const t = e?.touches?.[0];
+        if (!t) return;
+        mobileNavSwipeActive = true;
+        mobileNavSwipeStartX = t.clientX;
+        mobileNavSwipeStartY = t.clientY;
+      }
+
+      function onMobileNavSwipeEnd(e) {
+        if (!mobileNavSwipeActive) return;
+        mobileNavSwipeActive = false;
+        const t = e?.changedTouches?.[0];
+        if (!t) return;
+        const dx = t.clientX - mobileNavSwipeStartX;
+        const dy = t.clientY - mobileNavSwipeStartY;
+        if (Math.abs(dx) < 60) return;
+        if (Math.abs(dx) < Math.abs(dy) * 1.2) return;
+        if (dx < 0) setMobileNavTab(1);
+        else setMobileNavTab(0);
+      }
+
+      function onMobileNavSwipeCancel() {
+        mobileNavSwipeActive = false;
+      }
 
       function closeMobileNav() {
         mobileNavOpen.value = false;
+        setMobileNavTab(0);
       }
 
       function syncNarrowScreen() {
@@ -5538,7 +5575,11 @@
 
       function toggleSidebar() {
         if (isNarrowScreen.value) {
-          mobileNavOpen.value = !mobileNavOpen.value;
+          const nextOpen = !mobileNavOpen.value;
+          mobileNavOpen.value = nextOpen;
+          if (nextOpen) {
+            setMobileNavTab(routePath.value === "/settings" ? 1 : 0);
+          }
           return;
         }
         sidebarCollapsed.value = !sidebarCollapsed.value;
@@ -9324,6 +9365,10 @@
       function handleMenuClick(item) {
         if (item.action === "openSettings") {
           openSettings();
+          if (isNarrowScreen.value) {
+            setMobileNavTab(1);
+            return;
+          }
           closeMobileNav();
           return;
         }
@@ -9455,7 +9500,11 @@
         sidebarCollapsed,
         isNarrowScreen,
         mobileNavOpen,
+        mobileNavTab,
         closeMobileNav,
+        onMobileNavSwipeStart,
+        onMobileNavSwipeEnd,
+        onMobileNavSwipeCancel,
         sidebarToggleIcon,
         sidebarToggleTitle,
         settingsOpen,
@@ -9984,36 +10033,100 @@
           <div v-if="isNarrowScreen" class="v3a-mobile-nav-handle" @click="closeMobileNav()" role="button" aria-label="收起菜单">
             <div class="v3a-mobile-nav-handle-bar"></div>
           </div>
-          <nav class="v3a-menu">
-            <div v-for="item in menuItems" :key="item.key">
-              <div
-                  class="v3a-menu-item"
-                  :data-tour="'menu-' + item.key"
-                  :class="{ active: isMenuItemActive(item) }"
-                  @click="handleMenuClick(item)"
-                >
-                <div class="v3a-menu-left">
-                  <span class="v3a-icon" v-html="ICONS[item.icon]"></span>
-                  <span class="v3a-menu-label" v-show="isNarrowScreen || !sidebarCollapsed">{{ item.label }}</span>
+          <nav
+            class="v3a-menu"
+            @touchstart="onMobileNavSwipeStart"
+            @touchend="onMobileNavSwipeEnd"
+            @touchcancel="onMobileNavSwipeCancel"
+          >
+            <div class="v3a-menu-swipe" :style="{ transform: isNarrowScreen ? 'translate3d(-' + (mobileNavTab * 100) + '%,0,0)' : '' }">
+              <div class="v3a-menu-panel v3a-menu-panel--main">
+                <div v-for="item in menuItems" :key="item.key">
+                  <div
+                      class="v3a-menu-item"
+                      :data-tour="'menu-' + item.key"
+                      :class="{ active: isMenuItemActive(item) }"
+                      @click="handleMenuClick(item)"
+                    >
+                    <div class="v3a-menu-left">
+                      <span class="v3a-icon" v-html="ICONS[item.icon]"></span>
+                      <span class="v3a-menu-label" v-show="isNarrowScreen || !sidebarCollapsed">{{ item.label }}</span>
+                    </div>
+                    <span class="v3a-menu-right" v-show="isNarrowScreen || !sidebarCollapsed">
+                      <span class="v3a-badge" v-if="badgeValue(item)">{{ badgeValue(item) }}</span>
+                      <span v-if="item.children" class="v3a-chev" :class="{ open: expanded[item.key] }">
+                        <span class="v3a-icon" v-html="ICONS.chevron"></span>
+                      </span>
+                    </span>
+                  </div>
+
+                  <div class="v3a-sub" v-if="item.children" v-show="expanded[item.key] && (isNarrowScreen || !sidebarCollapsed)">
+                    <div
+                      class="v3a-subitem"
+                      v-for="child in item.children"
+                      :key="child.key"
+                      :data-tour="'submenu-' + child.key"
+                      :class="{ active: isSubMenuItemActive(child) }"
+                      @click="handleSubMenuClick(child)"
+                    >
+                      {{ child.label }}
+                    </div>
+                  </div>
                 </div>
-                <span class="v3a-menu-right" v-show="isNarrowScreen || !sidebarCollapsed">
-                  <span class="v3a-badge" v-if="badgeValue(item)">{{ badgeValue(item) }}</span>
-                  <span v-if="item.children" class="v3a-chev" :class="{ open: expanded[item.key] }">
-                    <span class="v3a-icon" v-html="ICONS.chevron"></span>
-                  </span>
-                </span>
               </div>
 
-              <div class="v3a-sub" v-if="item.children" v-show="expanded[item.key] && (isNarrowScreen || !sidebarCollapsed)">
-                <div
-                  class="v3a-subitem"
-                  v-for="child in item.children"
-                  :key="child.key"
-                  :data-tour="'submenu-' + child.key"
-                  :class="{ active: isSubMenuItemActive(child) }"
-                  @click="handleSubMenuClick(child)"
-                >
-                  {{ child.label }}
+              <div v-if="isNarrowScreen" class="v3a-menu-panel v3a-menu-panel--settings">
+                <div class="v3a-subsidebar-bd">
+                  <template v-for="s in settingsItems" :key="s.key">
+                    <template v-if="s.key === 'theme'">
+                      <button
+                        class="v3a-subsidebar-item"
+                        :class="{ active: isThemeSettingsActive }"
+                        type="button"
+                        @click="toggleThemeSettings"
+                      >
+                        <div class="v3a-subsidebar-item-icon" :class="{ active: isThemeSettingsActive }">
+                          <span class="v3a-icon" v-html="ICONS[s.icon] || ICONS.settings"></span>
+                        </div>
+                        <div class="v3a-subsidebar-item-text">
+                          <div class="v3a-subsidebar-item-title">{{ s.label }}</div>
+                          <div class="v3a-subsidebar-item-subtitle">{{ s.subtitle }}</div>
+                        </div>
+                        <span class="v3a-chev" :class="{ open: settingsThemeOpen }">
+                          <span class="v3a-icon" v-html="ICONS.chevron"></span>
+                        </span>
+                      </button>
+
+                      <div class="v3a-subsidebar-sub" v-show="settingsThemeOpen">
+                        <button
+                          class="v3a-subsidebar-subitem"
+                          v-for="child in s.children"
+                          :key="child.key"
+                          :class="{ active: settingsActiveKey === child.key }"
+                          type="button"
+                          @click="selectSettings(child.key); closeMobileNav();"
+                        >
+                          {{ child.label }}
+                        </button>
+                      </div>
+                    </template>
+
+                    <button
+                      v-else
+                      class="v3a-subsidebar-item"
+                      :class="{ active: settingsActiveKey === s.key }"
+                      type="button"
+                      @click="selectSettings(s.key); closeMobileNav();"
+                    >
+                      <div class="v3a-subsidebar-item-icon" :class="{ active: settingsActiveKey === s.key }">
+                        <span class="v3a-icon" v-html="ICONS[s.icon] || ICONS.settings"></span>
+                      </div>
+                      <div class="v3a-subsidebar-item-text">
+                        <div class="v3a-subsidebar-item-title">{{ s.label }}</div>
+                        <div class="v3a-subsidebar-item-subtitle">{{ s.subtitle }}</div>
+                      </div>
+                    </button>
+                  </template>
                 </div>
               </div>
             </div>
