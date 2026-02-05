@@ -3252,6 +3252,36 @@ a {
   gap: calc(var(--spacing) * 3);
 }
 
+.v3a-workshop-card {
+  border: none;
+  box-shadow: none;
+}
+
+.v3a-workshop-card:hover {
+  box-shadow: none;
+}
+
+.v3a-workshop-card .hd {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.v3a-workshop-hd-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: calc(var(--spacing) * 3);
+}
+
+.v3a-workshop-searchbox {
+  width: 280px;
+}
+
+.v3a-workshop-meta {
+  white-space: nowrap;
+}
+
 .v3a-searchbox {
   position: relative;
   width: 360px;
@@ -3276,6 +3306,20 @@ a {
 .v3a-searchbox-icon svg {
   width: 16px;
   height: 16px;
+}
+
+@media (max-width: 48rem) {
+  .v3a-workshop-hd-tools {
+    justify-content: flex-start;
+  }
+
+  .v3a-workshop-searchbox {
+    width: 100%;
+  }
+
+  .v3a-workshop-meta {
+    white-space: normal;
+  }
 }
 
 .v3a-check {

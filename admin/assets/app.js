@@ -990,6 +990,32 @@
       const workshopItems = ref([]);
       const workshopMeta = ref({});
       const workshopInstallingId = ref("");
+      const workshopSearch = ref("");
+      const workshopTypeFilter = ref("all");
+      const workshopFilteredItems = computed(() => {
+        const items = Array.isArray(workshopItems.value) ? workshopItems.value : [];
+        const q = String(workshopSearch.value || "").trim().toLowerCase();
+        const t = String(workshopTypeFilter.value || "all").trim().toLowerCase();
+
+        return items.filter((row) => {
+          if (!row || typeof row !== "object") return false;
+          if (t && t !== "all" && String(row.type || "").toLowerCase() !== t) return false;
+          if (!q) return true;
+
+          const hay = [
+            row.name,
+            row.description,
+            row.author,
+            row.type,
+            row.link,
+            row.version,
+            row.dir,
+          ]
+            .map((v) => String(v || "").toLowerCase())
+            .join(" ");
+          return hay.includes(q);
+        });
+      });
 
       function workshopTypeLabel(type) {
         const t = String(type || "").toLowerCase();
@@ -10859,6 +10885,9 @@
         workshopItems,
         workshopMeta,
         workshopInstallingId,
+        workshopSearch,
+        workshopTypeFilter,
+        workshopFilteredItems,
         fetchWorkshopProjects,
         installWorkshopProject,
         workshopTypeLabel,
@@ -13402,13 +13431,27 @@
                   </div>
                 </div>
 
-                <div class="v3a-card">
+                <div class="v3a-card v3a-workshop-card">
                   <div class="hd split">
                     <div class="title">项目列表</div>
-                    <div class="v3a-muted" style="font-size: 12px;">
-                      <span v-if="workshopMeta && workshopMeta.sourceText">{{ workshopMeta.sourceText }}</span>
-                      <span v-if="workshopMeta && workshopMeta.updatedAt"> · 更新于 {{ formatTime(workshopMeta.updatedAt, settingsData.site.timezone) }}</span>
-                      <span> · <a :href="(workshopMeta && workshopMeta.url) || workshopListUrl" target="_blank" rel="noreferrer">repo.json</a></span>
+                    <div class="v3a-workshop-hd-tools">
+                      <div class="v3a-searchbox v3a-workshop-searchbox">
+                        <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                        <input class="v3a-input" v-model="workshopSearch" placeholder="搜索项目..." />
+                      </div>
+                      <select class="v3a-select" v-model="workshopTypeFilter" style="width: 120px;">
+                        <option value="all">全部类型</option>
+                        <option value="plugin">插件</option>
+                        <option value="theme">主题</option>
+                      </select>
+                      <div class="v3a-muted" style="font-size: 12px;">
+                        {{ formatNumber(workshopFilteredItems.length) }} / {{ formatNumber(workshopItems.length) }}
+                      </div>
+                      <div class="v3a-muted v3a-workshop-meta" style="font-size: 12px;">
+                        <span v-if="workshopMeta && workshopMeta.sourceText">{{ workshopMeta.sourceText }}</span>
+                        <span v-if="workshopMeta && workshopMeta.updatedAt"> · 更新于 {{ formatTime(workshopMeta.updatedAt, settingsData.site.timezone) }}</span>
+                        <span> · <a :href="(workshopMeta && workshopMeta.url) || workshopListUrl" target="_blank" rel="noreferrer">repo.json</a></span>
+                      </div>
                     </div>
                   </div>
                   <div class="bd" style="padding: 0;">
@@ -13416,7 +13459,7 @@
                     <div v-else-if="workshopLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
 
                     <template v-else>
-                      <div v-if="!workshopItems.length" class="v3a-muted" style="padding: 16px;">暂无项目</div>
+                      <div v-if="!workshopFilteredItems.length" class="v3a-muted" style="padding: 16px;">{{ workshopItems.length ? '没有匹配的项目' : '暂无项目' }}</div>
 
                       <table v-else class="v3a-table">
                         <thead>
@@ -13427,21 +13470,16 @@
                             <th style="width: 140px;">作者</th>
                             <th style="width: 140px;">Typecho</th>
                             <th>介绍</th>
-                            <th style="width: 160px; text-align: right;">操作</th>
+                            <th style="width: 220px; text-align: right;">操作</th>
                           </tr>
                         </thead>
                         <tbody>
-                          <tr v-for="row in workshopItems" :key="row.id || row.name">
+                          <tr v-for="row in workshopFilteredItems" :key="row.id || row.name">
                             <td style="max-width: 260px;">
                               <div style="display:flex; align-items:center; gap:8px; flex-wrap: wrap;">
                                 <a v-if="row.link" :href="row.link" target="_blank" rel="noreferrer">{{ row.name || '—' }}</a>
                                 <span v-else>{{ row.name || '—' }}</span>
                                 <span v-if="row.installed" class="v3a-pill success">已安装</span>
-                                <span v-if="row.isGithub" class="v3a-pill info">GitHub</span>
-                                <span v-if="row.direct" class="v3a-pill success">直装</span>
-                              </div>
-                              <div v-if="row.donate" class="v3a-muted" style="font-size: 12px;">
-                                <a :href="row.donate" target="_blank" rel="noreferrer">赞赏</a>
                               </div>
                             </td>
                             <td style="width: 80px;">
@@ -13459,16 +13497,19 @@
                             <td style="word-break: break-word;">
                               <span>{{ row.description || '—' }}</span>
                             </td>
-                            <td style="width: 160px; text-align: right; white-space: nowrap;">
-                              <button
-                                v-if="row.canInstall"
-                                class="v3a-mini-btn primary"
-                                type="button"
-                                :disabled="workshopInstallingId === String(row.id || row.name || row.link || '')"
-                                @click="installWorkshopProject(row)"
-                              >{{ workshopInstallingId === String(row.id || row.name || row.link || '') ? '安装中…' : (row.installed ? '覆盖安装' : '安装') }}</button>
-                              <a v-if="row.link" class="v3a-mini-btn" :href="row.link" target="_blank" rel="noreferrer">跳转</a>
-                              <span v-else class="v3a-muted">—</span>
+                            <td style="width: 220px; text-align: right;">
+                              <div style="display: inline-flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+                                <button
+                                  v-if="row.canInstall"
+                                  class="v3a-mini-btn primary"
+                                  type="button"
+                                  :disabled="workshopInstallingId === String(row.id || row.name || row.link || '')"
+                                  @click="installWorkshopProject(row)"
+                                >{{ workshopInstallingId === String(row.id || row.name || row.link || '') ? '安装中…' : (row.installed ? '覆盖安装' : '安装') }}</button>
+                                <a v-if="row.link" class="v3a-mini-btn" :href="row.link" target="_blank" rel="noreferrer">跳转</a>
+                                <a v-if="row.donate" class="v3a-mini-btn" :href="row.donate" target="_blank" rel="noreferrer">赞赏</a>
+                                <span v-if="!row.canInstall && !row.link && !row.donate" class="v3a-muted">—</span>
+                              </div>
                             </td>
                           </tr>
                         </tbody>
