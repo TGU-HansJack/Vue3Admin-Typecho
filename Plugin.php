@@ -457,6 +457,15 @@ class Plugin implements PluginInterface
             _t('Vditor cdn 基础路径，用于加载 Mermaid/KaTeX/Highlight.js 等内置资源。')
         );
         $form->addInput($vditorCdnBase);
+
+        $sponsorVerifyApi = new Text(
+            'sponsorVerifyApi',
+            null,
+            'https://craft.hansjack.com/usr/themes/classic-22/ai-agent/license-api.php',
+            _t('赞助验证 API'),
+            _t('用于“额外功能 -> 赞助专享”域名鉴权的远程接口地址，建议保持默认。')
+        );
+        $form->addInput($sponsorVerifyApi);
     }
 
     public static function personalConfig(Form $form)

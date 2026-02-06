@@ -127,6 +127,8 @@
     if (p === "/friends") return v3aAclEnabled("friends.manage", true);
     if (p === "/data") return v3aAclEnabled("data.manage", true);
     if (p === "/users") return v3aAclEnabled("users.manage", true);
+    if (p === "/extras/sponsor") return true;
+    if (p === "/extras/sponsor-page") return true;
 
     if (p.startsWith("/maintenance/")) return v3aAclEnabled("maintenance.manage", true);
 
@@ -322,6 +324,7 @@
       children: (() => {
         const extras = V3A && V3A.extras && typeof V3A.extras === "object" ? V3A.extras : {};
         const panels = Array.isArray(extras.panels) ? extras.panels : [];
+        const sponsorPages = Array.isArray(extras.sponsorPages) ? extras.sponsorPages : [];
         const out = [];
 
         if (extras.shouTuTaEnabled) {
@@ -329,6 +332,26 @@
             key: "extras-shoutu",
             label: "守兔塔",
             to: "/extras/shoutu",
+            access: "administrator",
+          });
+        }
+
+        out.push({
+          key: "extras-sponsor",
+          label: "赞助专享",
+          to: "/extras/sponsor",
+          access: "administrator",
+        });
+
+        for (const sp of sponsorPages) {
+          const slug = sp && typeof sp === "object" ? String(sp.slug || "") : "";
+          if (!slug) continue;
+          const title = sp && typeof sp === "object" ? String(sp.title || sp.slug || "") : slug;
+          out.push({
+            key: `extras-sponsor-page-${slug}`,
+            label: title || slug,
+            to: "/extras/sponsor-page",
+            slug,
             access: "administrator",
           });
         }
@@ -729,6 +752,30 @@
       return "额外功能 / 守兔塔";
     }
 
+    if (path === "/extras/sponsor") {
+      return "额外功能 / 赞助专享";
+    }
+
+    if (path === "/extras/sponsor-page") {
+      let slug = "";
+      try {
+        const idx = raw.indexOf("?");
+        const qs = idx >= 0 ? raw.slice(idx + 1) : "";
+        const sp = new URLSearchParams(qs);
+        slug = String(sp.get("slug") || "");
+      } catch (e) {}
+
+      if (slug) {
+        const extras = V3A && V3A.extras && typeof V3A.extras === "object" ? V3A.extras : {};
+        const pages = Array.isArray(extras.sponsorPages) ? extras.sponsorPages : [];
+        const hit = pages.find((p) => p && typeof p === "object" && String(p.slug || "") === slug);
+        const title = hit ? String(hit.title || hit.slug || "") : "";
+        if (title) return `额外功能 / ${title}`;
+      }
+
+      return "额外功能 / 赞助页面";
+    }
+
     for (const top of MENU) {
       const topPath = top.to ? String(top.to).split("?")[0] : "";
       if (topPath && topPath === path) return top.label;
@@ -921,6 +968,20 @@
         }
       });
 
+      const sponsorPageUrl = computed(() => {
+        const slug = String(routeQuery.value.slug || "").trim();
+        if (!slug) return "";
+
+        const extras = V3A && V3A.extras && typeof V3A.extras === "object" ? V3A.extras : {};
+        const pages = Array.isArray(extras.sponsorPages) ? extras.sponsorPages : [];
+        const hit = pages.find((p) => p && typeof p === "object" && String(p.slug || "") === slug);
+        return hit && hit.url ? String(hit.url) : "";
+      });
+      const sponsorPageIframeKey = ref(0);
+      function reloadSponsorPageIframe() {
+        sponsorPageIframeKey.value += 1;
+      }
+
       function styleExtrasPanelIframe() {
         const el = extrasPanelIframe.value;
         if (!el) return;
@@ -988,6 +1049,127 @@
       const workshopRepoUrl = "https://github.com/TGU-HansJack/Craft-Typecho";
       const workshopListUrl = "https://github.com/TGU-HansJack/Craft-Typecho/repo.json";
       const workshopLoginUrl = "https://github.com/login";
+
+      const sponsorLoading = ref(false);
+      const sponsorError = ref("");
+      const sponsorVerified = ref(0);
+      const sponsorDomain = ref(
+        String((V3A && V3A.extras && V3A.extras.currentDomain) || "").trim().toLowerCase()
+      );
+      const sponsorItems = ref([]);
+      const sponsorMeta = ref({});
+      const sponsorInstallingId = ref("");
+      const sponsorSearch = ref("");
+      const sponsorTypeFilter = ref("all");
+      const sponsorFilteredItems = computed(() => {
+        const items = Array.isArray(sponsorItems.value) ? sponsorItems.value : [];
+        const q = String(sponsorSearch.value || "").trim().toLowerCase();
+        const t = String(sponsorTypeFilter.value || "all").trim().toLowerCase();
+
+        return items.filter((row) => {
+          if (!row || typeof row !== "object") return false;
+          const pt = String(row.projectType || row.type || "").toLowerCase();
+          if (t && t !== "all" && pt !== t) return false;
+          if (!q) return true;
+
+          const hay = [
+            row.name,
+            row.description,
+            row.author,
+            row.link,
+            row.version,
+            row.slug,
+            row.projectType,
+          ]
+            .map((v) => String(v || "").toLowerCase())
+            .join(" ");
+          return hay.includes(q);
+        });
+      });
+
+      function applySponsorFilters() {
+        sponsorSearch.value = String(sponsorSearch.value || "").trim();
+      }
+
+      function sponsorTypeLabel(type) {
+        const t = String(type || "").toLowerCase();
+        if (t === "page") return "页面型";
+        if (t === "feature") return "功能型";
+        if (!t) return "—";
+        return t;
+      }
+
+      function sponsorTypeTone(type) {
+        const t = String(type || "").toLowerCase();
+        if (t === "page") return "success";
+        if (t === "feature") return "warning";
+        return "";
+      }
+
+      async function fetchSponsorProjects(force) {
+        if (sponsorLoading.value) return;
+        sponsorLoading.value = true;
+        sponsorError.value = "";
+        try {
+          const data = await apiGet("sponsor.list", {
+            domain: String(sponsorDomain.value || "").trim(),
+            force: force ? 1 : 0,
+          });
+          sponsorVerified.value = data && data.verified ? 1 : 0;
+          sponsorDomain.value = String((data && data.domain) || sponsorDomain.value || "").trim().toLowerCase();
+          sponsorItems.value = data && Array.isArray(data.items) ? data.items : [];
+          sponsorMeta.value = data && data.meta && typeof data.meta === "object" ? data.meta : {};
+        } catch (e) {
+          sponsorVerified.value = 0;
+          sponsorItems.value = [];
+          sponsorMeta.value = {};
+          sponsorError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          sponsorLoading.value = false;
+        }
+      }
+
+      async function installSponsorProject(row) {
+        const item = row && typeof row === "object" ? row : null;
+        if (!item) return;
+        if (!item.canInstall) return;
+        if (sponsorInstallingId.value) return;
+
+        const projectType = String(item.projectType || item.type || "").toLowerCase();
+        if (projectType !== "page") {
+          toastInfo("功能型项目安装暂未开放");
+          return;
+        }
+
+        const id = String(item.id || item.slug || item.name || item.link || "");
+        const name = String(item.name || "").trim() || "该项目";
+        const installed = !!item.installed;
+        const ok = installed
+          ? confirm(`已检测到“${name}”可能已安装，是否覆盖安装？`)
+          : confirm(`确认安装“${name}”？`);
+        if (!ok) return;
+
+        sponsorInstallingId.value = id;
+        try {
+          await apiPost("sponsor.install", {
+            id: item.id || "",
+            slug: item.slug || "",
+            name: item.name || "",
+            projectType,
+            link: item.link || "",
+            domain: sponsorDomain.value || "",
+            theme: "classic-22",
+            overwrite: installed ? 1 : 0,
+          });
+          toastSuccess("安装完成");
+
+          await fetchSponsorProjects(true);
+        } catch (e) {
+          toastError(e && e.message ? e.message : "安装失败");
+        } finally {
+          sponsorInstallingId.value = "";
+        }
+      }
 
       const workshopLoading = ref(false);
       const workshopError = ref("");
@@ -6465,6 +6647,11 @@
           if (!panel) return routePath.value === "/extras/panel";
           return routePath.value === "/extras/panel" && String(routeQuery.value.panel || "") === panel;
         }
+        if (to === "/extras/sponsor-page") {
+          const slug = String(child.slug || "");
+          if (!slug) return routePath.value === "/extras/sponsor-page";
+          return routePath.value === "/extras/sponsor-page" && String(routeQuery.value.slug || "") === slug;
+        }
         return isActive(to);
       }
 
@@ -6481,6 +6668,16 @@
           closeMobileNav();
           return;
         }
+        if (to === "/extras/sponsor-page") {
+          const slug = String(child.slug || "");
+          if (slug) {
+            navTo(`${to}?slug=${encodeURIComponent(slug)}`);
+          } else {
+            navTo(to);
+          }
+          closeMobileNav();
+          return;
+        }
         navTo(to);
         closeMobileNav();
       }
@@ -6490,7 +6687,7 @@
         if (item.key === "settings") return routePath.value === "/settings";
         if (item.to) return isActive(item.to);
         if (item.children && item.children.length) {
-          return item.children.some((c) => c && c.to && isActive(c.to));
+          return item.children.some((c) => isSubMenuItemActive(c));
         }
         return false;
       }
@@ -10214,6 +10411,9 @@
             await fetchUpgradeSettings();
             await fetchUpgradeInfo();
           }
+          if (p === "/extras/sponsor") {
+            await fetchSponsorProjects();
+          }
           if (p === "/extras/workshop") {
             await fetchWorkshopProjects();
           }
@@ -10392,6 +10592,9 @@
         if (routePath.value === "/maintenance/upgrade") {
           await fetchUpgradeSettings();
           await fetchUpgradeInfo();
+        }
+        if (routePath.value === "/extras/sponsor") {
+          await fetchSponsorProjects();
         }
         if (routePath.value === "/extras/workshop") {
           await fetchWorkshopProjects();
@@ -11047,6 +11250,24 @@
         workshopRepoUrl,
         workshopListUrl,
         workshopLoginUrl,
+        sponsorLoading,
+        sponsorError,
+        sponsorVerified,
+        sponsorDomain,
+        sponsorItems,
+        sponsorMeta,
+        sponsorInstallingId,
+        sponsorSearch,
+        sponsorTypeFilter,
+        sponsorFilteredItems,
+        applySponsorFilters,
+        fetchSponsorProjects,
+        installSponsorProject,
+        sponsorTypeLabel,
+        sponsorTypeTone,
+        sponsorPageUrl,
+        sponsorPageIframeKey,
+        reloadSponsorPageIframe,
         workshopLoading,
         workshopError,
         workshopItems,
@@ -13625,6 +13846,146 @@
                       :src="extrasPanelUrl"
                       @load="onExtrasPanelIframeLoad"
                     ></iframe>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/extras/sponsor'">
+              <div class="v3a-container">
+                <div class="v3a-pagehead">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
+                    </button>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
+                    <div v-if="sponsorMeta && (sponsorMeta.message || sponsorMeta.checkedAt)" class="v3a-draft-status idle v3a-workshop-meta">
+                      <span class="v3a-icon" v-html="ICONS.cloud"></span>
+                      <span>{{ sponsorMeta.message || (sponsorVerified ? '授权通过' : '未授权') }}</span>
+                      <span v-if="sponsorMeta.checkedAt" class="v3a-draft-status-time v3a-workshop-meta-time" :title="'检查于 ' + formatTime(sponsorMeta.checkedAt, settingsData.site.timezone)">· {{ formatTime(sponsorMeta.checkedAt, settingsData.site.timezone).slice(5) }}</span>
+                    </div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="sponsorLoading" @click="fetchSponsorProjects(true)">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="v3a-posts-search">
+                  <div class="v3a-searchbox">
+                    <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                    <input class="v3a-input" v-model="sponsorSearch" @keyup.enter="applySponsorFilters()" placeholder="搜索项目..." />
+                  </div>
+                  <input class="v3a-input" v-model="sponsorDomain" placeholder="授权域名" style="width: 240px;" />
+                  <select class="v3a-select" v-model="sponsorTypeFilter" @change="applySponsorFilters()" style="width: 160px;">
+                    <option value="all">全部类型</option>
+                    <option value="page">页面型</option>
+                    <option value="feature">功能型</option>
+                  </select>
+                  <button class="v3a-btn" type="button" @click="fetchSponsorProjects(true)" :disabled="sponsorLoading">校验并加载</button>
+                  <div class="v3a-muted">{{ sponsorVerified ? '已授权' : '未授权' }}</div>
+                </div>
+
+                <div class="v3a-card v3a-workshop-card">
+                  <div class="bd" style="padding: 0;">
+                    <div v-if="sponsorError" class="v3a-alert" style="margin: 16px;">{{ sponsorError }}</div>
+                    <div v-else-if="sponsorLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+                    <div v-else-if="!sponsorVerified" class="v3a-muted" style="padding: 16px;">当前域名未通过赞助授权校验。</div>
+
+                    <template v-else>
+                      <div v-if="!sponsorFilteredItems.length" class="v3a-muted" style="padding: 16px;">{{ sponsorItems.length ? '没有匹配的项目' : '暂无项目' }}</div>
+
+                      <div v-else class="v3a-workshop-tablebox">
+                        <table class="v3a-table">
+                          <thead>
+                            <tr>
+                              <th>项目</th>
+                              <th style="width: 100px;">类型</th>
+                              <th style="width: 80px;">版本</th>
+                              <th style="width: 140px;">作者</th>
+                              <th style="width: 140px;">支持 Typecho</th>
+                              <th>说明</th>
+                              <th style="width: 220px; text-align: right;">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="row in sponsorFilteredItems" :key="row.id || row.slug || row.name">
+                              <td>
+                                <div style="font-weight: 600;">{{ row.name || '—' }}</div>
+                                <div class="v3a-muted" style="font-size: 12px; margin-top: 4px; word-break: break-all;">{{ row.link || '—' }}</div>
+                              </td>
+                              <td style="width: 100px;">
+                                <span class="v3a-pill" :class="sponsorTypeTone(row.projectType)">{{ sponsorTypeLabel(row.projectType) }}</span>
+                              </td>
+                              <td style="width: 80px;">
+                                <span>{{ row.version || '—' }}</span>
+                              </td>
+                              <td style="width: 140px;">
+                                <span>{{ row.author || '—' }}</span>
+                              </td>
+                              <td style="width: 140px;">
+                                <span class="v3a-muted">{{ workshopTypechoText(row.typecho) || '—' }}</span>
+                              </td>
+                              <td style="word-break: break-word;">
+                                <span>{{ row.description || '—' }}</span>
+                              </td>
+                              <td style="width: 220px; text-align: right;">
+                                <div style="display: inline-flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+                                  <button
+                                    v-if="row.canInstall"
+                                    class="v3a-mini-btn primary"
+                                    type="button"
+                                    :disabled="sponsorInstallingId === String(row.id || row.slug || row.name || row.link || '')"
+                                    @click="installSponsorProject(row)"
+                                  >{{ sponsorInstallingId === String(row.id || row.slug || row.name || row.link || '') ? '安装中…' : (row.installed ? '覆盖安装' : '安装') }}</button>
+                                  <a v-if="row.readme" class="v3a-mini-btn" :href="row.readme" target="_blank" rel="noreferrer">使用文档</a>
+                                  <span v-if="!row.canInstall && !row.readme" class="v3a-muted">—</span>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/extras/sponsor-page'">
+              <div class="v3a-container">
+                <div class="v3a-pagehead">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
+                    </button>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="!sponsorPageUrl" @click="reloadSponsorPageIframe()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                    <a v-if="sponsorPageUrl" class="v3a-btn" :href="sponsorPageUrl" target="_blank" rel="noreferrer">
+                      <span class="v3a-icon" v-html="ICONS.externalLink"></span>
+                      新窗口
+                    </a>
+                  </div>
+                </div>
+
+                <div v-if="!sponsorPageUrl" class="v3a-muted">未找到页面链接，请先在“赞助专享”中安装页面型项目。</div>
+
+                <div v-else class="v3a-card">
+                  <div class="bd" style="padding: 0;">
+                    <iframe class="v3a-theme-config-frame v3a-theme-config-frame-legacy" :src="sponsorPageUrl" :key="sponsorPageIframeKey"></iframe>
                   </div>
                 </div>
               </div>

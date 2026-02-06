@@ -47,6 +47,7 @@ $echartsCdn = $pluginOptions->echartsCdn ?? 'https://cdn.jsdelivr.net/npm/echart
 $vditorCdn = $pluginOptions->vditorCdn ?? 'https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.min.js';
 $vditorCssCdn = $pluginOptions->vditorCssCdn ?? 'https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.css';
 $vditorCdnBase = $pluginOptions->vditorCdnBase ?? 'https://cdn.jsdelivr.net/npm/vditor@3.11.2';
+$sponsorVerifyApi = $pluginOptions->sponsorVerifyApi ?? 'https://craft.hansjack.com/usr/themes/classic-22/ai-agent/license-api.php';
 
 $assetCssVer = @filemtime(__DIR__ . '/assets/app.css');
 if ($assetCssVer === false) {
@@ -158,6 +159,77 @@ try {
     $shouTuTaEnabled = isset($activated['ShouTuTa']);
 } catch (\Throwable $e) {
 }
+
+$sponsorPages = [];
+try {
+    $db = \Typecho\Db::get();
+    $row = $db->fetchObject(
+        $db->select('value')
+            ->from('table.options')
+            ->where('name = ? AND user = ?', 'v3a_sponsor_pages', 0)
+            ->limit(1)
+    );
+    $raw = trim((string) ($row->value ?? ''));
+    if ($raw !== '') {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            foreach ($decoded as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $slug = trim((string) ($item['slug'] ?? ''));
+                $title = trim((string) ($item['title'] ?? ''));
+                $url = trim((string) ($item['url'] ?? ''));
+                if ($slug === '' || $title === '' || $url === '') {
+                    continue;
+                }
+                $sponsorPages[] = [
+                    'slug' => $slug,
+                    'title' => $title,
+                    'url' => $url,
+                ];
+            }
+        }
+    }
+} catch (\Throwable $e) {
+}
+
+try {
+    $themeName = (string) ($options->theme ?? 'classic-22');
+    $themeDir = rtrim((string) __TYPECHO_ROOT_DIR__, '/\\') . (string) __TYPECHO_THEME_DIR__ . '/' . $themeName;
+    $aiAgentDir = rtrim($themeDir, '/\\') . '/ai-agent';
+    $aiAgentIndex = $aiAgentDir . '/index.php';
+    if (is_dir($aiAgentDir) && is_file($aiAgentIndex)) {
+        $exists = false;
+        foreach ($sponsorPages as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            if (strtolower(trim((string) ($item['slug'] ?? ''))) === 'ai-agent') {
+                $exists = true;
+                break;
+            }
+        }
+
+        if (!$exists) {
+            $sponsorPages[] = [
+                'slug' => 'ai-agent',
+                'title' => '人工智能',
+                'url' => rtrim((string) ($options->siteUrl ?? ''), '/') . '/usr/themes/' . rawurlencode($themeName) . '/ai-agent/index.php',
+            ];
+        }
+    }
+} catch (\Throwable $e) {
+}
+
+$currentDomain = '';
+try {
+    $parts = @parse_url((string) ($options->siteUrl ?? ''));
+    if (is_array($parts)) {
+        $currentDomain = strtolower(trim((string) ($parts['host'] ?? '')));
+    }
+} catch (\Throwable $e) {
+}
 ?>
 <!doctype html>
 <html lang="zh-CN" style="--color-primary: <?php echo htmlspecialchars($primaryColor, ENT_QUOTES); ?>; --color-primary-shallow: <?php echo htmlspecialchars($primaryShallow, ENT_QUOTES); ?>; --color-primary-deep: <?php echo htmlspecialchars($primaryDeep, ENT_QUOTES); ?>;">
@@ -191,7 +263,10 @@ try {
             acl: <?php echo json_encode($acl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
             extras: {
                 panels: <?php echo json_encode($extraPanels, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
-                shouTuTaEnabled: <?php echo $shouTuTaEnabled ? 'true' : 'false'; ?>
+                shouTuTaEnabled: <?php echo $shouTuTaEnabled ? 'true' : 'false'; ?>,
+                sponsorVerifyApi: <?php echo json_encode((string) $sponsorVerifyApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
+                sponsorPages: <?php echo json_encode($sponsorPages, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
+                currentDomain: <?php echo json_encode((string) $currentDomain, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
             },
             user: {
                 uid: <?php echo (int) ($user->uid ?? 0); ?>,
