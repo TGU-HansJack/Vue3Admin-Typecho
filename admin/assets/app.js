@@ -13898,7 +13898,7 @@
                                     width="16"
                                     :height="Math.max(2, Math.round((Number(b.count || 0) || 0) / shouTuTaTrendMax * 86))"
                                     rx="2"
-                                    :style="{ fill: 'var(--color-primary)', opacity: (Number(b.count || 0) || 0) ? 1 : 0.25 }"
+                                    :style="{ fill: 'var(--v3a-chart-bar)', opacity: (Number(b.count || 0) || 0) ? 1 : 0.25 }"
                                     :title="formatTime(b.ts, settingsData.site.timezone) + '：' + formatNumber(Number(b.count || 0) || 0)"
                                   ></rect>
                                 </g>

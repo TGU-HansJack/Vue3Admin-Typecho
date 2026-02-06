@@ -2,6 +2,7 @@
   --color-primary: #171717;
   --color-primary-shallow: #404040;
   --color-primary-deep: #525252;
+  --v3a-chart-bar: var(--color-primary);
 
   /* mx-admin core variables */
   --spacing: 0.25rem; /* 4px */
@@ -55,6 +56,7 @@ html.dark {
   --color-primary: #2563eb;
   --color-primary-shallow: #3b82f6;
   --color-primary-deep: #1d4ed8;
+  --v3a-chart-bar: #ffffff;
 
   --page-bg: #0b1020;
   --content-bg: #0f172a;
