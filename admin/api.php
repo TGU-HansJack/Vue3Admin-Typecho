@@ -1609,8 +1609,10 @@ function v3a_default_slug_to_cid($db, int $cid, array $types): bool
         return false;
     }
 
-    $slug = (string) $cid;
-    $typeList = array_values(array_filter(array_map('strval', $types), fn($t) => $t !== ''));
+	    $slug = (string) $cid;
+	    $typeList = array_values(array_filter(array_map('strval', $types), function ($t) {
+	        return $t !== '';
+	    }));
 
     if (!empty($typeList)) {
         try {
@@ -2144,7 +2146,7 @@ class V3A_PostEditProxy extends \Widget\Contents\Post\Edit
      *
      * @throws \Typecho\Db\Exception
      */
-    protected function setCategories(int $cid, array $categories, bool $beforeCount = true, bool $afterCount = true)
+    public function setCategories(int $cid, array $categories, bool $beforeCount = true, bool $afterCount = true)
     {
         $categories = array_unique(array_map('trim', $categories));
 
@@ -2210,7 +2212,7 @@ class V3A_PostEditProxy extends \Widget\Contents\Post\Edit
      *
      * @throws \Typecho\Db\Exception
      */
-    protected function setTags(int $cid, ?string $tags, bool $beforeCount = true, bool $afterCount = true)
+    public function setTags(int $cid, ?string $tags, bool $beforeCount = true, bool $afterCount = true)
     {
         $tags = str_replace('，', ',', $tags ?? '');
         $tags = array_unique(array_map('trim', explode(',', $tags)));
@@ -3167,7 +3169,9 @@ try {
             }
 
             $path = (string) ($parts['path'] ?? '');
-            $segs = array_values(array_filter(explode('/', trim($path, '/')), fn($v) => $v !== ''));
+	            $segs = array_values(array_filter(explode('/', trim($path, '/')), function ($v) {
+	                return $v !== '';
+	            }));
 
             if ($host === 'github.com') {
                 if (count($segs) < 2) {
@@ -3492,7 +3496,9 @@ try {
             }
 
             $path = (string) ($parts['path'] ?? '');
-            $segs = array_values(array_filter(explode('/', trim($path, '/')), fn($v) => $v !== ''));
+	            $segs = array_values(array_filter(explode('/', trim($path, '/')), function ($v) {
+	                return $v !== '';
+	            }));
 
             if ($host === 'github.com') {
                 if (count($segs) < 2) {
@@ -5727,7 +5733,9 @@ try {
         if (!is_array($categories)) {
             $categories = [];
         }
-        $widgetRequest['category'] = array_values(array_filter(array_map('intval', $categories), fn($v) => $v > 0));
+	        $widgetRequest['category'] = array_values(array_filter(array_map('intval', $categories), function ($v) {
+	            return $v > 0;
+	        }));
 
         $fields = $payload['fields'] ?? [];
         if (is_array($fields)) {
@@ -5850,7 +5858,9 @@ try {
         if (!is_array($cids)) {
             $cids = [];
         }
-        $cids = array_values(array_unique(array_filter(array_map('intval', $cids), fn($v) => $v > 0)));
+	        $cids = array_values(array_unique(array_filter(array_map('intval', $cids), function ($v) {
+	            return $v > 0;
+	        })));
         if (empty($cids)) {
             v3a_exit_json(400, null, 'Missing cid');
         }
@@ -5893,7 +5903,9 @@ try {
         if (!is_array($cids)) {
             $cids = [];
         }
-        $cids = array_values(array_unique(array_filter(array_map('intval', $cids), fn($v) => $v > 0)));
+	        $cids = array_values(array_unique(array_filter(array_map('intval', $cids), function ($v) {
+	            return $v > 0;
+	        })));
         if (empty($cids)) {
             v3a_exit_json(400, null, 'Missing cid');
         }
@@ -5919,10 +5931,14 @@ try {
                 v3a_exit_json(0, ['updated' => 0]);
             }
 
-            $allowedCids = array_values(array_unique(array_filter(array_map(
-                fn($row) => (int) ($row['cid'] ?? 0),
-                (array) $items
-            ), fn($v) => $v > 0)));
+	            $allowedCids = array_values(array_unique(array_filter(array_map(
+	                function ($row) {
+	                    return (int) ($row['cid'] ?? 0);
+	                },
+	                (array) $items
+	            ), function ($v) {
+	                return $v > 0;
+	            })));
 
             if (empty($allowedCids)) {
                 v3a_exit_json(0, ['updated' => 0]);
@@ -6118,7 +6134,9 @@ try {
 
         if ($keywords !== '') {
             $words = preg_split('/\\s+/u', $keywords);
-            $words = array_values(array_filter(array_map('trim', (array) $words), fn($v) => $v !== ''));
+	            $words = array_values(array_filter(array_map('trim', (array) $words), function ($v) {
+	                return $v !== '';
+	            }));
             if (!empty($words)) {
                 $result = array_values(array_filter($result, function ($item) use ($words): bool {
                     $hay = (string) (($item['title'] ?? '') . "\n" . ($item['text'] ?? ''));
@@ -6432,7 +6450,9 @@ try {
         if (!is_array($cids)) {
             $cids = [];
         }
-        $cids = array_values(array_unique(array_filter(array_map('intval', $cids), fn($v) => $v > 0)));
+	        $cids = array_values(array_unique(array_filter(array_map('intval', $cids), function ($v) {
+	            return $v > 0;
+	        })));
         if (empty($cids)) {
             v3a_exit_json(400, null, 'Missing cid');
         }
@@ -6702,7 +6722,9 @@ try {
         if (!is_array($coids)) {
             $coids = [];
         }
-        $coids = array_values(array_unique(array_filter(array_map('intval', $coids), fn($v) => $v > 0)));
+	        $coids = array_values(array_unique(array_filter(array_map('intval', $coids), function ($v) {
+	            return $v > 0;
+	        })));
         if (empty($coids)) {
             v3a_exit_json(400, null, 'Missing coid');
         }
@@ -6850,7 +6872,9 @@ try {
         if (!is_array($coids)) {
             $coids = [];
         }
-        $coids = array_values(array_unique(array_filter(array_map('intval', $coids), fn($v) => $v > 0)));
+	        $coids = array_values(array_unique(array_filter(array_map('intval', $coids), function ($v) {
+	            return $v > 0;
+	        })));
         if (empty($coids)) {
             v3a_exit_json(400, null, 'Missing coid');
         }
@@ -7128,10 +7152,12 @@ try {
 
         // Respect global attachmentTypes (Typecho setting).
         $siteAllowedRaw = is_array($options->allowedAttachmentTypes ?? null) ? $options->allowedAttachmentTypes : [];
-        $siteAllowed = array_values(array_unique(array_filter(array_map(static function ($t) {
-            $v = strtolower(trim((string) $t));
-            return $v;
-        }, $siteAllowedRaw), static fn($v) => $v !== '')));
+	        $siteAllowed = array_values(array_unique(array_filter(array_map(static function ($t) {
+	            $v = strtolower(trim((string) $t));
+	            return $v;
+	        }, $siteAllowedRaw), static function ($v) {
+	            return $v !== '';
+	        })));
 
         if (empty($siteAllowed)) {
             v3a_exit_json(400, null, '站点未开启允许上传的附件类型，请在「设定-存储-附件类型」中配置');
@@ -7228,7 +7254,9 @@ try {
         if (!is_array($cids)) {
             $cids = [];
         }
-        $cids = array_values(array_unique(array_filter(array_map('intval', $cids), fn($v) => $v > 0)));
+	        $cids = array_values(array_unique(array_filter(array_map('intval', $cids), function ($v) {
+	            return $v > 0;
+	        })));
         if (empty($cids)) {
             v3a_exit_json(400, null, 'Missing cid');
         }
@@ -7634,7 +7662,9 @@ try {
         if (!is_array($ids)) {
             $ids = [];
         }
-        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn($v) => $v > 0)));
+	        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), function ($v) {
+	            return $v > 0;
+	        })));
         if (empty($ids)) {
             v3a_exit_json(400, null, 'Missing id');
         }
@@ -8150,7 +8180,9 @@ try {
         if (!is_array($uids)) {
             $uids = [];
         }
-        $uids = array_values(array_unique(array_filter(array_map('intval', $uids), fn($v) => $v > 0)));
+	        $uids = array_values(array_unique(array_filter(array_map('intval', $uids), function ($v) {
+	            return $v > 0;
+	        })));
         if (empty($uids)) {
             v3a_exit_json(400, null, 'Missing uid');
         }
@@ -8757,7 +8789,9 @@ try {
         if (!is_array($mids)) {
             $mids = [];
         }
-        $mids = array_values(array_unique(array_filter(array_map('intval', $mids), fn($v) => $v > 0)));
+	        $mids = array_values(array_unique(array_filter(array_map('intval', $mids), function ($v) {
+	            return $v > 0;
+	        })));
         if (empty($mids)) {
             v3a_exit_json(400, null, 'Missing mid');
         }
@@ -8912,7 +8946,9 @@ try {
         if (!is_array($mids)) {
             $mids = [];
         }
-        $mids = array_values(array_unique(array_filter(array_map('intval', $mids), fn($v) => $v > 0)));
+	        $mids = array_values(array_unique(array_filter(array_map('intval', $mids), function ($v) {
+	            return $v > 0;
+	        })));
         if (empty($mids)) {
             v3a_exit_json(400, null, 'Missing mid');
         }
@@ -9414,7 +9450,9 @@ try {
         }
         if (in_array('@other@', $types, true) && $other !== '') {
             $parts = array_filter(array_map('trim', explode(',', strtolower($other))));
-            $parts = array_values(array_filter($parts, fn($ext) => !preg_match("/^(php|php4|php5|sh|asp|jsp|rb|py|pl|dll|exe|bat)$/i", (string) $ext)));
+	            $parts = array_values(array_filter($parts, function ($ext) {
+	                return !preg_match("/^(php|php4|php5|sh|asp|jsp|rb|py|pl|dll|exe|bat)$/i", (string) $ext);
+	            }));
             if (!empty($parts)) {
                 $keep[] = implode(',', $parts);
             }

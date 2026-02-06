@@ -1400,6 +1400,11 @@ a {
   position: relative;
 }
 
+.v3a-modal-card.v3a-upgrade-settings-modal {
+  width: min(620px, 92vw);
+  max-width: 92vw;
+}
+
 .v3a-modal-head {
   padding: 19px 24px 0;
   text-align: center;
@@ -4200,6 +4205,7 @@ a {
 .v3a-upgrade-settings-modal .v3a-settings-row-control {
   display: flex;
   justify-content: flex-end;
+  margin-left: auto;
 }
 
 .v3a-upgrade-settings-modal .v3a-settings-row-control .v3a-select {
