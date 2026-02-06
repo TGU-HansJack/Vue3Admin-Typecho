@@ -3,6 +3,7 @@
   --color-primary-shallow: #404040;
   --color-primary-deep: #525252;
   --v3a-chart-bar: var(--color-primary);
+  --v3a-link: var(--color-primary);
 
   /* mx-admin core variables */
   --spacing: 0.25rem; /* 4px */
@@ -57,6 +58,7 @@ html.dark {
   --color-primary-shallow: #3b82f6;
   --color-primary-deep: #1d4ed8;
   --v3a-chart-bar: #ffffff;
+  --v3a-link: var(--v3a-text);
 
   --page-bg: #0b1020;
   --content-bg: #0f172a;
@@ -4694,7 +4696,7 @@ a {
 }
 
 .v3a-link {
-  color: var(--color-primary);
+  color: var(--v3a-link);
   text-decoration: none;
 }
 
