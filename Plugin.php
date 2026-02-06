@@ -17,13 +17,13 @@ if (!defined('__TYPECHO_ROOT_DIR__')) {
  *
  * @package Vue3Admin
  * @author HansJack
- * @version 1.2.0
+ * @version 1.2.1
  * @link https://www.hansjack.com
  */
 class Plugin implements PluginInterface
 {
     private const ADMIN_DIR = 'Vue3Admin';
-    private const VERSION = '1.2.0';
+    private const VERSION = '1.2.1';
     private const DEPLOY_MARKER = '.v3a_deploy_version';
 
     private static function getDeployVersion(): string
