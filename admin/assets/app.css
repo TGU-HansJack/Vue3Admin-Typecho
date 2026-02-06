@@ -4197,6 +4197,32 @@ a {
   }
 }
 
+.v3a-upgrade-settings-modal .v3a-settings-row-control {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.v3a-upgrade-settings-modal .v3a-settings-row-control .v3a-select {
+  min-width: 180px;
+}
+
+@media (min-width: 48rem) {
+  .v3a-upgrade-settings-modal .v3a-settings-row {
+    gap: 16px;
+  }
+
+  .v3a-upgrade-settings-modal .v3a-settings-row-label {
+    width: auto;
+    max-width: none;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .v3a-upgrade-settings-modal .v3a-settings-row-control {
+    flex: 0 0 auto;
+  }
+}
+
 .v3a-settings-actions {
   padding: 14px 16px;
   display: flex;

@@ -2630,12 +2630,12 @@ try {
 
     $do = trim((string) $request->get('do'));
 
-    if ($do === 'upgrade.settings.get') {
-        v3a_require_role($user, 'administrator');
-        $acl = v3a_acl_for_user($db, $user);
-        if (empty($acl['maintenance']['manage'])) {
-            v3a_exit_json(403, null, 'Forbidden');
-        }
+	    if ($do === 'upgrade.settings.get') {
+	        v3a_require_role($user, 'administrator');
+	        $acl = v3a_acl_for_user($db, $user);
+	        if (empty($acl['maintenance']['manage'])) {
+	            v3a_exit_json(403, null, 'Forbidden');
+	        }
 
         $value = '';
         try {
@@ -2645,13 +2645,18 @@ try {
         } catch (\Throwable $e) {
             $value = '';
         }
-
-        $cfg = v3a_json_assoc($value);
-        v3a_exit_json(0, [
-            'strict' => !empty($cfg['strict']) ? 1 : 0,
-            'globalReplace' => !empty($cfg['globalReplace']) ? 1 : 0,
-        ]);
-    }
+	
+	        $cfg = v3a_json_assoc($value);
+	        $network = strtolower(trim((string) ($cfg['network'] ?? '')));
+	        if (!in_array($network, ['gitcode', 'github', 'ghfast'], true)) {
+	            $network = 'github';
+	        }
+	        v3a_exit_json(0, [
+	            'strict' => !empty($cfg['strict']) ? 1 : 0,
+	            'globalReplace' => !empty($cfg['globalReplace']) ? 1 : 0,
+	            'network' => $network,
+	        ]);
+	    }
 
     if ($do === 'upgrade.settings.save') {
         if (!$request->isPost()) {
@@ -2664,49 +2669,79 @@ try {
             v3a_exit_json(403, null, 'Forbidden');
         }
 
-        $payload = v3a_payload();
-        $strict = !empty($payload['strict']) ? 1 : 0;
-        $globalReplace = !empty($payload['globalReplace']) ? 1 : 0;
+	        $payload = v3a_payload();
+	        $strict = !empty($payload['strict']) ? 1 : 0;
+	        $globalReplace = !empty($payload['globalReplace']) ? 1 : 0;
+	        $network = strtolower(trim((string) ($payload['network'] ?? '')));
+	        if (!in_array($network, ['gitcode', 'github', 'ghfast'], true)) {
+	            $network = 'github';
+	        }
+	
+	        $cfg = [
+	            'strict' => $strict,
+	            'globalReplace' => $globalReplace,
+	            'network' => $network,
+	            'updatedAt' => time(),
+	        ];
+	        v3a_upsert_option($db, 'v3a_upgrade_settings', json_encode($cfg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0);
+	
+	        v3a_exit_json(0, [
+	            'strict' => $strict,
+	            'globalReplace' => $globalReplace,
+	            'network' => $network,
+	        ]);
+	    }
 
-        $cfg = [
-            'strict' => $strict,
-            'globalReplace' => $globalReplace,
-            'updatedAt' => time(),
-        ];
-        v3a_upsert_option($db, 'v3a_upgrade_settings', json_encode($cfg, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0);
+	    if ($do === 'upgrade.releases') {
+	        v3a_require_role($user, 'administrator');
+	        $acl = v3a_acl_for_user($db, $user);
+	        if (empty($acl['maintenance']['manage'])) {
+	            v3a_exit_json(403, null, 'Forbidden');
+	        }
+	
+	        $strict = 0;
+	        try {
+	            $strict = !empty($request->get('strict')) ? 1 : 0;
+	        } catch (\Throwable $e) {
+	            $strict = 0;
+	        }
+	
+	        $network = '';
+	        try {
+	            $network = trim((string) $request->get('network'));
+	        } catch (\Throwable $e) {
+	            $network = '';
+	        }
+	        if ($network === '') {
+	            try {
+	                $raw = (string) ($db->fetchObject(
+	                    $db->select('value')->from('table.options')->where('name = ? AND user = ?', 'v3a_upgrade_settings', 0)->limit(1)
+	                )->value ?? '');
+	                $cfg = v3a_json_assoc($raw);
+	                $network = (string) ($cfg['network'] ?? '');
+	            } catch (\Throwable $e) {
+	                $network = '';
+	            }
+	        }
+	        $network = strtolower(trim($network));
+	        if (!in_array($network, ['gitcode', 'github', 'ghfast'], true)) {
+	            $network = 'github';
+	        }
+	
+	        $proxy = $network === 'ghfast' ? 'https://ghfast.top/' : '';
+	
+	        $headers = [
+	            'Accept' => 'application/vnd.github+json',
+	            'User-Agent' => 'Vue3Admin-Typecho',
+	        ];
 
-        v3a_exit_json(0, [
-            'strict' => $strict,
-            'globalReplace' => $globalReplace,
-        ]);
-    }
-
-    if ($do === 'upgrade.releases') {
-        v3a_require_role($user, 'administrator');
-        $acl = v3a_acl_for_user($db, $user);
-        if (empty($acl['maintenance']['manage'])) {
-            v3a_exit_json(403, null, 'Forbidden');
-        }
-
-        $strict = 0;
-        try {
-            $strict = !empty($request->get('strict')) ? 1 : 0;
-        } catch (\Throwable $e) {
-            $strict = 0;
-        }
-
-        $headers = [
-            'Accept' => 'application/vnd.github+json',
-            'User-Agent' => 'Vue3Admin-Typecho',
-        ];
-
-        $now = time();
-        $cacheName = $strict ? 'v3a_upgrade_releases_cache_strict' : 'v3a_upgrade_releases_cache';
-        $cacheTtl = 300;
-        $cached = null;
-        try {
-            $raw = (string) ($db->fetchObject(
-                $db->select('value')->from('table.options')->where('name = ? AND user = ?', $cacheName, 0)->limit(1)
+	        $now = time();
+	        $cacheName = ($strict ? 'v3a_upgrade_releases_cache_strict_' : 'v3a_upgrade_releases_cache_') . $network;
+	        $cacheTtl = 300;
+	        $cached = null;
+	        try {
+	            $raw = (string) ($db->fetchObject(
+	                $db->select('value')->from('table.options')->where('name = ? AND user = ?', $cacheName, 0)->limit(1)
             )->value ?? '');
             $obj = v3a_json_assoc($raw);
             $ts = (int) ($obj['time'] ?? 0);
@@ -2720,19 +2755,19 @@ try {
 
         $remote = $cached;
         if (!is_array($remote)) {
-            $remote = [
-                'fetchedAt' => $now,
-                'releases' => [],
-                'latest' => null,
-                'latestCommit' => null,
-            ];
-
-            $releasesUrl = 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/releases?per_page=20';
-            $rows = v3a_http_get_json($releasesUrl, $headers, 8);
-            $out = [];
-            if (is_array($rows)) {
-                foreach ($rows as $r) {
-                    if (!is_array($r)) {
+	            $remote = [
+	                'fetchedAt' => $now,
+	                'releases' => [],
+	                'latest' => null,
+	                'latestCommit' => null,
+	            ];
+	
+	            $releasesUrl = $proxy . 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/releases?per_page=20';
+	            $rows = v3a_http_get_json($releasesUrl, $headers, 8);
+	            $out = [];
+	            if (is_array($rows)) {
+	                foreach ($rows as $r) {
+	                    if (!is_array($r)) {
                         continue;
                     }
                     $tag = trim((string) ($r['tag_name'] ?? ''));
@@ -2763,14 +2798,14 @@ try {
 
             $remote['releases'] = $out;
             $remote['latest'] = $latest;
-
-            if ($strict) {
-                try {
-                    $commitsUrl = 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/commits?per_page=1';
-                    $rows = v3a_http_get_json($commitsUrl, $headers, 8);
-                    $commitRow = null;
-                    if (is_array($rows) && isset($rows[0]) && is_array($rows[0])) {
-                        $commitRow = $rows[0];
+	
+	            if ($strict) {
+	                try {
+	                    $commitsUrl = $proxy . 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/commits?per_page=1';
+	                    $rows = v3a_http_get_json($commitsUrl, $headers, 8);
+	                    $commitRow = null;
+	                    if (is_array($rows) && isset($rows[0]) && is_array($rows[0])) {
+	                        $commitRow = $rows[0];
                     } elseif (is_array($rows) && isset($rows['sha'])) {
                         $commitRow = $rows;
                     }
@@ -2846,14 +2881,19 @@ try {
             v3a_exit_json(403, null, 'Forbidden');
         }
 
-        $payload = v3a_payload();
-        $strict = !empty($payload['strict']) ? 1 : 0;
-        $globalReplace = !empty($payload['globalReplace']) ? 1 : 0;
-
-        $headers = [
-            'Accept' => 'application/vnd.github+json',
-            'User-Agent' => 'Vue3Admin-Typecho',
-        ];
+	        $payload = v3a_payload();
+	        $strict = !empty($payload['strict']) ? 1 : 0;
+	        $globalReplace = !empty($payload['globalReplace']) ? 1 : 0;
+	        $network = strtolower(trim((string) ($payload['network'] ?? '')));
+	        if (!in_array($network, ['gitcode', 'github', 'ghfast'], true)) {
+	            $network = 'github';
+	        }
+	        $proxy = $network === 'ghfast' ? 'https://ghfast.top/' : '';
+	
+	        $headers = [
+	            'Accept' => 'application/vnd.github+json',
+	            'User-Agent' => 'Vue3Admin-Typecho',
+	        ];
 
         $cur = v3a_vue3admin_version_info();
         $currentVersion = (string) ($cur['version'] ?? '');
@@ -2868,7 +2908,7 @@ try {
 
         try {
             if ($strict) {
-                $commitsUrl = 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/commits?per_page=1';
+	                $commitsUrl = $proxy . 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/commits?per_page=1';
                 $rows = v3a_http_get_json($commitsUrl, $headers, 12);
                 $commitRow = null;
                 if (is_array($rows) && isset($rows[0]) && is_array($rows[0])) {
@@ -2894,9 +2934,11 @@ try {
                 $latestCommitTs = $date !== '' ? (int) strtotime($date) : 0;
 
                 $targetLabel = substr($sha, 0, 7);
-                $zipUrl = 'https://codeload.github.com/TGU-HansJack/Vue3Admin-Typecho/zip/' . rawurlencode($sha);
+	                $zipUrl = $network === 'gitcode'
+	                    ? ('https://gitcode.com/TGU-HansJack/Vue3Admin-Typecho/archive/' . rawurlencode($sha) . '.zip')
+	                    : ($proxy . 'https://codeload.github.com/TGU-HansJack/Vue3Admin-Typecho/zip/' . rawurlencode($sha));
             } else {
-                $releasesUrl = 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/releases?per_page=20';
+	                $releasesUrl = $proxy . 'https://api.github.com/repos/TGU-HansJack/Vue3Admin-Typecho/releases?per_page=20';
                 $rows = v3a_http_get_json($releasesUrl, $headers, 12);
                 $latestRow = null;
                 if (is_array($rows)) {
@@ -2927,7 +2969,9 @@ try {
 
                 $latestVer = v3a_normalize_semver($tag);
                 $targetLabel = $tag;
-                $zipUrl = 'https://codeload.github.com/TGU-HansJack/Vue3Admin-Typecho/zip/refs/tags/' . rawurlencode($tag);
+	                $zipUrl = $network === 'gitcode'
+	                    ? ('https://gitcode.com/TGU-HansJack/Vue3Admin-Typecho/archive/' . rawurlencode($tag) . '.zip')
+	                    : ($proxy . 'https://codeload.github.com/TGU-HansJack/Vue3Admin-Typecho/zip/refs/tags/' . rawurlencode($tag));
             }
         } catch (\Throwable $e) {
             v3a_exit_json(502, null, $e->getMessage() !== '' ? $e->getMessage() : '获取升级源失败');
@@ -3046,12 +3090,21 @@ try {
                 $deployed = 1;
             }
 
-            // Clear release cache so the UI can reflect the updated state immediately.
-            try {
-                v3a_upsert_option($db, 'v3a_upgrade_releases_cache', '', 0);
-                v3a_upsert_option($db, 'v3a_upgrade_releases_cache_strict', '', 0);
-            } catch (\Throwable $e) {
-            }
+	            // Clear release cache so the UI can reflect the updated state immediately.
+	            try {
+	                $keys = [
+	                    'v3a_upgrade_releases_cache',
+	                    'v3a_upgrade_releases_cache_strict',
+	                ];
+	                foreach (['github', 'gitcode', 'ghfast'] as $net) {
+	                    $keys[] = 'v3a_upgrade_releases_cache_' . $net;
+	                    $keys[] = 'v3a_upgrade_releases_cache_strict_' . $net;
+	                }
+	                foreach ($keys as $k) {
+	                    v3a_upsert_option($db, $k, '', 0);
+	                }
+	            } catch (\Throwable $e) {
+	            }
 
             $message = $globalReplace
                 ? '已完成升级，并已同步更新站点 /Vue3Admin/ 目录。'
@@ -3224,31 +3277,26 @@ try {
         ];
 
         $decoded = null;
-        if ($localFile !== '' && is_file($localFile)) {
-            $raw = (string) @file_get_contents($localFile);
-            $decoded = json_decode($raw, true);
-            if (!is_array($decoded)) {
-                v3a_exit_json(400, null, 'Invalid local repo.json');
-            }
+	        if ($localFile !== '' && is_file($localFile)) {
+	            $raw = (string) @file_get_contents($localFile);
+	            $decoded = json_decode($raw, true);
+	            if (!is_array($decoded)) {
+	                v3a_exit_json(400, null, 'Invalid local repo.json');
+	            }
 
             $meta['source'] = 'local';
             $meta['sourceText'] = '本地';
-            $meta['path'] = $localFile;
-            $meta['updatedAt'] = (int) (@filemtime($localFile) ?: 0);
-        } else {
-            $candidates = [
-                'https://raw.githubusercontent.com/TGU-HansJack/Craft-Typecho/main/repo.json',
-                'https://raw.githubusercontent.com/TGU-HansJack/Craft-Typecho/master/repo.json',
-                'https://github.com/TGU-HansJack/Craft-Typecho/raw/main/repo.json',
-                'https://github.com/TGU-HansJack/Craft-Typecho/raw/master/repo.json',
-                // Provided by user (may 404 if not committed)
-                'https://github.com/TGU-HansJack/Craft-Typecho/repo.json',
-            ];
-            $meta['candidates'] = $candidates;
-
-            $headers = [
-                'Accept' => 'application/json',
-                'User-Agent' => 'Vue3Admin-Typecho',
+	            $meta['path'] = $localFile;
+	            $meta['updatedAt'] = (int) (@filemtime($localFile) ?: 0);
+	        } else {
+	            $candidates = [
+	                'https://cdn.jsdelivr.net/gh/TGU-HansJack/Craft-Typecho@main/repo.json',
+	            ];
+	            $meta['candidates'] = $candidates;
+	
+	            $headers = [
+	                'Accept' => 'application/json',
+	                'User-Agent' => 'Vue3Admin-Typecho',
             ];
 
             $lastErr = '';

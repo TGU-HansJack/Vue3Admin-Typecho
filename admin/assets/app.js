@@ -4838,12 +4838,13 @@
 
       const upgradeConfirmOpen = ref(false);
       const upgradeSettingsOpen = ref(false);
-      const upgradeSettingsLoading = ref(false);
-      const upgradeSettingsSaving = ref(false);
-      const upgradeSettingsForm = reactive({
-        strict: 0,
-        globalReplace: 0,
-      });
+	      const upgradeSettingsLoading = ref(false);
+	      const upgradeSettingsSaving = ref(false);
+	      const upgradeSettingsForm = reactive({
+	        strict: 0,
+	        globalReplace: 0,
+	        network: "github",
+	      });
 
       const upgradeModeLabel = computed(() =>
         upgradeSettingsForm.strict ? "严格升级（commit）" : "Release 升级"
@@ -4852,32 +4853,37 @@
         upgradeSettingsForm.globalReplace ? "开启全局替换" : "关闭全局替换"
       );
 
-      async function fetchUpgradeSettings() {
-        if (upgradeSettingsLoading.value) return;
-        upgradeSettingsLoading.value = true;
-        try {
-          const data = await apiGet("upgrade.settings.get");
-          upgradeSettingsForm.strict = Number(data?.strict || 0) ? 1 : 0;
-          upgradeSettingsForm.globalReplace = Number(data?.globalReplace || 0) ? 1 : 0;
-        } catch (e) {
-          // ignore, keep defaults
-        } finally {
-          upgradeSettingsLoading.value = false;
-        }
-      }
+	      async function fetchUpgradeSettings() {
+	        if (upgradeSettingsLoading.value) return;
+	        upgradeSettingsLoading.value = true;
+	        try {
+	          const data = await apiGet("upgrade.settings.get");
+	          upgradeSettingsForm.strict = Number(data?.strict || 0) ? 1 : 0;
+	          upgradeSettingsForm.globalReplace = Number(data?.globalReplace || 0) ? 1 : 0;
+	          const network = String(data?.network || "").trim();
+	          upgradeSettingsForm.network = ["gitcode", "github", "ghfast"].includes(network)
+	            ? network
+	            : "github";
+	        } catch (e) {
+	          // ignore, keep defaults
+	        } finally {
+	          upgradeSettingsLoading.value = false;
+	        }
+	      }
 
       async function fetchUpgradeInfo() {
         if (upgradeLoading.value) return;
         upgradeLoading.value = true;
         upgradeError.value = "";
-        try {
-          const data = await apiGet("upgrade.releases", {
-            strict: upgradeSettingsForm.strict ? 1 : 0,
-          });
-          upgradeCurrent.value = data?.current || null;
-          upgradeLatest.value = data?.latest || null;
-          upgradeReleases.value = Array.isArray(data?.releases) ? data.releases : [];
-          upgradeUpdateAvailable.value = Number(data?.updateAvailable || 0) ? 1 : 0;
+	        try {
+	          const data = await apiGet("upgrade.releases", {
+	            strict: upgradeSettingsForm.strict ? 1 : 0,
+	            network: upgradeSettingsForm.network || "github",
+	          });
+	          upgradeCurrent.value = data?.current || null;
+	          upgradeLatest.value = data?.latest || null;
+	          upgradeReleases.value = Array.isArray(data?.releases) ? data.releases : [];
+	          upgradeUpdateAvailable.value = Number(data?.updateAvailable || 0) ? 1 : 0;
           upgradeLatestCommit.value = data?.latestCommit || null;
           upgradeStrictUpdateAvailable.value = Number(data?.strictUpdateAvailable || 0) ? 1 : 0;
         } catch (e) {
@@ -4943,10 +4949,11 @@
 
         upgradeWorking.value = true;
         try {
-          const data = await apiPost("upgrade.run", {
-            strict,
-            globalReplace,
-          });
+	        const data = await apiPost("upgrade.run", {
+	            strict,
+	            globalReplace,
+	            network: upgradeSettingsForm.network || "github",
+	          });
 
           toastSuccess("升级完成", {
             actionLabel: "刷新页面",
@@ -4987,17 +4994,22 @@
       async function saveUpgradeSettings() {
         if (upgradeSettingsSaving.value) return;
         upgradeSettingsSaving.value = true;
-        try {
-          const data = await apiPost("upgrade.settings.save", {
-            strict: upgradeSettingsForm.strict ? 1 : 0,
-            globalReplace: upgradeSettingsForm.globalReplace ? 1 : 0,
-          });
-          upgradeSettingsForm.strict = Number(data?.strict || 0) ? 1 : 0;
-          upgradeSettingsForm.globalReplace = Number(data?.globalReplace || 0) ? 1 : 0;
-          toastSuccess("已保存");
-          upgradeSettingsOpen.value = false;
-          await fetchUpgradeInfo();
-        } catch (e) {
+	        try {
+	          const data = await apiPost("upgrade.settings.save", {
+	            strict: upgradeSettingsForm.strict ? 1 : 0,
+	            globalReplace: upgradeSettingsForm.globalReplace ? 1 : 0,
+	            network: upgradeSettingsForm.network || "github",
+	          });
+	          upgradeSettingsForm.strict = Number(data?.strict || 0) ? 1 : 0;
+	          upgradeSettingsForm.globalReplace = Number(data?.globalReplace || 0) ? 1 : 0;
+	          const network = String(data?.network || "").trim();
+	          upgradeSettingsForm.network = ["gitcode", "github", "ghfast"].includes(network)
+	            ? network
+	            : "github";
+	          toastSuccess("已保存");
+	          upgradeSettingsOpen.value = false;
+	          await fetchUpgradeInfo();
+	        } catch (e) {
           toastError(e && e.message ? e.message : "保存失败");
         } finally {
           upgradeSettingsSaving.value = false;
@@ -14431,11 +14443,11 @@
                   </div>
                 </div>
 
-                <div v-if="upgradeSettingsOpen" class="v3a-modal-mask" @click.self="closeUpgradeSettings()">
-                  <div class="v3a-modal-card" role="dialog" aria-modal="true">
-                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeUpgradeSettings()">
-                      <span class="v3a-icon" v-html="ICONS.close"></span>
-                    </button>
+	                <div v-if="upgradeSettingsOpen" class="v3a-modal-mask" @click.self="closeUpgradeSettings()">
+	                  <div class="v3a-modal-card v3a-upgrade-settings-modal" role="dialog" aria-modal="true">
+	                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeUpgradeSettings()">
+	                      <span class="v3a-icon" v-html="ICONS.close"></span>
+	                    </button>
                     <div class="v3a-modal-head">
                       <div class="v3a-modal-title">升级设置</div>
                       <div class="v3a-modal-subtitle">默认关闭，按需开启</div>
@@ -14455,23 +14467,41 @@
                           </div>
                         </div>
 
-                        <div class="v3a-settings-row">
-                          <div class="v3a-settings-row-label">
-                            <label>全局替换</label>
-                            <div class="v3a-settings-row-help">升级时同步替换站点根目录 <code>/Vue3Admin/</code>（无需停用/启用插件）。</div>
-                          </div>
-                          <div class="v3a-settings-row-control">
-                            <label class="v3a-switch">
-                              <input type="checkbox" v-model="upgradeSettingsForm.globalReplace" :true-value="1" :false-value="0" :disabled="upgradeSettingsSaving" />
-                              <span class="v3a-switch-ui"></span>
-                            </label>
-                          </div>
-                        </div>
-                      </div>
+	                        <div class="v3a-settings-row">
+	                          <div class="v3a-settings-row-label">
+	                            <label>全局替换</label>
+	                            <div class="v3a-settings-row-help">升级时同步替换站点根目录 <code>/Vue3Admin/</code>（无需停用/启用插件）。</div>
+	                          </div>
+	                          <div class="v3a-settings-row-control">
+	                            <label class="v3a-switch">
+	                              <input type="checkbox" v-model="upgradeSettingsForm.globalReplace" :true-value="1" :false-value="0" :disabled="upgradeSettingsSaving" />
+	                              <span class="v3a-switch-ui"></span>
+	                            </label>
+	                          </div>
+	                        </div>
 
-                      <div class="v3a-modal-actions">
-                        <button class="v3a-btn v3a-modal-btn" type="button" @click="closeUpgradeSettings()" :disabled="upgradeSettingsSaving">取消</button>
-                        <button class="v3a-btn primary v3a-modal-btn" type="button" @click="saveUpgradeSettings()" :disabled="upgradeSettingsSaving">
+	                        <div class="v3a-settings-row">
+	                          <div class="v3a-settings-row-label">
+	                            <label>网络设置</label>
+	                            <div class="v3a-settings-row-help" style="line-height: 1.7;">
+	                              GitCode仓库：<code>https://gitcode.com/TGU-HansJack/Vue3Admin-Typecho</code><br />
+	                              GitHub仓库：<code>https://github.com/TGU-HansJack/Vue3Admin-Typecho</code><br />
+	                              加速域名：<code>https://ghfast.top/https://github.com/TGU-HansJack/Vue3Admin-Typecho</code>
+	                            </div>
+	                          </div>
+	                          <div class="v3a-settings-row-control">
+	                            <select class="v3a-select" v-model="upgradeSettingsForm.network" :disabled="upgradeSettingsSaving">
+	                              <option value="gitcode">GitCode仓库</option>
+	                              <option value="github">GitHub仓库</option>
+	                              <option value="ghfast">加速域名</option>
+	                            </select>
+	                          </div>
+	                        </div>
+	                      </div>
+	
+	                      <div class="v3a-modal-actions">
+	                        <button class="v3a-btn v3a-modal-btn" type="button" @click="closeUpgradeSettings()" :disabled="upgradeSettingsSaving">取消</button>
+	                        <button class="v3a-btn primary v3a-modal-btn" type="button" @click="saveUpgradeSettings()" :disabled="upgradeSettingsSaving">
                           {{ upgradeSettingsSaving ? "保存中…" : "保存" }}
                         </button>
                       </div>
