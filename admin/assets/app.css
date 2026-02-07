@@ -927,6 +927,10 @@ a {
   background: var(--page-bg);
 }
 
+html:not(.dark) .v3a-content {
+  background: #fff;
+}
+
 .v3a-container {
   width: 100%;
   margin: 0;
