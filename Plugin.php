@@ -1256,6 +1256,8 @@ HTML;
     public static function ensureAdminDirectory(): void
     {
         try {
+            self::redirectLegacyAdminRequest();
+
             static $runtimeInit = false;
             if (!$runtimeInit) {
                 $runtimeInit = true;
@@ -1306,6 +1308,45 @@ HTML;
             }
         } catch (\Throwable $e) {
             // 自愈失败不影响前台/后台正常使用
+        }
+    }
+
+    private static function redirectLegacyAdminRequest(): void
+    {
+        if (!defined('__TYPECHO_ADMIN__') || !defined('__TYPECHO_ADMIN_DIR__')) {
+            return;
+        }
+
+        $adminDir = '/' . trim((string) __TYPECHO_ADMIN_DIR__, '/') . '/';
+        if ('/admin/' === strtolower($adminDir)) {
+            return;
+        }
+
+        $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+        if ('' === $scriptName) {
+            return;
+        }
+
+        $scriptDir = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
+        if ('admin' !== strtolower((string) basename($scriptDir))) {
+            return;
+        }
+
+        $basePath = (string) substr($scriptDir, 0, -strlen('/admin'));
+        $target = rtrim($basePath, '/') . $adminDir;
+        if ('' === $target) {
+            $target = $adminDir;
+        }
+
+        $requestUri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+        $requestPath = (string) (parse_url($requestUri, PHP_URL_PATH) ?? '');
+        if ('' !== $requestPath && 0 === strpos($requestPath, rtrim($target, '/'))) {
+            return;
+        }
+
+        if (!headers_sent()) {
+            header('Location: ' . \Typecho\Common::safeUrl($target), true, 302);
+            exit;
         }
     }
 
