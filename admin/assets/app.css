@@ -3379,50 +3379,6 @@ html:not(.dark) .v3a-content {
   gap: calc(var(--spacing) * 3);
 }
 
-.v3a-workshop-card {
-  border: none;
-  box-shadow: none;
-}
-
-.v3a-workshop-card:hover {
-  box-shadow: none;
-}
-
-.v3a-workshop-tablebox {
-  border: 1px solid var(--sidebar-border);
-  border-radius: 4px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  box-shadow: var(--content-shadow);
-  transition: box-shadow 0.2s ease;
-}
-
-.v3a-workshop-tablebox:hover {
-  box-shadow: var(--content-shadow-hover);
-}
-
-.v3a-workshop-tablebox .v3a-table tbody tr:hover td {
-  box-shadow: inset 0 1px 0 var(--v3a-divider-strong),
-    inset 0 -1px 0 var(--v3a-divider-strong);
-}
-
-.v3a-workshop-tablebox .v3a-table tbody tr:hover td:first-child {
-  box-shadow: inset 1px 0 0 var(--v3a-divider-strong),
-    inset 0 1px 0 var(--v3a-divider-strong),
-    inset 0 -1px 0 var(--v3a-divider-strong);
-}
-
-.v3a-workshop-tablebox .v3a-table tbody tr:hover td:last-child {
-  box-shadow: inset -1px 0 0 var(--v3a-divider-strong),
-    inset 0 1px 0 var(--v3a-divider-strong),
-    inset 0 -1px 0 var(--v3a-divider-strong);
-}
-
-.v3a-workshop-tablebox .v3a-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
 .v3a-workshop-meta a {
   color: inherit;
   text-decoration: none;
@@ -3572,7 +3528,6 @@ html:not(.dark) .v3a-content {
 
 .v3a-posts-open:hover {
   color: var(--v3a-text);
-  border-color: var(--sidebar-border);
   background: var(--v3a-control-bg-hover);
 }
 
@@ -3699,6 +3654,16 @@ html:not(.dark) .v3a-content {
   align-items: center;
   gap: 6px;
   padding-top: 2px;
+}
+
+.v3a-posts-narrow-actions .v3a-iconaction {
+  border-color: transparent;
+  background: transparent;
+}
+
+.v3a-posts-narrow-actions .v3a-iconaction:hover,
+.v3a-posts-narrow-actions .v3a-iconaction.danger:hover {
+  border-color: transparent;
 }
 
 .v3a-posts-table .v3a-pill .v3a-icon {

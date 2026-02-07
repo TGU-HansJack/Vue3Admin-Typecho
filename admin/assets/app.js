@@ -13735,7 +13735,7 @@
                   <div class="v3a-muted">{{ formatNumber(workshopFilteredItems.length) }} 条</div>
                 </div>
 
-                <div class="v3a-card v3a-workshop-card">
+                <div class="v3a-card">
                   <div class="bd" style="padding: 0;">
                     <div v-if="workshopError" class="v3a-alert" style="margin: 16px;">{{ workshopError }}</div>
                     <div v-else-if="workshopLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
@@ -13743,60 +13743,58 @@
                     <template v-else>
                       <div v-if="!workshopFilteredItems.length" class="v3a-muted" style="padding: 16px;">{{ workshopItems.length ? '没有匹配的项目' : '暂无项目' }}</div>
 
-                      <div v-else class="v3a-workshop-tablebox">
-                        <table class="v3a-table">
-                          <thead>
-                            <tr>
-                              <th>项目</th>
-                              <th style="width: 80px;">类型</th>
-                              <th style="width: 80px;">版本</th>
-                              <th style="width: 140px;">作者</th>
-                              <th style="width: 140px;">Typecho</th>
-                              <th>介绍</th>
-                              <th style="width: 220px; text-align: right;">操作</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr v-for="row in workshopFilteredItems" :key="row.id || row.name">
-                              <td style="max-width: 260px;">
-                                <div style="display:flex; align-items:center; gap:8px; flex-wrap: wrap;">
-                                  <a v-if="row.link" :href="row.link" target="_blank" rel="noreferrer">{{ row.name || '—' }}</a>
-                                  <span v-else>{{ row.name || '—' }}</span>
-                                  <span v-if="row.installed" class="v3a-pill success">已安装</span>
-                                </div>
-                              </td>
-                              <td style="width: 80px;">
-                                <span class="v3a-pill" :class="workshopTypeTone(row.type)">{{ workshopTypeLabel(row.type) }}</span>
-                              </td>
-                              <td style="width: 80px;">
-                                <span>{{ row.version || '—' }}</span>
-                              </td>
-                              <td style="width: 140px;">
-                                <span>{{ row.author || '—' }}</span>
-                              </td>
-                              <td style="width: 140px;">
-                                <span class="v3a-muted">{{ workshopTypechoText(row.typecho) || '—' }}</span>
-                              </td>
-                              <td style="word-break: break-word;">
-                                <span>{{ row.description || '—' }}</span>
-                              </td>
-                              <td style="width: 220px; text-align: right;">
-                                <div style="display: inline-flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
-                                  <button
-                                    v-if="row.canInstall"
-                                    class="v3a-mini-btn primary"
-                                    type="button"
-                                    :disabled="workshopInstallingId === String(row.id || row.name || row.link || '')"
-                                    @click="installWorkshopProject(row)"
-                                  >{{ workshopInstallingId === String(row.id || row.name || row.link || '') ? '安装中…' : (row.installed ? '覆盖安装' : '安装') }}</button>
-                                  <a v-if="row.readme" class="v3a-mini-btn" :href="row.readme" target="_blank" rel="noreferrer">使用文档</a>
-                                  <span v-if="!row.canInstall && !row.readme" class="v3a-muted">—</span>
-                                </div>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
+                      <table v-else class="v3a-table">
+                        <thead>
+                          <tr>
+                            <th>项目</th>
+                            <th style="width: 80px;">类型</th>
+                            <th style="width: 80px;">版本</th>
+                            <th style="width: 140px;">作者</th>
+                            <th style="width: 140px;">Typecho</th>
+                            <th>介绍</th>
+                            <th style="width: 220px; text-align: right;">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="row in workshopFilteredItems" :key="row.id || row.name">
+                            <td style="max-width: 260px;">
+                              <div style="display:flex; align-items:center; gap:8px; flex-wrap: wrap;">
+                                <a v-if="row.link" :href="row.link" target="_blank" rel="noreferrer">{{ row.name || '—' }}</a>
+                                <span v-else>{{ row.name || '—' }}</span>
+                                <span v-if="row.installed" class="v3a-pill success">已安装</span>
+                              </div>
+                            </td>
+                            <td style="width: 80px;">
+                              <span class="v3a-pill" :class="workshopTypeTone(row.type)">{{ workshopTypeLabel(row.type) }}</span>
+                            </td>
+                            <td style="width: 80px;">
+                              <span>{{ row.version || '—' }}</span>
+                            </td>
+                            <td style="width: 140px;">
+                              <span>{{ row.author || '—' }}</span>
+                            </td>
+                            <td style="width: 140px;">
+                              <span class="v3a-muted">{{ workshopTypechoText(row.typecho) || '—' }}</span>
+                            </td>
+                            <td style="word-break: break-word;">
+                              <span>{{ row.description || '—' }}</span>
+                            </td>
+                            <td style="width: 220px; text-align: right;">
+                              <div style="display: inline-flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+                                <button
+                                  v-if="row.canInstall"
+                                  class="v3a-mini-btn primary"
+                                  type="button"
+                                  :disabled="workshopInstallingId === String(row.id || row.name || row.link || '')"
+                                  @click="installWorkshopProject(row)"
+                                >{{ workshopInstallingId === String(row.id || row.name || row.link || '') ? '安装中…' : (row.installed ? '覆盖安装' : '安装') }}</button>
+                                <a v-if="row.readme" class="v3a-mini-btn" :href="row.readme" target="_blank" rel="noreferrer">使用文档</a>
+                                <span v-if="!row.canInstall && !row.readme" class="v3a-muted">—</span>
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </template>
                   </div>
                 </div>
