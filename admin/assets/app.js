@@ -4928,10 +4928,28 @@
         v3aLegacyWorking.value = true;
         try {
           const data = await apiPost("v3a.legacy.maintain", {});
+          if (!Number(data?.migrated || 0)) {
+            toastInfo("未发现旧版本 v3a_* 数据表，未执行迁移");
+            v3aLegacyModalOpen.value = false;
+            return;
+          }
+
           const counts = data?.counts || {};
           const visit = Number(counts.visit || 0) || 0;
           const friend = Number(counts.friend || 0) || 0;
-          toastSuccess(`维护完成（visit: ${visit}, friends: ${friend}）`);
+          const api = Number(counts.api || 0) || 0;
+          const apply = Number(counts.apply || 0) || 0;
+          const subscribe = Number(counts.subscribe || 0) || 0;
+          const like = Number(counts.like || 0) || 0;
+          const total = visit + friend + api + apply + subscribe + like;
+          const backup = String(data?.backup || "");
+          const msg = `维护完成（visit: ${visit}, friends: ${friend}${backup ? `, backup: ${backup}` : ""}）`;
+
+          if (total <= 0) {
+            toastInfo("维护完成，但未迁移到任何数据（可能旧表为空/表前缀不一致）");
+          } else {
+            toastSuccess(msg);
+          }
           v3aLegacyModalOpen.value = false;
         } catch (e) {
           toastError(e && e.message ? e.message : "维护失败");

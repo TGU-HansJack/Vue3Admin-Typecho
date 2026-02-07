@@ -446,13 +446,10 @@ final class LocalStorage
      */
     public static function migrateLegacy(Db $db, bool $dropLegacy = true): array
     {
-        self::pdoOrFail();
+        $pdo = self::pdoOrFail();
         self::ensureDirs();
 
         @set_time_limit(0);
-
-        $tmpFile = rtrim(self::TMP_DIR, "/\\") . DIRECTORY_SEPARATOR . 'v3a_legacy_' . date('Ymd_His') . '_' . bin2hex(random_bytes(3)) . '.sqlite';
-        $pdo = self::openPdo($tmpFile);
 
         $counts = [
             'visit' => 0,
@@ -463,58 +460,118 @@ final class LocalStorage
             'like' => 0,
         ];
 
+        $allSuffixes = [
+            'v3a_visit_log',
+            'v3a_api_log',
+            'v3a_friend_link',
+            'v3a_friend_link_apply',
+            'v3a_subscribe',
+            'v3a_like',
+        ];
+
+        $legacyTables = [];
+        foreach ($allSuffixes as $suffix) {
+            if (self::legacyTableExists($db, $suffix)) {
+                $legacyTables[] = $suffix;
+            }
+        }
+
+        if (empty($legacyTables)) {
+            return [
+                'migrated' => 0,
+                'reason' => 'no_legacy_tables',
+                'legacyTables' => [],
+                'counts' => $counts,
+                'backup' => '',
+                'dropped' => [],
+            ];
+        }
+
+        // Backup current local db file (best-effort).
+        $backup = '';
+        if (is_file(self::DB_FILE)) {
+            $backupName = 'v3a_data.sqlite.bak_' . date('Ymd_His');
+            $backupPath = rtrim(self::DIR, "/\\") . DIRECTORY_SEPARATOR . $backupName;
+            if (@copy(self::DB_FILE, $backupPath)) {
+                $backup = $backupName;
+            }
+        }
+
         $pdo->beginTransaction();
         try {
-            $counts['visit'] = self::migrateLegacyTable($db, $pdo, 'v3a_visit_log');
-            $counts['api'] = self::migrateLegacyTable($db, $pdo, 'v3a_api_log');
-            $counts['friend'] = self::migrateLegacyTable($db, $pdo, 'v3a_friend_link');
-            $counts['apply'] = self::migrateLegacyTable($db, $pdo, 'v3a_friend_link_apply');
-            $counts['subscribe'] = self::migrateLegacyTable($db, $pdo, 'v3a_subscribe');
-            $counts['like'] = self::migrateLegacyTable($db, $pdo, 'v3a_like');
+            if (in_array('v3a_visit_log', $legacyTables, true)) {
+                $counts['visit'] = self::migrateLegacyTable($db, $pdo, 'v3a_visit_log', self::maxLocalId($pdo, 'v3a_visit_log'));
+            }
+            if (in_array('v3a_api_log', $legacyTables, true)) {
+                $counts['api'] = self::migrateLegacyTable($db, $pdo, 'v3a_api_log', self::maxLocalId($pdo, 'v3a_api_log'));
+            }
+            if (in_array('v3a_friend_link', $legacyTables, true)) {
+                $counts['friend'] = self::migrateLegacyTable($db, $pdo, 'v3a_friend_link', self::maxLocalId($pdo, 'v3a_friend_link'));
+            }
+            if (in_array('v3a_friend_link_apply', $legacyTables, true)) {
+                $counts['apply'] = self::migrateLegacyTable($db, $pdo, 'v3a_friend_link_apply', self::maxLocalId($pdo, 'v3a_friend_link_apply'));
+            }
+            if (in_array('v3a_subscribe', $legacyTables, true)) {
+                $counts['subscribe'] = self::migrateLegacyTable($db, $pdo, 'v3a_subscribe', self::maxLocalId($pdo, 'v3a_subscribe'));
+            }
+            if (in_array('v3a_like', $legacyTables, true)) {
+                $counts['like'] = self::migrateLegacyTable($db, $pdo, 'v3a_like', self::maxLocalId($pdo, 'v3a_like'));
+            }
             $pdo->commit();
         } catch (\Throwable $e) {
             try {
                 $pdo->rollBack();
             } catch (\Throwable $e2) {
             }
-            @unlink($tmpFile);
             throw $e;
         }
 
-        $backup = '';
-        if (is_file(self::DB_FILE)) {
-            $backup = 'v3a_data.sqlite.bak_' . date('Ymd_His');
-            @rename(self::DB_FILE, rtrim(self::DIR, "/\\") . DIRECTORY_SEPARATOR . $backup);
-        }
-
-        if (!@rename($tmpFile, self::DB_FILE)) {
-            @unlink($tmpFile);
-            throw new \RuntimeException('Cannot replace local db file.');
-        }
-
-        self::$pdo = null;
-        self::$pdoPath = '';
-        self::pdo();
-
         $dropped = [];
         if ($dropLegacy) {
-            $dropped = self::dropLegacyTables($db);
+            $dropped = self::dropLegacyTables($db, $legacyTables);
         }
 
         return [
             'migrated' => 1,
+            'legacyTables' => $legacyTables,
             'counts' => $counts,
             'backup' => $backup,
             'dropped' => $dropped,
         ];
     }
 
-    private static function migrateLegacyTable(Db $db, \PDO $pdo, string $suffix): int
+    private static function legacyTableExists(Db $db, string $suffix): bool
+    {
+        $tableKey = 'table.' . $suffix;
+        try {
+            $db->fetchAll($db->select('id')->from($tableKey)->limit(1));
+            return true;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private static function maxLocalId(\PDO $pdo, string $table): int
+    {
+        $table = preg_replace('/[^0-9a-zA-Z_]+/', '', $table);
+        if ($table === '') {
+            return 0;
+        }
+        try {
+            $v = $pdo->query('SELECT MAX(id) FROM ' . $table)->fetchColumn();
+            return (int) ($v ?: 0);
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    private static function migrateLegacyTable(Db $db, \PDO $pdo, string $suffix, int $idOffset = 0): int
     {
         $tableKey = 'table.' . $suffix;
         $lastId = 0;
         $total = 0;
         $batch = 1000;
+        $idOffset = max(0, (int) $idOffset);
 
         // Use INSERT with explicit id to preserve identity.
         $insertSql = '';
@@ -537,22 +594,50 @@ final class LocalStorage
         $stmtInsert = $pdo->prepare($insertSql);
 
         while (true) {
-            $rows = [];
-            try {
-                $rows = $db->fetchAll(
-                    $db->select()
-                        ->from($tableKey)
-                        ->where('id > ?', $lastId)
-                        ->order('id', Db::SORT_ASC)
-                        ->limit($batch)
-                );
-            } catch (\Throwable $e) {
-                // Table not found or query failed.
-                return $total;
-            }
+            $rows = (array) $db->fetchAll(
+                $db->select()
+                    ->from($tableKey)
+                    ->where('id > ?', $lastId)
+                    ->order('id', Db::SORT_ASC)
+                    ->limit($batch)
+            );
 
             if (empty($rows)) {
                 break;
+            }
+
+            $ctypeByCid = [];
+            if ($suffix === 'v3a_visit_log') {
+                $cids = [];
+                foreach ($rows as $rr) {
+                    if (!is_array($rr)) {
+                        continue;
+                    }
+                    $cid = isset($rr['cid']) && $rr['cid'] !== null ? (int) ($rr['cid'] ?? 0) : 0;
+                    if ($cid > 0) {
+                        $cids[] = $cid;
+                    }
+                }
+                $cids = array_values(array_unique($cids));
+                if (!empty($cids)) {
+                    try {
+                        $contentRows = $db->fetchAll(
+                            $db->select('cid', 'type')
+                                ->from('table.contents')
+                                ->where('cid IN ?', $cids)
+                        );
+                        foreach ((array) $contentRows as $cr) {
+                            if (!is_array($cr)) {
+                                continue;
+                            }
+                            $cid = (int) ($cr['cid'] ?? 0);
+                            if ($cid > 0) {
+                                $ctypeByCid[$cid] = (string) ($cr['type'] ?? '');
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                    }
+                }
             }
 
             foreach ((array) $rows as $r) {
@@ -566,19 +651,20 @@ final class LocalStorage
                 }
 
                 if ($suffix === 'v3a_visit_log') {
+                    $cid = isset($r['cid']) ? (int) ($r['cid'] ?? 0) : 0;
                     $stmtInsert->execute([
-                        ':id' => $id,
+                        ':id' => $id + $idOffset,
                         ':ip' => (string) ($r['ip'] ?? ''),
                         ':uri' => (string) ($r['uri'] ?? ''),
                         ':cid' => isset($r['cid']) ? (int) ($r['cid'] ?? 0) ?: null : null,
-                        ':ctype' => '',
+                        ':ctype' => $cid > 0 && isset($ctypeByCid[$cid]) ? (string) $ctypeByCid[$cid] : '',
                         ':referer' => isset($r['referer']) ? (string) ($r['referer'] ?? '') : null,
                         ':ua' => isset($r['ua']) ? (string) ($r['ua'] ?? '') : null,
                         ':created' => (int) ($r['created'] ?? 0),
                     ]);
                 } elseif ($suffix === 'v3a_api_log') {
                     $stmtInsert->execute([
-                        ':id' => $id,
+                        ':id' => $id + $idOffset,
                         ':ip' => (string) ($r['ip'] ?? ''),
                         ':method' => (string) ($r['method'] ?? 'GET'),
                         ':path' => (string) ($r['path'] ?? ''),
@@ -587,7 +673,7 @@ final class LocalStorage
                     ]);
                 } elseif ($suffix === 'v3a_friend_link') {
                     $stmtInsert->execute([
-                        ':id' => $id,
+                        ':id' => $id + $idOffset,
                         ':name' => (string) ($r['name'] ?? ''),
                         ':url' => (string) ($r['url'] ?? ''),
                         ':avatar' => isset($r['avatar']) ? (string) ($r['avatar'] ?? '') : null,
@@ -599,7 +685,7 @@ final class LocalStorage
                     ]);
                 } elseif ($suffix === 'v3a_friend_link_apply') {
                     $stmtInsert->execute([
-                        ':id' => $id,
+                        ':id' => $id + $idOffset,
                         ':name' => (string) ($r['name'] ?? ''),
                         ':url' => (string) ($r['url'] ?? ''),
                         ':avatar' => isset($r['avatar']) ? (string) ($r['avatar'] ?? '') : null,
@@ -612,14 +698,14 @@ final class LocalStorage
                     ]);
                 } elseif ($suffix === 'v3a_subscribe') {
                     $stmtInsert->execute([
-                        ':id' => $id,
+                        ':id' => $id + $idOffset,
                         ':email' => (string) ($r['email'] ?? ''),
                         ':status' => (int) ($r['status'] ?? 1),
                         ':created' => (int) ($r['created'] ?? 0),
                     ]);
                 } elseif ($suffix === 'v3a_like') {
                     $stmtInsert->execute([
-                        ':id' => $id,
+                        ':id' => $id + $idOffset,
                         ':type' => (string) ($r['type'] ?? 'site'),
                         ':cid' => isset($r['cid']) ? (int) ($r['cid'] ?? 0) ?: null : null,
                         ':ip' => (string) ($r['ip'] ?? ''),
@@ -638,7 +724,7 @@ final class LocalStorage
     /**
      * @return string[]
      */
-    private static function dropLegacyTables(Db $db): array
+    private static function dropLegacyTables(Db $db, array $suffixes = []): array
     {
         $driver = '';
         try {
@@ -652,14 +738,16 @@ final class LocalStorage
         } catch (\Throwable $e) {
         }
 
-        $suffixes = [
-            'v3a_visit_log',
-            'v3a_api_log',
-            'v3a_friend_link',
-            'v3a_friend_link_apply',
-            'v3a_subscribe',
-            'v3a_like',
-        ];
+        if (empty($suffixes)) {
+            $suffixes = [
+                'v3a_visit_log',
+                'v3a_api_log',
+                'v3a_friend_link',
+                'v3a_friend_link_apply',
+                'v3a_subscribe',
+                'v3a_like',
+            ];
+        }
 
         $dropped = [];
         foreach ($suffixes as $suffix) {
@@ -681,4 +769,3 @@ final class LocalStorage
         return $dropped;
     }
 }
-
