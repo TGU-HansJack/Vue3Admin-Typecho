@@ -14744,14 +14744,16 @@
                             <label>导入数据</label>
                             <div class="v3a-settings-row-help">上传 .zip 并导入（自动备份旧数据）。</div>
                           </div>
-                          <div class="v3a-settings-row-control">
-                            <div style="display:flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap;">
-                              <input ref="v3aDataImportEl" class="v3a-input" type="file" accept=".zip" @change="onV3aDataImportChange" :disabled="v3aDataWorking" />
-                              <button class="v3a-btn primary" type="button" @click="importV3aData()" :disabled="v3aDataWorking || !v3aDataImportFile">
-                                {{ v3aDataWorking ? "导入中…" : "导入数据" }}
-                              </button>
+                            <div class="v3a-settings-row-control">
+                              <div style="display:flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap;">
+                                <input class="v3a-input" type="text" :value="v3aDataImportFile ? v3aDataImportFile.name : ''" placeholder="选择 .zip 文件…" readonly style="flex: 1; min-width: 220px; width: 260px; max-width: 100%;" />
+                                <button class="v3a-btn" type="button" @click="v3aDataImportEl && v3aDataImportEl.click()" :disabled="v3aDataWorking">浏览…</button>
+                                <input ref="v3aDataImportEl" type="file" accept=".zip" @change="onV3aDataImportChange" style="display: none;" :disabled="v3aDataWorking" />
+                                <button class="v3a-btn primary" type="button" @click="importV3aData()" :disabled="v3aDataWorking || !v3aDataImportFile">
+                                  {{ v3aDataWorking ? "导入中…" : "导入数据" }}
+                                </button>
+                              </div>
                             </div>
-                          </div>
                         </div>
 
                         <div class="v3a-settings-row">
