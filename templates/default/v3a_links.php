@@ -88,7 +88,18 @@ $links = [];
 
 try {
     if ($v3aEnabled) {
-        $db = \Typecho\Db::get();
+        $pdo = null;
+        try {
+            if (class_exists('\\TypechoPlugin\\Vue3Admin\\LocalStorage')) {
+                $pdo = \TypechoPlugin\Vue3Admin\LocalStorage::pdo();
+            }
+        } catch (\Throwable $e) {
+            $pdo = null;
+        }
+
+        if (!$pdo) {
+            throw new \RuntimeException('Local storage unavailable: please enable PHP extension pdo_sqlite.');
+        }
 
         if (
             isset($_SERVER['REQUEST_METHOD'])
@@ -154,13 +165,11 @@ try {
                 } else {
                     $dup = 0;
                     try {
-                        $dup = (int) ($db->fetchObject(
-                            $db->select(['COUNT(id)' => 'num'])
-                                ->from('table.v3a_friend_link')
-                                ->where('url = ?', $url)
-                                ->limit(1)
-                        )->num ?? 0);
+                        $stmt = $pdo->prepare('SELECT COUNT(id) FROM v3a_friend_link WHERE url = :url LIMIT 1');
+                        $stmt->execute([':url' => $url]);
+                        $dup = (int) ($stmt->fetchColumn() ?: 0);
                     } catch (\Throwable $e) {
+                        $dup = 0;
                     }
                     if ($dup > 0) {
                         $noticeType = 'error';
@@ -168,13 +177,13 @@ try {
                     } else {
                         $pending = 0;
                         try {
-                            $pending = (int) ($db->fetchObject(
-                                $db->select(['COUNT(id)' => 'num'])
-                                    ->from('table.v3a_friend_link_apply')
-                                    ->where('url = ? AND status = ?', $url, 0)
-                                    ->limit(1)
-                            )->num ?? 0);
+                            $stmt = $pdo->prepare(
+                                'SELECT COUNT(id) FROM v3a_friend_link_apply WHERE url = :url AND status = :status LIMIT 1'
+                            );
+                            $stmt->execute([':url' => $url, ':status' => 0]);
+                            $pending = (int) ($stmt->fetchColumn() ?: 0);
                         } catch (\Throwable $e) {
+                            $pending = 0;
                         }
 
                         if ($pending > 0) {
@@ -193,10 +202,22 @@ try {
                                 'created' => time(),
                             ];
 
-                            $db->query(
-                                $db->insert('table.v3a_friend_link_apply')->rows($rows),
-                                \Typecho\Db::WRITE
+                            $cols = array_keys($rows);
+                            $placeholders = array_map(function ($c) {
+                                return ':' . $c;
+                            }, $cols);
+                            $stmt = $pdo->prepare(
+                                'INSERT INTO v3a_friend_link_apply ('
+                                    . implode(',', $cols)
+                                    . ') VALUES ('
+                                    . implode(',', $placeholders)
+                                    . ')'
                             );
+                            $params = [];
+                            foreach ($rows as $k => $v) {
+                                $params[':' . $k] = $v;
+                            }
+                            $stmt->execute($params);
 
                             try {
                                 if (class_exists('\\TypechoPlugin\\Vue3Admin\\Plugin')) {
@@ -213,12 +234,9 @@ try {
             }
         }
 
-        $links = $db->fetchAll(
-            $db->select('id', 'name', 'url', 'avatar', 'description', 'type')
-                ->from('table.v3a_friend_link')
-                ->where('status = ?', 1)
-                ->order('created', \Typecho\Db::SORT_DESC)
-        );
+        $stmt = $pdo->prepare('SELECT id,name,url,avatar,description,type FROM v3a_friend_link WHERE status = :status ORDER BY created DESC');
+        $stmt->execute([':status' => 1]);
+        $links = (array) $stmt->fetchAll();
     }
 } catch (\Throwable $e) {
     $noticeType = 'error';

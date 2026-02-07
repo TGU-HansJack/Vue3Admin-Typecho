@@ -264,6 +264,30 @@ function v3a_rmdir_recursive(string $dir): void
     @rmdir($dir);
 }
 
+/**
+ * LocalStorage sqlite PDO (cache/v3a_data.sqlite).
+ */
+function v3a_local_pdo(): ?\PDO
+{
+    try {
+        if (class_exists('\\TypechoPlugin\\Vue3Admin\\LocalStorage')) {
+            return \TypechoPlugin\Vue3Admin\LocalStorage::pdo();
+        }
+    } catch (\Throwable $e) {
+    }
+
+    return null;
+}
+
+function v3a_local_pdo_or_fail(): \PDO
+{
+    $pdo = v3a_local_pdo();
+    if (!$pdo) {
+        throw new \RuntimeException('Local storage unavailable: please enable PHP extension pdo_sqlite.');
+    }
+    return $pdo;
+}
+
 function v3a_copy_directory(string $source, string $target): void
 {
     $source = rtrim($source, '/\\');
@@ -4827,6 +4851,8 @@ try {
             'siteLikes' => 0,
         ];
 
+        $pdo = v3a_local_pdo();
+
         // 全站字符数
         try {
             $row = $db->fetchObject(
@@ -4841,18 +4867,14 @@ try {
 
         // 访问量 / IP
         try {
-            $summary['visitPv'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_visit_log')
-            )->num ?? 0);
-            $summary['visitUv'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(DISTINCT ip)' => 'num'])->from('table.v3a_visit_log')
-            )->num ?? 0);
-            $summary['todayUv'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(DISTINCT ip)' => 'num'])
-                    ->from('table.v3a_visit_log')
-                    ->where('created >= ?', $todayStart)
-                    ->where('created < ?', $todayEnd)
-            )->num ?? 0);
+            if ($pdo) {
+                $summary['visitPv'] = (int) (($pdo->query('SELECT COUNT(id) FROM v3a_visit_log')->fetchColumn()) ?: 0);
+                $summary['visitUv'] = (int) (($pdo->query('SELECT COUNT(DISTINCT ip) FROM v3a_visit_log')->fetchColumn()) ?: 0);
+
+                $stmt = $pdo->prepare('SELECT COUNT(DISTINCT ip) FROM v3a_visit_log WHERE created >= :start AND created < :end');
+                $stmt->execute([':start' => $todayStart, ':end' => $todayEnd]);
+                $summary['todayUv'] = (int) ($stmt->fetchColumn() ?: 0);
+            }
         } catch (\Throwable $e) {
         }
 
@@ -4863,65 +4885,60 @@ try {
             'todayMaxOnline' => 0,
         ];
         try {
-            $since = time() - 300;
-            $realtime['onlineNow'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(DISTINCT ip)' => 'num'])
-                    ->from('table.v3a_visit_log')
-                    ->where('created >= ?', $since)
-            )->num ?? 0);
+            if ($pdo) {
+                $since = time() - 300;
+                $stmt = $pdo->prepare('SELECT COUNT(DISTINCT ip) FROM v3a_visit_log WHERE created >= :since');
+                $stmt->execute([':since' => $since]);
+                $realtime['onlineNow'] = (int) ($stmt->fetchColumn() ?: 0);
+            }
         } catch (\Throwable $e) {
         }
         try {
-            $driver = '';
-            try {
-                $driver = strtolower((string) $db->getAdapter()->getDriver());
-            } catch (\Throwable $e) {
+            if ($pdo) {
+                $stmt = $pdo->prepare(
+                    "SELECT MAX(num) FROM (
+                        SELECT COUNT(DISTINCT ip) AS num
+                        FROM v3a_visit_log
+                        WHERE created >= :start AND created < :end
+                        GROUP BY CAST(created / 300 AS INTEGER)
+                    )"
+                );
+                $stmt->execute([':start' => $todayStart, ':end' => $todayEnd]);
+                $realtime['todayMaxOnline'] = (int) ($stmt->fetchColumn() ?: 0);
             }
-
-            $bucketExpr = $driver === 'sqlite'
-                ? 'CAST(created / 300 AS INTEGER)'
-                : 'FLOOR(created / 300)';
-
-            $row = $db->fetchObject(
-                $db->select([$bucketExpr => 'bucket'], ['COUNT(DISTINCT ip)' => 'num'])
-                    ->from('table.v3a_visit_log')
-                    ->where('created >= ?', $todayStart)
-                    ->where('created < ?', $todayEnd)
-                    ->group('bucket')
-                    ->order('num', \Typecho\Db::SORT_DESC)
-                    ->limit(1)
-            );
-            $realtime['todayMaxOnline'] = (int) ($row->num ?? 0);
         } catch (\Throwable $e) {
         }
 
         // API 调用
         try {
-            $summary['apiCalls'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_api_log')
-            )->num ?? 0);
+            if ($pdo) {
+                $summary['apiCalls'] = (int) (($pdo->query('SELECT COUNT(id) FROM v3a_api_log')->fetchColumn()) ?: 0);
+            }
         } catch (\Throwable $e) {
         }
 
         // 友链
         try {
-            $summary['friendLinks'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link')->where('status = ?', 1)
-            )->num ?? 0);
-            $summary['friendLinkApply'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link_apply')->where('status = ?', 0)
-            )->num ?? 0);
+            if ($pdo) {
+                $stmt = $pdo->query('SELECT COUNT(id) FROM v3a_friend_link WHERE status = 1');
+                $summary['friendLinks'] = (int) ($stmt ? ($stmt->fetchColumn() ?: 0) : 0);
+
+                $stmt = $pdo->query('SELECT COUNT(id) FROM v3a_friend_link_apply WHERE status = 0');
+                $summary['friendLinkApply'] = (int) ($stmt ? ($stmt->fetchColumn() ?: 0) : 0);
+            }
         } catch (\Throwable $e) {
         }
 
         // 点赞
         try {
-            $summary['postLikes'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_like')->where('type = ?', 'post')
-            )->num ?? 0);
-            $summary['siteLikes'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_like')->where('type = ?', 'site')
-            )->num ?? 0);
+            if ($pdo) {
+                $stmt = $pdo->prepare('SELECT COUNT(id) FROM v3a_like WHERE type = :type');
+                $stmt->execute([':type' => 'post']);
+                $summary['postLikes'] = (int) ($stmt->fetchColumn() ?: 0);
+
+                $stmt->execute([':type' => 'site']);
+                $summary['siteLikes'] = (int) ($stmt->fetchColumn() ?: 0);
+            }
         } catch (\Throwable $e) {
         }
 
@@ -5260,38 +5277,35 @@ try {
                     'date' => $d,
                     'day' => $labels[(int) date('w', $ts)] ?? $d,
                 ];
-                $bucket[$d] = ['pv' => 0, 'ips' => []];
+                $bucket[$d] = ['pv' => 0, 'uv' => 0];
             }
 
-            $rows = $db->fetchAll(
-                $db->select('ip', 'created')
-                    ->from('table.v3a_visit_log')
-                    ->where('created >= ?', $trendStart)
-                    ->where('created < ?', $trendEnd)
-            );
-            foreach ($rows as $r) {
-                $created = (int) ($r['created'] ?? 0);
-                $d = date('Y-m-d', $created);
-                if (!isset($bucket[$d])) {
-                    continue;
-                }
-
-                $bucket[$d]['pv']++;
-
-                $ip = (string) ($r['ip'] ?? '');
-                if ($ip !== '') {
-                    $bucket[$d]['ips'][$ip] = true;
+            if ($pdo) {
+                $stmt = $pdo->prepare(
+                    "SELECT strftime('%Y-%m-%d', created, 'unixepoch') AS d,
+                            COUNT(id) AS pv,
+                            COUNT(DISTINCT ip) AS uv
+                     FROM v3a_visit_log
+                     WHERE created >= :start AND created < :end
+                     GROUP BY d"
+                );
+                $stmt->execute([':start' => $trendStart, ':end' => $trendEnd]);
+                foreach ((array) $stmt->fetchAll() as $r) {
+                    $d = (string) ($r['d'] ?? '');
+                    if ($d !== '' && isset($bucket[$d])) {
+                        $bucket[$d]['pv'] = (int) ($r['pv'] ?? 0);
+                        $bucket[$d]['uv'] = (int) ($r['uv'] ?? 0);
+                    }
                 }
             }
 
             foreach ($days as $dayRow) {
                 $d = (string) ($dayRow['date'] ?? '');
-                $ips = $bucket[$d]['ips'] ?? [];
                 $visitWeekTrend[] = [
                     'date' => $d,
                     'day' => (string) ($dayRow['day'] ?? $d),
                     'pv' => (int) ($bucket[$d]['pv'] ?? 0),
-                    'ip' => (int) count($ips),
+                    'ip' => (int) ($bucket[$d]['uv'] ?? 0),
                 ];
             }
 
@@ -5498,17 +5512,18 @@ try {
         $likesByCid = [];
         if (!empty($cids)) {
             try {
-                $likeRows = $db->fetchAll(
-                    $db->select('cid', ['COUNT(id)' => 'num'])
-                        ->from('table.v3a_like')
-                        ->where('type = ?', 'post')
-                        ->where('cid IN ?', $cids)
-                        ->group('cid')
-                );
-                foreach ($likeRows as $lr) {
-                    $cid = (int) ($lr['cid'] ?? 0);
-                    if ($cid > 0) {
-                        $likesByCid[$cid] = (int) ($lr['num'] ?? 0);
+                $pdo = v3a_local_pdo();
+                if ($pdo) {
+                    $placeholders = implode(',', array_fill(0, count($cids), '?'));
+                    $stmt = $pdo->prepare(
+                        "SELECT cid, COUNT(id) AS num FROM v3a_like WHERE type = 'post' AND cid IN ({$placeholders}) GROUP BY cid"
+                    );
+                    $stmt->execute(array_values($cids));
+                    foreach ((array) $stmt->fetchAll() as $lr) {
+                        $cid = (int) ($lr['cid'] ?? 0);
+                        if ($cid > 0) {
+                            $likesByCid[$cid] = (int) ($lr['num'] ?? 0);
+                        }
                     }
                 }
             } catch (\Throwable $e) {
@@ -7326,33 +7341,26 @@ try {
         ];
 
         try {
-            $counts['friends'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link')->where('status = ?', 1)
-            )->num ?? 0);
-        } catch (\Throwable $e) {
-        }
-        try {
-            $counts['audit'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link_apply')->where('status = ?', 0)
-            )->num ?? 0);
-        } catch (\Throwable $e) {
-        }
-        try {
-            $counts['outdate'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link')->where('status = ?', 2)
-            )->num ?? 0);
-        } catch (\Throwable $e) {
-        }
-        try {
-            $counts['reject'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link_apply')->where('status = ?', 2)
-            )->num ?? 0);
-        } catch (\Throwable $e) {
-        }
-        try {
-            $counts['banned'] = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])->from('table.v3a_friend_link')->where('status = ?', 3)
-            )->num ?? 0);
+            $pdo = v3a_local_pdo();
+            if ($pdo) {
+                $stmt = $pdo->prepare('SELECT COUNT(id) FROM v3a_friend_link WHERE status = :status');
+                $stmt->execute([':status' => 1]);
+                $counts['friends'] = (int) ($stmt->fetchColumn() ?: 0);
+
+                $stmt->execute([':status' => 2]);
+                $counts['outdate'] = (int) ($stmt->fetchColumn() ?: 0);
+
+                $stmt->execute([':status' => 3]);
+                $counts['banned'] = (int) ($stmt->fetchColumn() ?: 0);
+
+                $stmt2 = $pdo->prepare('SELECT COUNT(id) FROM v3a_friend_link_apply WHERE status = :status');
+                $stmt2->execute([':status' => 0]);
+                $counts['audit'] = (int) ($stmt2->fetchColumn() ?: 0);
+
+                $stmt2->execute([':status' => 2]);
+                $counts['reject'] = (int) ($stmt2->fetchColumn() ?: 0);
+            }
+
         } catch (\Throwable $e) {
         }
 
@@ -7446,38 +7454,19 @@ try {
             $status = 3;
         }
 
-        $select = null;
-        if ($source === 'apply') {
-            $select = $db->select(
-                'id',
-                'name',
-                'url',
-                'avatar',
-                'description',
-                'type',
-                'email',
-                'message',
-                'status',
-                'created'
-            )->from('table.v3a_friend_link_apply')->where('status = ?', $status);
-        } else {
-            $select = $db->select(
-                'id',
-                'name',
-                'url',
-                'avatar',
-                'description',
-                'type',
-                'email',
-                'status',
-                'created'
-            )->from('table.v3a_friend_link')->where('status = ?', $status);
+        $pdo = v3a_local_pdo();
+        if (!$pdo) {
+            v3a_exit_json(500, null, 'Local storage unavailable: please enable PHP extension pdo_sqlite.');
         }
+
+        $table = $source === 'apply' ? 'v3a_friend_link_apply' : 'v3a_friend_link';
+
+        $whereParts = ['status = :status'];
+        $params = [':status' => $status];
 
         if ($keywords !== '') {
             $words = preg_split('/\\s+/u', $keywords);
-            $whereParts = [];
-            $bind = [];
+            $idx = 0;
             foreach ((array) $words as $w) {
                 $w = trim((string) $w);
                 if ($w === '') {
@@ -7488,45 +7477,47 @@ try {
                 } catch (\Throwable $e) {
                 }
 
+                $key = ':kw' . $idx;
+                $params[$key] = '%' . $w . '%';
+
                 if ($source === 'apply') {
-                    $whereParts[] = '(name LIKE ? OR url LIKE ? OR email LIKE ? OR description LIKE ? OR message LIKE ?)';
-                    $bind[] = '%' . $w . '%';
-                    $bind[] = '%' . $w . '%';
-                    $bind[] = '%' . $w . '%';
-                    $bind[] = '%' . $w . '%';
-                    $bind[] = '%' . $w . '%';
+                    $whereParts[] = "(name LIKE {$key} OR url LIKE {$key} OR email LIKE {$key} OR description LIKE {$key} OR message LIKE {$key})";
                 } else {
-                    $whereParts[] = '(name LIKE ? OR url LIKE ? OR email LIKE ? OR description LIKE ?)';
-                    $bind[] = '%' . $w . '%';
-                    $bind[] = '%' . $w . '%';
-                    $bind[] = '%' . $w . '%';
-                    $bind[] = '%' . $w . '%';
+                    $whereParts[] = "(name LIKE {$key} OR url LIKE {$key} OR email LIKE {$key} OR description LIKE {$key})";
                 }
-            }
-            if (!empty($whereParts)) {
-                $select->where(implode(' AND ', $whereParts), ...$bind);
+                $idx++;
             }
         }
 
-        $countSelect = clone $select;
-        $countSelect->cleanAttribute('fields');
-        $countSelect->cleanAttribute('order');
-        $countSelect->cleanAttribute('limit');
-        $countSelect->cleanAttribute('offset');
-        $countSelect->select(['COUNT(id)' => 'num']);
+        $whereSql = implode(' AND ', $whereParts);
 
         $total = 0;
         try {
-            $total = (int) ($db->fetchObject($countSelect)->num ?? 0);
+            $stmt = $pdo->prepare("SELECT COUNT(id) FROM {$table} WHERE {$whereSql}");
+            $stmt->execute($params);
+            $total = (int) ($stmt->fetchColumn() ?: 0);
         } catch (\Throwable $e) {
+            $total = 0;
         }
-
-        $select->order('id', \Typecho\Db::SORT_DESC)->page($page, $pageSize);
 
         $rows = [];
         try {
-            $rows = $db->fetchAll($select);
+            $offset = ($page - 1) * $pageSize;
+            $fields = $source === 'apply'
+                ? 'id,name,url,avatar,description,type,email,message,status,created'
+                : 'id,name,url,avatar,description,type,email,status,created';
+            $sql = "SELECT {$fields} FROM {$table} WHERE {$whereSql} ORDER BY id DESC LIMIT :limit OFFSET :offset";
+
+            $stmt = $pdo->prepare($sql);
+            foreach ($params as $k => $v) {
+                $stmt->bindValue($k, $v);
+            }
+            $stmt->bindValue(':limit', (int) $pageSize, \PDO::PARAM_INT);
+            $stmt->bindValue(':offset', (int) $offset, \PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = (array) $stmt->fetchAll();
         } catch (\Throwable $e) {
+            $rows = [];
         }
 
         $items = [];
@@ -7624,6 +7615,11 @@ try {
             'status' => $status,
         ];
 
+        $pdo = v3a_local_pdo();
+        if (!$pdo) {
+            v3a_exit_json(500, null, 'Local storage unavailable: please enable PHP extension pdo_sqlite.');
+        }
+
         try {
             if ($id > 0) {
                 // Keep created if not explicitly passed in.
@@ -7633,18 +7629,36 @@ try {
                     $rows['created'] = $created;
                 }
 
-                $db->query(
-                    $db->update('table.v3a_friend_link')->rows($rows)->where('id = ?', $id),
-                    \Typecho\Db::WRITE
-                );
+                $sets = [];
+                $params = [':id' => $id];
+                foreach ($rows as $k => $v) {
+                    $sets[] = $k . ' = :' . $k;
+                    $params[':' . $k] = $v;
+                }
+
+                if (!empty($sets)) {
+                    $stmt = $pdo->prepare('UPDATE v3a_friend_link SET ' . implode(', ', $sets) . ' WHERE id = :id');
+                    $stmt->execute($params);
+                }
                 v3a_exit_json(0, ['id' => $id]);
             }
 
             $rows['created'] = $created;
-            $newId = (int) $db->query(
-                $db->insert('table.v3a_friend_link')->rows($rows),
-                \Typecho\Db::WRITE
+
+            $cols = array_keys($rows);
+            $placeholders = array_map(function ($c) {
+                return ':' . $c;
+            }, $cols);
+
+            $stmt = $pdo->prepare(
+                'INSERT INTO v3a_friend_link (' . implode(',', $cols) . ') VALUES (' . implode(',', $placeholders) . ')'
             );
+            $params = [];
+            foreach ($rows as $k => $v) {
+                $params[':' . $k] = $v;
+            }
+            $stmt->execute($params);
+            $newId = (int) $pdo->lastInsertId();
             v3a_exit_json(0, ['id' => $newId]);
         } catch (\Throwable $e) {
             v3a_exit_json(500, null, $e->getMessage());
@@ -7680,10 +7694,11 @@ try {
         }
 
         try {
-            $deleted = (int) $db->query(
-                $db->delete('table.v3a_friend_link')->where('id IN ?', $ids),
-                \Typecho\Db::WRITE
-            );
+            $pdo = v3a_local_pdo_or_fail();
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $pdo->prepare("DELETE FROM v3a_friend_link WHERE id IN ({$placeholders})");
+            $stmt->execute(array_values($ids));
+            $deleted = (int) $stmt->rowCount();
             v3a_exit_json(0, ['deleted' => $deleted]);
         } catch (\Throwable $e) {
             v3a_exit_json(500, null, $e->getMessage());
@@ -7714,24 +7729,17 @@ try {
             v3a_exit_json(400, null, 'Invalid action');
         }
 
+        $pdo = v3a_local_pdo();
+        if (!$pdo) {
+            v3a_exit_json(500, null, 'Local storage unavailable: please enable PHP extension pdo_sqlite.');
+        }
+
         try {
-            $apply = $db->fetchRow(
-                $db->select(
-                    'id',
-                    'name',
-                    'url',
-                    'avatar',
-                    'description',
-                    'type',
-                    'email',
-                    'message',
-                    'status',
-                    'created'
-                )
-                    ->from('table.v3a_friend_link_apply')
-                    ->where('id = ?', $id)
-                    ->limit(1)
+            $stmt = $pdo->prepare(
+                'SELECT id,name,url,avatar,description,type,email,message,status,created FROM v3a_friend_link_apply WHERE id = :id LIMIT 1'
             );
+            $stmt->execute([':id' => $id]);
+            $apply = $stmt->fetch(\PDO::FETCH_ASSOC);
         } catch (\Throwable $e) {
             $apply = null;
         }
@@ -7786,25 +7794,51 @@ try {
                 'created' => $created,
             ];
 
-            $newId = (int) $db->query(
-                $db->insert('table.v3a_friend_link')->rows($rows),
-                \Typecho\Db::WRITE
-            );
+            try {
+                $pdo->beginTransaction();
 
-            $db->query(
-                $db->update('table.v3a_friend_link_apply')->rows(['status' => 1])->where('id = ?', $id),
-                \Typecho\Db::WRITE
-            );
+                // Ensure still pending (avoid concurrent audits).
+                $stmt = $pdo->prepare('SELECT status FROM v3a_friend_link_apply WHERE id = :id LIMIT 1');
+                $stmt->execute([':id' => $id]);
+                $cur = (int) ($stmt->fetchColumn() ?: 0);
+                if ($cur !== 0) {
+                    $pdo->rollBack();
+                    v3a_exit_json(400, null, 'Not pending');
+                }
 
-            v3a_exit_json(0, ['id' => $newId]);
+                $cols = array_keys($rows);
+                $placeholders = array_map(function ($c) {
+                    return ':' . $c;
+                }, $cols);
+                $stmt = $pdo->prepare(
+                    'INSERT INTO v3a_friend_link (' . implode(',', $cols) . ') VALUES (' . implode(',', $placeholders) . ')'
+                );
+                $params = [];
+                foreach ($rows as $k => $v) {
+                    $params[':' . $k] = $v;
+                }
+                $stmt->execute($params);
+                $newId = (int) $pdo->lastInsertId();
+
+                $stmt = $pdo->prepare('UPDATE v3a_friend_link_apply SET status = 1 WHERE id = :id');
+                $stmt->execute([':id' => $id]);
+
+                $pdo->commit();
+                v3a_exit_json(0, ['id' => $newId]);
+            } catch (\Throwable $e) {
+                try {
+                    $pdo->rollBack();
+                } catch (\Throwable $e2) {
+                }
+                v3a_exit_json(500, null, $e->getMessage());
+            }
         }
 
         // reject
         try {
-            $updated = (int) $db->query(
-                $db->update('table.v3a_friend_link_apply')->rows(['status' => 2])->where('id = ?', $id),
-                \Typecho\Db::WRITE
-            );
+            $stmt = $pdo->prepare('UPDATE v3a_friend_link_apply SET status = 2 WHERE id = :id');
+            $stmt->execute([':id' => $id]);
+            $updated = (int) $stmt->rowCount();
             v3a_exit_json(0, ['updated' => $updated]);
         } catch (\Throwable $e) {
             v3a_exit_json(500, null, $e->getMessage());
@@ -7830,15 +7864,17 @@ try {
         $limit = (int) ($payload['limit'] ?? 50);
         $limit = max(1, min(200, $limit));
 
+        $pdo = v3a_local_pdo();
+        if (!$pdo) {
+            v3a_exit_json(500, null, 'Local storage unavailable: please enable PHP extension pdo_sqlite.');
+        }
+
         $rows = [];
         try {
-            $rows = $db->fetchAll(
-                $db->select('id', 'url')
-                    ->from('table.v3a_friend_link')
-                    ->where('status = ?', 1)
-                    ->order('id', \Typecho\Db::SORT_DESC)
-                    ->limit($limit)
-            );
+            $stmt = $pdo->prepare('SELECT id,url FROM v3a_friend_link WHERE status = 1 ORDER BY id DESC LIMIT :limit');
+            $stmt->bindValue(':limit', (int) $limit, \PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = (array) $stmt->fetchAll();
         } catch (\Throwable $e) {
         }
 
@@ -7940,15 +7976,17 @@ try {
         $maxBytes = (int) ($payload['maxBytes'] ?? 60000);
         $maxBytes = max(4096, min(200000, $maxBytes));
 
+        $pdo = v3a_local_pdo();
+        if (!$pdo) {
+            v3a_exit_json(500, null, 'Local storage unavailable: please enable PHP extension pdo_sqlite.');
+        }
+
         $rows = [];
         try {
-            $rows = $db->fetchAll(
-                $db->select('id', 'avatar')
-                    ->from('table.v3a_friend_link')
-                    ->where('status = ?', 1)
-                    ->order('id', \Typecho\Db::SORT_DESC)
-                    ->limit($limit)
-            );
+            $stmt = $pdo->prepare('SELECT id,avatar FROM v3a_friend_link WHERE status = 1 ORDER BY id DESC LIMIT :limit');
+            $stmt->bindValue(':limit', (int) $limit, \PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = (array) $stmt->fetchAll();
         } catch (\Throwable $e) {
         }
 
@@ -8020,10 +8058,8 @@ try {
 
                 $dataUri = 'data:' . $mime . ';base64,' . base64_encode($data);
 
-                $db->query(
-                    $db->update('table.v3a_friend_link')->rows(['avatar' => $dataUri])->where('id = ?', $id),
-                    \Typecho\Db::WRITE
-                );
+                $stmt = $pdo->prepare('UPDATE v3a_friend_link SET avatar = :avatar WHERE id = :id');
+                $stmt->execute([':avatar' => $dataUri, ':id' => $id]);
                 $migrated++;
             } catch (\Throwable $e) {
                 $skipped++;
@@ -8391,65 +8427,106 @@ try {
         $keywords = v3a_string($request->get('keywords', ''), '');
         $onlyPosts = v3a_bool_int($request->get('onlyPosts', 0));
 
-        $select = $db->select(
-            'table.v3a_visit_log.id',
-            'table.v3a_visit_log.ip',
-            'table.v3a_visit_log.uri',
-            'table.v3a_visit_log.cid',
-            'table.v3a_visit_log.referer',
-            'table.v3a_visit_log.ua',
-            'table.v3a_visit_log.created',
-            'table.contents.title',
-            'table.contents.type'
-        )
-            ->from('table.v3a_visit_log')
-            ->join('table.contents', 'table.v3a_visit_log.cid = table.contents.cid', \Typecho\Db::LEFT_JOIN);
+        $pdo = v3a_local_pdo();
+        if (!$pdo) {
+            v3a_exit_json(500, null, 'Local storage unavailable: please enable PHP extension pdo_sqlite.');
+        }
 
-        $countSelect = $db->select(['COUNT(table.v3a_visit_log.id)' => 'num'])
-            ->from('table.v3a_visit_log');
+        $whereParts = [];
+        $params = [];
 
         if ($keywords !== '') {
-            $kw = '%' . $keywords . '%';
-            $expr = '(table.v3a_visit_log.ip LIKE ? OR table.v3a_visit_log.uri LIKE ? OR table.v3a_visit_log.referer LIKE ?)';
-            $select->where($expr, $kw, $kw, $kw);
-            $countSelect->where($expr, $kw, $kw, $kw);
+            $whereParts[] = '(ip LIKE :kw OR uri LIKE :kw OR referer LIKE :kw)';
+            $params[':kw'] = '%' . $keywords . '%';
         }
 
         if ($onlyPosts) {
-            $select->where('table.contents.type = ?', 'post');
-            $countSelect->join('table.contents', 'table.v3a_visit_log.cid = table.contents.cid', \Typecho\Db::LEFT_JOIN);
-            $countSelect->where('table.contents.type = ?', 'post');
+            $whereParts[] = "ctype = 'post'";
         }
+
+        $whereSql = !empty($whereParts) ? ('WHERE ' . implode(' AND ', $whereParts)) : '';
 
         $total = 0;
         try {
-            $total = (int) ($db->fetchObject($countSelect)->num ?? 0);
+            $stmt = $pdo->prepare("SELECT COUNT(id) FROM v3a_visit_log {$whereSql}");
+            $stmt->execute($params);
+            $total = (int) ($stmt->fetchColumn() ?: 0);
         } catch (\Throwable $e) {
+            $total = 0;
         }
 
         $rows = [];
         try {
-            $rows = $db->fetchAll(
-                $select->order('table.v3a_visit_log.id', \Typecho\Db::SORT_DESC)->page($page, $pageSize)
-            );
+            $offset = ($page - 1) * $pageSize;
+            $sql = "SELECT id,ip,uri,cid,ctype,referer,ua,created FROM v3a_visit_log {$whereSql} ORDER BY id DESC LIMIT :limit OFFSET :offset";
+            $stmt = $pdo->prepare($sql);
+            foreach ($params as $k => $v) {
+                $stmt->bindValue($k, $v);
+            }
+            $stmt->bindValue(':limit', (int) $pageSize, \PDO::PARAM_INT);
+            $stmt->bindValue(':offset', (int) $offset, \PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = (array) $stmt->fetchAll();
         } catch (\Throwable $e) {
+            $rows = [];
+        }
+
+        $contentByCid = [];
+        $cids = [];
+        foreach ((array) $rows as $r) {
+            $cid = isset($r['cid']) && $r['cid'] !== null ? (int) $r['cid'] : 0;
+            if ($cid > 0) {
+                $cids[] = $cid;
+            }
+        }
+        $cids = array_values(array_unique($cids));
+        if (!empty($cids)) {
+            try {
+                $contentRows = $db->fetchAll(
+                    $db->select('cid', 'title', 'type')
+                        ->from('table.contents')
+                        ->where('cid IN ?', $cids)
+                );
+                foreach ((array) $contentRows as $cr) {
+                    $cid = (int) ($cr['cid'] ?? 0);
+                    if ($cid > 0) {
+                        $contentByCid[$cid] = [
+                            'title' => (string) ($cr['title'] ?? ''),
+                            'type' => (string) ($cr['type'] ?? ''),
+                        ];
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
         }
 
         $items = [];
-        foreach ($rows as $r) {
+        foreach ((array) $rows as $r) {
             if (!is_array($r)) {
                 continue;
             }
 
+            $cid = isset($r['cid']) && $r['cid'] !== null ? (int) $r['cid'] : null;
+            $mapped = ($cid !== null && isset($contentByCid[$cid])) ? $contentByCid[$cid] : null;
+
             $ua = isset($r['ua']) ? (string) ($r['ua'] ?? '') : '';
             $deviceInfo = v3a_device_info_from_ua($ua);
+
+            $type = '';
+            if (is_array($mapped)) {
+                $type = (string) ($mapped['type'] ?? '');
+            }
+            if ($type === '') {
+                $type = (string) ($r['ctype'] ?? '');
+            }
+
             $items[] = [
                 'id' => (int) ($r['id'] ?? 0),
                 'ip' => (string) ($r['ip'] ?? ''),
                 'uri' => (string) ($r['uri'] ?? ''),
-                'cid' => isset($r['cid']) && $r['cid'] !== null ? (int) $r['cid'] : null,
-                'title' => (string) ($r['title'] ?? ''),
-                'type' => (string) ($r['type'] ?? ''),
+                'cid' => $cid,
+                'title' => is_array($mapped) ? (string) ($mapped['title'] ?? '') : '',
+                'type' => $type,
                 'referer' => isset($r['referer']) && $r['referer'] !== null ? (string) $r['referer'] : '',
                 'ua' => $ua,
                 'deviceType' => (string) ($deviceInfo['type'] ?? ''),
@@ -8485,38 +8562,47 @@ try {
 
         $keywords = v3a_string($request->get('keywords', ''), '');
 
-        $select = $db->select(
-            'id',
-            'ip',
-            'method',
-            'path',
-            'query',
-            'created'
-        )->from('table.v3a_api_log');
-
-        $countSelect = $db->select(['COUNT(id)' => 'num'])->from('table.v3a_api_log');
-
-        if ($keywords !== '') {
-            $kw = '%' . $keywords . '%';
-            $expr = '(ip LIKE ? OR path LIKE ? OR query LIKE ?)';
-            $select->where($expr, $kw, $kw, $kw);
-            $countSelect->where($expr, $kw, $kw, $kw);
+        $pdo = v3a_local_pdo();
+        if (!$pdo) {
+            v3a_exit_json(500, null, 'Local storage unavailable: please enable PHP extension pdo_sqlite.');
         }
+
+        $whereParts = [];
+        $params = [];
+        if ($keywords !== '') {
+            $whereParts[] = '(ip LIKE :kw OR path LIKE :kw OR query LIKE :kw)';
+            $params[':kw'] = '%' . $keywords . '%';
+        }
+        $whereSql = !empty($whereParts) ? ('WHERE ' . implode(' AND ', $whereParts)) : '';
 
         $total = 0;
         try {
-            $total = (int) ($db->fetchObject($countSelect)->num ?? 0);
+            $stmt = $pdo->prepare("SELECT COUNT(id) FROM v3a_api_log {$whereSql}");
+            $stmt->execute($params);
+            $total = (int) ($stmt->fetchColumn() ?: 0);
         } catch (\Throwable $e) {
+            $total = 0;
         }
 
         $rows = [];
         try {
-            $rows = $db->fetchAll($select->order('id', \Typecho\Db::SORT_DESC)->page($page, $pageSize));
+            $offset = ($page - 1) * $pageSize;
+            $stmt = $pdo->prepare(
+                "SELECT id,ip,method,path,query,created FROM v3a_api_log {$whereSql} ORDER BY id DESC LIMIT :limit OFFSET :offset"
+            );
+            foreach ($params as $k => $v) {
+                $stmt->bindValue($k, $v);
+            }
+            $stmt->bindValue(':limit', (int) $pageSize, \PDO::PARAM_INT);
+            $stmt->bindValue(':offset', (int) $offset, \PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = (array) $stmt->fetchAll();
         } catch (\Throwable $e) {
+            $rows = [];
         }
 
         $items = [];
-        foreach ($rows as $r) {
+        foreach ((array) $rows as $r) {
             if (!is_array($r)) {
                 continue;
             }
@@ -10807,6 +10893,132 @@ try {
         }
 
         v3a_exit_json(0, ['saved' => 1]);
+    }
+
+    if ($do === 'v3a.data.export') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        try {
+            if (!class_exists('\\TypechoPlugin\\Vue3Admin\\LocalStorage')) {
+                v3a_exit_json(500, null, 'LocalStorage not loaded');
+            }
+
+            $res = \TypechoPlugin\Vue3Admin\LocalStorage::exportZip((string) ($options->siteUrl ?? ''));
+            v3a_exit_json(0, $res);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+    }
+
+    if ($do === 'v3a.data.import') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        if (!class_exists('\\TypechoPlugin\\Vue3Admin\\LocalStorage')) {
+            v3a_exit_json(500, null, 'LocalStorage not loaded');
+        }
+
+        if (empty($_FILES) || !isset($_FILES['file']) || !is_array($_FILES['file'])) {
+            v3a_exit_json(400, null, 'Missing file');
+        }
+
+        $f = $_FILES['file'];
+        $err = isset($f['error']) ? (int) $f['error'] : 0;
+        if ($err !== UPLOAD_ERR_OK) {
+            v3a_exit_json(400, null, 'Upload failed');
+        }
+
+        $tmp = isset($f['tmp_name']) ? (string) $f['tmp_name'] : '';
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            v3a_exit_json(400, null, 'Upload failed');
+        }
+
+        try {
+            @set_time_limit(0);
+            $res = \TypechoPlugin\Vue3Admin\LocalStorage::importZip($tmp);
+            @unlink($tmp);
+            v3a_exit_json(0, $res);
+        } catch (\Throwable $e) {
+            @unlink($tmp);
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+    }
+
+    if ($do === 'v3a.data.download') {
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        if (!class_exists('\\TypechoPlugin\\Vue3Admin\\LocalStorage')) {
+            v3a_exit_json(500, null, 'LocalStorage not loaded');
+        }
+
+        $file = v3a_string($request->get('file', ''), '');
+        $file = basename($file);
+        if ($file === '' || !preg_match('/^[0-9a-zA-Z][0-9a-zA-Z._-]*\\.zip$/', $file)) {
+            v3a_exit_json(400, null, 'Invalid file');
+        }
+
+        $path = \TypechoPlugin\Vue3Admin\LocalStorage::exportFilePath($file);
+        if (!is_file($path)) {
+            v3a_exit_json(404, null, 'Not Found');
+        }
+
+        if (ob_get_level()) {
+            ob_clean();
+        }
+
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="' . addslashes($file) . '"');
+        header('Content-Length: ' . (string) (@filesize($path) ?: 0));
+        readfile($path);
+        exit;
+    }
+
+    if ($do === 'v3a.legacy.maintain') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'administrator');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['maintenance']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        try {
+            if (!class_exists('\\TypechoPlugin\\Vue3Admin\\LocalStorage')) {
+                v3a_exit_json(500, null, 'LocalStorage not loaded');
+            }
+
+            @set_time_limit(0);
+            $res = \TypechoPlugin\Vue3Admin\LocalStorage::migrateLegacy($db, true);
+            v3a_exit_json(0, $res);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
     }
 
     if ($do === 'backup.list') {

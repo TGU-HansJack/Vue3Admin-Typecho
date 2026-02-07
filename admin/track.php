@@ -34,6 +34,12 @@ if (!defined('__TYPECHO_ROOT_DIR__')) {
 \Widget\Init::alloc();
 \Widget\Options::alloc()->to($options);
 
+$localStorageFile = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\') . DIRECTORY_SEPARATOR . 'usr'
+    . DIRECTORY_SEPARATOR . 'plugins' . DIRECTORY_SEPARATOR . 'Vue3Admin' . DIRECTORY_SEPARATOR . 'LocalStorage.php';
+if (is_file($localStorageFile)) {
+    require_once $localStorageFile;
+}
+
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
@@ -278,39 +284,18 @@ try {
     $ua = (string) ($request->getAgent() ?? '');
 
     $now = time();
-    $db = \Typecho\Db::get();
 
-    // Deduplicate: when both server-side hook and footer beacon run, they may double count.
-    $uriTruncated = v3a_track_truncate($uri, 255);
-    $since = $now - 10;
+    $ctype = trim((string) ($payload['ctype'] ?? $payload['type'] ?? ''));
+
+    $logged = 0;
     try {
-        $dup = (int) ($db->fetchObject(
-            $db->select(['COUNT(id)' => 'num'])
-                ->from('table.v3a_visit_log')
-                ->where('ip = ?', $ip)
-                ->where('uri = ?', $uriTruncated)
-                ->where('created >= ?', $since)
-        )->num ?? 0);
-
-        if ($dup > 0) {
-            v3a_track_exit_json(0, ['logged' => 0, 'dedup' => 1]);
+        if (class_exists('\\TypechoPlugin\\Vue3Admin\\LocalStorage')) {
+            $logged = \TypechoPlugin\Vue3Admin\LocalStorage::logVisit($ip, $uri, $cid, $ctype, $referer, $ua, $now) ? 1 : 0;
         }
     } catch (\Throwable $e) {
     }
 
-    $db->query(
-        $db->insert('table.v3a_visit_log')->rows([
-            'ip' => $ip,
-            'uri' => $uriTruncated,
-            'cid' => $cid,
-            'referer' => $referer === '' ? null : v3a_track_truncate($referer, 255),
-            'ua' => $ua === '' ? null : v3a_track_truncate($ua, 255),
-            'created' => $now,
-        ]),
-        \Typecho\Db::WRITE
-    );
-
-    v3a_track_exit_json(0, ['logged' => 1]);
+    v3a_track_exit_json(0, ['logged' => $logged]);
 } catch (\Throwable $e) {
     v3a_track_exit_json(0, ['logged' => 0]);
 }

@@ -12,6 +12,8 @@ if (!defined('__TYPECHO_ROOT_DIR__')) {
     exit;
 }
 
+require_once __DIR__ . '/LocalStorage.php';
+
 /**
  * Vue3Admin
  *
@@ -59,7 +61,7 @@ class Plugin implements PluginInterface
     public static function activate()
     {
         self::deployAdminDirectory();
-        self::installOrUpgradeSchema();
+        self::ensureLocalStorage();
         self::ensureDefaultRegisterGroupOption();
         self::ensureAclConfigOption();
         self::switchAdminDir('/' . self::ADMIN_DIR . '/');
@@ -483,12 +485,6 @@ class Plugin implements PluginInterface
             return;
         }
 
-        try {
-            $db = Db::get();
-        } catch (\Throwable $e) {
-            return;
-        }
-
         $request = \Typecho\Request::getInstance();
         $ip = self::detectClientIp((string) $request->getIp());
 
@@ -506,41 +502,15 @@ class Plugin implements PluginInterface
             $cid = (int) $archive->cid;
         }
 
-        $now = time();
-        $uriTruncated = self::truncate($uri, 255);
-
-        // Deduplicate: when both server-side hook and footer beacon run, they may double count.
+        $ctype = '';
         try {
-            $since = $now - 10;
-            $dup = (int) ($db->fetchObject(
-                $db->select(['COUNT(id)' => 'num'])
-                    ->from('table.v3a_visit_log')
-                    ->where('ip = ?', $ip)
-                    ->where('uri = ?', $uriTruncated)
-                    ->where('created >= ?', $since)
-            )->num ?? 0);
-
-            if ($dup > 0) {
-                return;
+            if (isset($archive->type)) {
+                $ctype = (string) $archive->type;
             }
         } catch (\Throwable $e) {
         }
 
-        try {
-            $db->query(
-                $db->insert('table.v3a_visit_log')->rows([
-                    'ip' => $ip,
-                    'uri' => $uriTruncated,
-                    'cid' => $cid,
-                    'referer' => $referer === '' ? null : self::truncate($referer, 255),
-                    'ua' => $ua === '' ? null : self::truncate($ua, 255),
-                    'created' => $now,
-                ]),
-                Db::WRITE
-            );
-        } catch (\Throwable $e) {
-            // 表不存在或写入失败时不影响前台渲染
-        }
+        LocalStorage::logVisit($ip, $uri, $cid, $ctype, $referer, $ua, time());
     }
 
     /**
@@ -1289,7 +1259,7 @@ HTML;
             static $runtimeInit = false;
             if (!$runtimeInit) {
                 $runtimeInit = true;
-                self::installOrUpgradeSchema();
+                self::ensureLocalStorage();
                 self::ensureDefaultRegisterGroupOption();
                 self::ensureAclConfigOption();
                 \Typecho\Plugin::factory('Widget_Register')->register = __CLASS__ . '::filterRegisterGroup';
@@ -1336,6 +1306,14 @@ HTML;
             }
         } catch (\Throwable $e) {
             // 自愈失败不影响前台/后台正常使用
+        }
+    }
+
+    private static function ensureLocalStorage(): void
+    {
+        try {
+            LocalStorage::pdo();
+        } catch (\Throwable $e) {
         }
     }
 
@@ -1419,440 +1397,4 @@ HTML;
         }
     }
 
-    private static function installOrUpgradeSchema(): void
-    {
-        $db = Db::get();
-        $prefix = $db->getPrefix();
-        $driver = $db->getAdapter()->getDriver();
-
-        foreach (self::getSchemaSql($driver, $prefix) as $sql) {
-            $db->query($sql, Db::WRITE);
-        }
-
-        // Friend links: extend schema for mx-admin like fields.
-        try {
-            self::ensureFriendLinkSchema($db, $driver, $prefix);
-        } catch (\Throwable $e) {
-        }
-    }
-
-    /**
-     * @return string[]
-     */
-    private static function ensureFriendLinkSchema($db, string $driver, string $prefix): void
-    {
-        $driver = strtolower($driver);
-
-        $linkTable = $prefix . 'v3a_friend_link';
-        $applyTable = $prefix . 'v3a_friend_link_apply';
-
-        $linkColumns = self::getTableColumns($db, $driver, $linkTable);
-        $applyColumns = self::getTableColumns($db, $driver, $applyTable);
-
-        $linkMissing = [
-            'avatar' => true,
-            'description' => true,
-            'type' => true,
-            'email' => true,
-        ];
-        foreach ($linkColumns as $col) {
-            unset($linkMissing[$col]);
-        }
-
-        $applyMissing = [
-            'avatar' => true,
-            'description' => true,
-            'type' => true,
-            'email' => true,
-        ];
-        foreach ($applyColumns as $col) {
-            unset($applyMissing[$col]);
-        }
-
-        if (!empty($linkMissing)) {
-            foreach (self::friendLinkAlterStatements($driver, $linkTable, $linkMissing) as $sql) {
-                try {
-                    $db->query($sql, Db::WRITE);
-                } catch (\Throwable $e) {
-                }
-            }
-        }
-
-        if (!empty($applyMissing)) {
-            foreach (self::friendLinkApplyAlterStatements($driver, $applyTable, $applyMissing) as $sql) {
-                try {
-                    $db->query($sql, Db::WRITE);
-                } catch (\Throwable $e) {
-                }
-            }
-        }
-    }
-
-    /**
-     * @return string[]
-     */
-    private static function getTableColumns($db, string $driver, string $table): array
-    {
-        $driver = strtolower($driver);
-
-        if ($driver === 'sqlite') {
-            $rows = [];
-            try {
-                $rows = $db->fetchAll('PRAGMA table_info(' . $table . ')');
-            } catch (\Throwable $e) {
-            }
-            $out = [];
-            foreach ($rows as $r) {
-                $name = isset($r['name']) ? (string) $r['name'] : '';
-                if ($name !== '') {
-                    $out[] = $name;
-                }
-            }
-            return array_values(array_unique($out));
-        }
-
-        if ($driver === 'pgsql') {
-            $table = strtolower(preg_replace('/[^a-z0-9_]/i', '', $table));
-            $rows = [];
-            try {
-                $rows = $db->fetchAll(
-                    "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = '{$table}'"
-                );
-            } catch (\Throwable $e) {
-            }
-            $out = [];
-            foreach ($rows as $r) {
-                $name = isset($r['column_name']) ? (string) $r['column_name'] : '';
-                if ($name !== '') {
-                    $out[] = $name;
-                }
-            }
-            return array_values(array_unique($out));
-        }
-
-        // MySQL
-        $rows = [];
-        try {
-            $rows = $db->fetchAll('SHOW COLUMNS FROM `' . str_replace('`', '', $table) . '`');
-        } catch (\Throwable $e) {
-        }
-        $out = [];
-        foreach ($rows as $r) {
-            $name = isset($r['Field']) ? (string) $r['Field'] : '';
-            if ($name !== '') {
-                $out[] = $name;
-            }
-        }
-        return array_values(array_unique($out));
-    }
-
-    /**
-     * @param array<string,bool> $missing
-     * @return string[]
-     */
-    private static function friendLinkAlterStatements(string $driver, string $table, array $missing): array
-    {
-        if ($driver === 'sqlite') {
-            $sql = [];
-            if (isset($missing['avatar'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN avatar TEXT NULL";
-            }
-            if (isset($missing['description'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN description TEXT NULL";
-            }
-            if (isset($missing['type'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN type TEXT NOT NULL DEFAULT 'friend'";
-            }
-            if (isset($missing['email'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN email TEXT NOT NULL DEFAULT ''";
-            }
-            return $sql;
-        }
-
-        if ($driver === 'pgsql') {
-            $sql = [];
-            if (isset($missing['avatar'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN avatar TEXT NULL";
-            }
-            if (isset($missing['description'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN description TEXT NULL";
-            }
-            if (isset($missing['type'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'friend'";
-            }
-            if (isset($missing['email'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN email VARCHAR(190) NOT NULL DEFAULT ''";
-            }
-            return $sql;
-        }
-
-        $t = '`' . str_replace('`', '', $table) . '`';
-        $sql = [];
-        if (isset($missing['avatar'])) {
-            $sql[] = "ALTER TABLE {$t} ADD COLUMN `avatar` TEXT NULL";
-        }
-        if (isset($missing['description'])) {
-            $sql[] = "ALTER TABLE {$t} ADD COLUMN `description` TEXT NULL";
-        }
-        if (isset($missing['type'])) {
-            $sql[] = "ALTER TABLE {$t} ADD COLUMN `type` VARCHAR(20) NOT NULL DEFAULT 'friend'";
-        }
-        if (isset($missing['email'])) {
-            $sql[] = "ALTER TABLE {$t} ADD COLUMN `email` VARCHAR(190) NOT NULL DEFAULT ''";
-        }
-        return $sql;
-    }
-
-    /**
-     * @param array<string,bool> $missing
-     * @return string[]
-     */
-    private static function friendLinkApplyAlterStatements(string $driver, string $table, array $missing): array
-    {
-        if ($driver === 'sqlite') {
-            $sql = [];
-            if (isset($missing['avatar'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN avatar TEXT NULL";
-            }
-            if (isset($missing['description'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN description TEXT NULL";
-            }
-            if (isset($missing['type'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN type TEXT NOT NULL DEFAULT 'friend'";
-            }
-            if (isset($missing['email'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN email TEXT NOT NULL DEFAULT ''";
-            }
-            return $sql;
-        }
-
-        if ($driver === 'pgsql') {
-            $sql = [];
-            if (isset($missing['avatar'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN avatar TEXT NULL";
-            }
-            if (isset($missing['description'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN description TEXT NULL";
-            }
-            if (isset($missing['type'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'friend'";
-            }
-            if (isset($missing['email'])) {
-                $sql[] = "ALTER TABLE {$table} ADD COLUMN email VARCHAR(190) NOT NULL DEFAULT ''";
-            }
-            return $sql;
-        }
-
-        $t = '`' . str_replace('`', '', $table) . '`';
-        $sql = [];
-        if (isset($missing['avatar'])) {
-            $sql[] = "ALTER TABLE {$t} ADD COLUMN `avatar` TEXT NULL";
-        }
-        if (isset($missing['description'])) {
-            $sql[] = "ALTER TABLE {$t} ADD COLUMN `description` TEXT NULL";
-        }
-        if (isset($missing['type'])) {
-            $sql[] = "ALTER TABLE {$t} ADD COLUMN `type` VARCHAR(20) NOT NULL DEFAULT 'friend'";
-        }
-        if (isset($missing['email'])) {
-            $sql[] = "ALTER TABLE {$t} ADD COLUMN `email` VARCHAR(190) NOT NULL DEFAULT ''";
-        }
-        return $sql;
-    }
-
-    private static function getSchemaSql(string $driver, string $prefix): array
-    {
-        $driver = strtolower($driver);
-
-        if ($driver === 'sqlite') {
-            return [
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_visit_log (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ip TEXT NOT NULL DEFAULT '',
-                    uri TEXT NOT NULL DEFAULT '',
-                    cid INTEGER NULL,
-                    referer TEXT NULL,
-                    ua TEXT NULL,
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_api_log (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ip TEXT NOT NULL DEFAULT '',
-                    method TEXT NOT NULL DEFAULT 'GET',
-                    path TEXT NOT NULL DEFAULT '',
-                    query TEXT NULL,
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_friend_link (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL DEFAULT '',
-                    url TEXT NOT NULL DEFAULT '',
-                    avatar TEXT NULL,
-                    description TEXT NULL,
-                    type TEXT NOT NULL DEFAULT 'friend',
-                    email TEXT NOT NULL DEFAULT '',
-                    status INTEGER NOT NULL DEFAULT 0,
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_friend_link_apply (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL DEFAULT '',
-                    url TEXT NOT NULL DEFAULT '',
-                    avatar TEXT NULL,
-                    description TEXT NULL,
-                    type TEXT NOT NULL DEFAULT 'friend',
-                    email TEXT NOT NULL DEFAULT '',
-                    message TEXT NULL,
-                    status INTEGER NOT NULL DEFAULT 0,
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_subscribe (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    email TEXT NOT NULL DEFAULT '',
-                    status INTEGER NOT NULL DEFAULT 1,
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_like (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    type TEXT NOT NULL DEFAULT 'site',
-                    cid INTEGER NULL,
-                    ip TEXT NOT NULL DEFAULT '',
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-            ];
-        }
-
-        if ($driver === 'pgsql') {
-            return [
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_visit_log (
-                    id BIGSERIAL PRIMARY KEY,
-                    ip VARCHAR(45) NOT NULL DEFAULT '',
-                    uri VARCHAR(255) NOT NULL DEFAULT '',
-                    cid INTEGER NULL,
-                    referer VARCHAR(255) NULL,
-                    ua VARCHAR(255) NULL,
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_api_log (
-                    id BIGSERIAL PRIMARY KEY,
-                    ip VARCHAR(45) NOT NULL DEFAULT '',
-                    method VARCHAR(10) NOT NULL DEFAULT 'GET',
-                    path VARCHAR(255) NOT NULL DEFAULT '',
-                    query TEXT NULL,
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_friend_link (
-                    id BIGSERIAL PRIMARY KEY,
-                    name VARCHAR(100) NOT NULL DEFAULT '',
-                    url VARCHAR(255) NOT NULL DEFAULT '',
-                    avatar TEXT NULL,
-                    description TEXT NULL,
-                    type VARCHAR(20) NOT NULL DEFAULT 'friend',
-                    email VARCHAR(190) NOT NULL DEFAULT '',
-                    status SMALLINT NOT NULL DEFAULT 0,
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_friend_link_apply (
-                    id BIGSERIAL PRIMARY KEY,
-                    name VARCHAR(100) NOT NULL DEFAULT '',
-                    url VARCHAR(255) NOT NULL DEFAULT '',
-                    avatar TEXT NULL,
-                    description TEXT NULL,
-                    type VARCHAR(20) NOT NULL DEFAULT 'friend',
-                    email VARCHAR(190) NOT NULL DEFAULT '',
-                    message TEXT NULL,
-                    status SMALLINT NOT NULL DEFAULT 0,
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_subscribe (
-                    id BIGSERIAL PRIMARY KEY,
-                    email VARCHAR(190) NOT NULL DEFAULT '',
-                    status SMALLINT NOT NULL DEFAULT 1,
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-                "CREATE TABLE IF NOT EXISTS {$prefix}v3a_like (
-                    id BIGSERIAL PRIMARY KEY,
-                    type VARCHAR(20) NOT NULL DEFAULT 'site',
-                    cid INTEGER NULL,
-                    ip VARCHAR(45) NOT NULL DEFAULT '',
-                    created INTEGER NOT NULL DEFAULT 0
-                );",
-            ];
-        }
-
-        // 默认按 MySQL 语法生成
-        return [
-            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_visit_log` (
-                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                `ip` VARCHAR(45) NOT NULL DEFAULT '',
-                `uri` VARCHAR(255) NOT NULL DEFAULT '',
-                `cid` INT UNSIGNED NULL,
-                `referer` VARCHAR(255) NULL,
-                `ua` VARCHAR(255) NULL,
-                `created` INT UNSIGNED NOT NULL DEFAULT 0,
-                PRIMARY KEY (`id`),
-                KEY `idx_created` (`created`),
-                KEY `idx_ip` (`ip`),
-                KEY `idx_cid` (`cid`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_api_log` (
-                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                `ip` VARCHAR(45) NOT NULL DEFAULT '',
-                `method` VARCHAR(10) NOT NULL DEFAULT 'GET',
-                `path` VARCHAR(255) NOT NULL DEFAULT '',
-                `query` TEXT NULL,
-                `created` INT UNSIGNED NOT NULL DEFAULT 0,
-                PRIMARY KEY (`id`),
-                KEY `idx_created` (`created`),
-                KEY `idx_ip` (`ip`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_friend_link` (
-                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                `name` VARCHAR(100) NOT NULL DEFAULT '',
-                `url` VARCHAR(255) NOT NULL DEFAULT '',
-                `avatar` TEXT NULL,
-                `description` TEXT NULL,
-                `type` VARCHAR(20) NOT NULL DEFAULT 'friend',
-                `email` VARCHAR(190) NOT NULL DEFAULT '',
-                `status` TINYINT NOT NULL DEFAULT 0,
-                `created` INT UNSIGNED NOT NULL DEFAULT 0,
-                PRIMARY KEY (`id`),
-                KEY `idx_status` (`status`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_friend_link_apply` (
-                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                `name` VARCHAR(100) NOT NULL DEFAULT '',
-                `url` VARCHAR(255) NOT NULL DEFAULT '',
-                `avatar` TEXT NULL,
-                `description` TEXT NULL,
-                `type` VARCHAR(20) NOT NULL DEFAULT 'friend',
-                `email` VARCHAR(190) NOT NULL DEFAULT '',
-                `message` TEXT NULL,
-                `status` TINYINT NOT NULL DEFAULT 0,
-                `created` INT UNSIGNED NOT NULL DEFAULT 0,
-                PRIMARY KEY (`id`),
-                KEY `idx_status` (`status`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_subscribe` (
-                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                `email` VARCHAR(190) NOT NULL DEFAULT '',
-                `status` TINYINT NOT NULL DEFAULT 1,
-                `created` INT UNSIGNED NOT NULL DEFAULT 0,
-                PRIMARY KEY (`id`),
-                KEY `idx_status` (`status`),
-                UNIQUE KEY `uniq_email` (`email`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-            "CREATE TABLE IF NOT EXISTS `{$prefix}v3a_like` (
-                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                `type` VARCHAR(20) NOT NULL DEFAULT 'site',
-                `cid` INT UNSIGNED NULL,
-                `ip` VARCHAR(45) NOT NULL DEFAULT '',
-                `created` INT UNSIGNED NOT NULL DEFAULT 0,
-                PRIMARY KEY (`id`),
-                KEY `idx_type` (`type`),
-                KEY `idx_cid` (`cid`),
-                KEY `idx_created` (`created`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-        ];
-    }
 }

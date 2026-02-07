@@ -4826,6 +4826,120 @@
         }
       }
 
+      // System Ops (maintenance/upgrade)
+      const v3aDataModalOpen = ref(false);
+      const v3aDataWorking = ref(false);
+      const v3aDataImportEl = ref(null);
+      const v3aDataImportFile = ref(null);
+      const v3aDataExportFile = ref("");
+
+      function openV3aDataModal() {
+        v3aDataModalOpen.value = true;
+      }
+
+      function closeV3aDataModal() {
+        if (v3aDataWorking.value) return;
+        v3aDataModalOpen.value = false;
+      }
+
+      function onV3aDataImportChange(e) {
+        const files = e && e.target && e.target.files ? e.target.files : null;
+        v3aDataImportFile.value = files && files.length ? files[0] : null;
+      }
+
+      function v3aDataDownloadUrl(file) {
+        const f = String(file || "").trim();
+        if (!f) return "";
+        return buildApiUrl("v3a.data.download", { file: f }, true);
+      }
+
+      async function exportV3aData() {
+        if (v3aDataWorking.value) return;
+        v3aDataWorking.value = true;
+        try {
+          const data = await apiPost("v3a.data.export", {});
+          const file = String(data?.file || "");
+          v3aDataExportFile.value = file;
+          toastSuccess("导出完成");
+          const url = v3aDataDownloadUrl(file);
+          if (url) window.open(url, "_blank", "noreferrer");
+        } catch (e) {
+          toastError(e && e.message ? e.message : "导出失败");
+        } finally {
+          v3aDataWorking.value = false;
+        }
+      }
+
+      async function importV3aData() {
+        const file = v3aDataImportFile.value;
+        if (!file) {
+          toastError("请选择 .zip 文件");
+          return;
+        }
+        if (!confirm("导入将覆盖当前本地数据（会自动备份旧数据），是否继续？")) return;
+
+        v3aDataWorking.value = true;
+        try {
+          const url = buildApiUrl("v3a.data.import", null, true);
+          const form = new FormData();
+          form.append("file", file, file.name);
+
+          const res = await fetch(url, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+            body: form,
+          });
+          const json = await readApiJson(res);
+          if (!json || json.code !== 0) {
+            throw new Error(json?.message || "导入失败");
+          }
+
+          v3aDataImportFile.value = null;
+          try {
+            if (v3aDataImportEl.value) v3aDataImportEl.value.value = "";
+          } catch (e) {}
+
+          toastSuccess("导入完成（建议刷新页面）");
+          v3aDataModalOpen.value = false;
+        } catch (e) {
+          toastError(e && e.message ? e.message : "导入失败");
+        } finally {
+          v3aDataWorking.value = false;
+        }
+      }
+
+      const v3aLegacyModalOpen = ref(false);
+      const v3aLegacyWorking = ref(false);
+
+      function openV3aLegacyModal() {
+        v3aLegacyModalOpen.value = true;
+      }
+
+      function closeV3aLegacyModal() {
+        if (v3aLegacyWorking.value) return;
+        v3aLegacyModalOpen.value = false;
+      }
+
+      async function runV3aLegacyMaintenance() {
+        if (v3aLegacyWorking.value) return;
+        if (!confirm("将迁移旧版本数据库表数据到本地存储，并删除旧表（不可逆），是否继续？")) return;
+
+        v3aLegacyWorking.value = true;
+        try {
+          const data = await apiPost("v3a.legacy.maintain", {});
+          const counts = data?.counts || {};
+          const visit = Number(counts.visit || 0) || 0;
+          const friend = Number(counts.friend || 0) || 0;
+          toastSuccess(`维护完成（visit: ${visit}, friends: ${friend}）`);
+          v3aLegacyModalOpen.value = false;
+        } catch (e) {
+          toastError(e && e.message ? e.message : "维护失败");
+        } finally {
+          v3aLegacyWorking.value = false;
+        }
+      }
+
       // Upgrade (maintenance)
       const upgradeLoading = ref(false);
       const upgradeWorking = ref(false);
@@ -10744,6 +10858,21 @@
         restoreBackupFromServer,
         onBackupUploadChange,
         restoreBackupFromUpload,
+        v3aDataModalOpen,
+        v3aDataWorking,
+        v3aDataImportEl,
+        v3aDataImportFile,
+        v3aDataExportFile,
+        openV3aDataModal,
+        closeV3aDataModal,
+        onV3aDataImportChange,
+        importV3aData,
+        exportV3aData,
+        v3aLegacyModalOpen,
+        v3aLegacyWorking,
+        openV3aLegacyModal,
+        closeV3aLegacyModal,
+        runV3aLegacyMaintenance,
         upgradeLoading,
         upgradeWorking,
         upgradeError,
@@ -14461,6 +14590,21 @@
                       </div>
                     </div>
                   </div>
+
+                  <div style="margin-top: calc(var(--spacing) * 4);">
+                    <div style="display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px;">
+                      <div class="v3a-muted" style="font-weight: 500;">系统操作</div>
+                    </div>
+                    <div class="v3a-card">
+                      <div class="bd">
+                        <div class="v3a-muted" style="margin-bottom: 10px;">数据迁移（zip）与旧版本数据库表维护。</div>
+                        <div style="display:flex; gap: 10px; flex-wrap: wrap;">
+                          <button class="v3a-btn" type="button" @click="openV3aDataModal()" :disabled="v3aDataWorking || v3aLegacyWorking">数据迁移</button>
+                          <button class="v3a-btn" type="button" @click="openV3aLegacyModal()" :disabled="v3aDataWorking || v3aLegacyWorking">旧版本维护</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </template>
 
                 <div v-if="upgradeConfirmOpen" class="v3a-modal-mask" @click.self="closeUpgradeConfirm()">
@@ -14562,6 +14706,69 @@
                           {{ upgradeSettingsSaving ? "保存中…" : "保存" }}
                         </button>
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="v3aDataModalOpen" class="v3a-modal-mask" @click.self="closeV3aDataModal()">
+                  <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 560px;">
+                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeV3aDataModal()">
+                      <span class="v3a-icon" v-html="ICONS.close"></span>
+                    </button>
+                    <div class="v3a-modal-head">
+                      <div class="v3a-modal-title">数据迁移</div>
+                      <div class="v3a-modal-subtitle">导入/导出 Vue3Admin 本地数据（zip）</div>
+                    </div>
+                    <div class="v3a-modal-body">
+                      <div class="v3a-settings-fields" style="border-top: 0; border-bottom: 0;">
+                        <div class="v3a-settings-row">
+                          <div class="v3a-settings-row-label">
+                            <label>导入数据</label>
+                            <div class="v3a-settings-row-help">上传 .zip 并导入（自动备份旧数据）。</div>
+                          </div>
+                          <div class="v3a-settings-row-control">
+                            <div style="display:flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap;">
+                              <input ref="v3aDataImportEl" class="v3a-input" type="file" accept=".zip" @change="onV3aDataImportChange" :disabled="v3aDataWorking" />
+                              <button class="v3a-btn primary" type="button" @click="importV3aData()" :disabled="v3aDataWorking || !v3aDataImportFile">
+                                {{ v3aDataWorking ? "导入中…" : "导入数据" }}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="v3a-settings-row">
+                          <div class="v3a-settings-row-label">
+                            <label>导出数据</label>
+                            <div class="v3a-settings-row-help">打包全部数据为 .zip 并下载。</div>
+                          </div>
+                          <div class="v3a-settings-row-control">
+                            <div style="display:flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap;">
+                              <input class="v3a-input" type="text" :value="v3aDataExportFile" placeholder="未导出" readonly style="width: 260px; max-width: 100%;" />
+                              <button class="v3a-btn" type="button" @click="exportV3aData()" :disabled="v3aDataWorking">
+                                {{ v3aDataWorking ? "处理中…" : "导出数据" }}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="v3aLegacyModalOpen" class="v3a-modal-mask" @click.self="closeV3aLegacyModal()">
+                  <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 520px;">
+                    <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeV3aLegacyModal()">
+                      <span class="v3a-icon" v-html="ICONS.close"></span>
+                    </button>
+                    <div class="v3a-modal-head">
+                      <div class="v3a-modal-title">数据库表维护</div>
+                      <div class="v3a-modal-subtitle">迁移旧版本 SQL 表数据到本地存储，并删除旧表。</div>
+                    </div>
+                    <div class="v3a-modal-body">
+                      <div class="v3a-muted" style="margin-bottom: 12px; line-height: 1.7;">此操作不可逆，建议先做好站点备份。</div>
+                      <button class="v3a-btn primary" type="button" @click="runV3aLegacyMaintenance()" :disabled="v3aLegacyWorking">
+                        {{ v3aLegacyWorking ? "维护中…" : "开始维护" }}
+                      </button>
                     </div>
                   </div>
                 </div>
