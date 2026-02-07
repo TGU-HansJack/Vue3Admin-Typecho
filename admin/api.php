@@ -3556,24 +3556,20 @@ try {
         }
 
         $overwrite = !empty($payload['overwrite']) ? 1 : 0;
-
-        $pluginBase = rtrim((string) __TYPECHO_ROOT_DIR__, "/\\") . (string) __TYPECHO_PLUGIN_DIR__;
-        $pluginRoot = rtrim($pluginBase, "/\\") . DIRECTORY_SEPARATOR . 'Vue3Admin';
-        if (!is_dir($pluginRoot)) {
-            v3a_exit_json(400, null, 'Vue3Admin plugin dir not found');
+        $themeDirName = strtolower(v3a_string($payload['theme'] ?? 'classic-22', 'classic-22'));
+        if ($themeDirName === '' || !preg_match('/^[a-z0-9][a-z0-9_-]*$/', $themeDirName)) {
+            $themeDirName = 'classic-22';
         }
 
-        $sponsorBase = rtrim($pluginRoot, "/\\") . DIRECTORY_SEPARATOR . 'sponsor-pages';
-        v3a_mkdir_p($sponsorBase);
-        if (!is_dir($sponsorBase)) {
-            v3a_exit_json(500, null, 'Cannot create sponsor-pages dir');
+        $themeBase = rtrim((string) __TYPECHO_ROOT_DIR__, "/\\") . (string) __TYPECHO_THEME_DIR__;
+        $themeRoot = rtrim($themeBase, "/\\") . DIRECTORY_SEPARATOR . $themeDirName;
+        if (!is_dir($themeRoot)) {
+            v3a_exit_json(400, null, 'Theme dir not found: ' . $themeDirName);
         }
 
         $tmpDir = '';
         $dest = '';
         $localUrl = '';
-        $panelPath = '';
-        $panelLink = '';
         try {
             $tmpRoot = rtrim((string) @sys_get_temp_dir(), '/\\');
             if ($tmpRoot === '') {
@@ -3648,7 +3644,7 @@ try {
                 throw new \RuntimeException('Package does not contain page entry (index.php)');
             }
 
-            $dest = rtrim($sponsorBase, "/\\") . DIRECTORY_SEPARATOR . $slug;
+            $dest = rtrim($themeRoot, "/\\") . DIRECTORY_SEPARATOR . $slug;
             if (is_dir($dest)) {
                 if (!$overwrite) {
                     throw new \RuntimeException('Target already exists');
@@ -3662,29 +3658,8 @@ try {
                 throw new \RuntimeException('Install failed: index.php missing');
             }
 
-            $pluginWebBase = trim((string) __TYPECHO_PLUGIN_DIR__, "/\\");
             $localUrl = rtrim((string) ($options->siteUrl ?? ''), '/');
-            $localUrl .= '/' . $pluginWebBase . '/Vue3Admin/sponsor-pages/' . rawurlencode($slug) . '/index.php';
-
-            $bridgeDir = rtrim($pluginRoot, "/\\") . DIRECTORY_SEPARATOR . 'sponsor-panels';
-            v3a_mkdir_p($bridgeDir);
-            if (!is_dir($bridgeDir)) {
-                throw new \RuntimeException('Cannot create sponsor-panels dir');
-            }
-
-            $bridgeFile = $bridgeDir . DIRECTORY_SEPARATOR . $slug . '.php';
-            $bridgeCode = "<?php\n"
-                . "if (!defined('__TYPECHO_ROOT_DIR__')) { exit; }\n"
-                . "\\$target = __DIR__ . '/../sponsor-pages/" . $slug . "/index.php';\n"
-                . "if (!is_file(\\$target)) { echo 'Missing sponsor page: " . $slug . "'; return; }\n"
-                . "require \\$target;\n";
-            $written = @file_put_contents($bridgeFile, $bridgeCode);
-            if (!is_int($written) || $written <= 0) {
-                throw new \RuntimeException('Cannot create sponsor panel file');
-            }
-
-            $panelPath = 'Vue3Admin/sponsor-panels/' . $slug . '.php';
-            $panelLink = 'extending.php?panel=' . urlencode($panelPath);
+            $localUrl .= '/usr/themes/' . rawurlencode($themeDirName) . '/' . rawurlencode($slug) . '/index.php';
 
             v3a_rmdir_recursive($tmpDir);
             $tmpDir = '';
@@ -3693,86 +3668,6 @@ try {
                 v3a_rmdir_recursive($tmpDir);
             }
             v3a_exit_json(500, null, $e->getMessage() !== '' ? $e->getMessage() : 'Install failed');
-        }
-
-        try {
-            $panelTable = (array) ($options->panelTable ?? []);
-            $parents = isset($panelTable['parent']) && is_array($panelTable['parent']) ? $panelTable['parent'] : [];
-            $children = isset($panelTable['child']) && is_array($panelTable['child']) ? $panelTable['child'] : [];
-            $files = isset($panelTable['file']) && is_array($panelTable['file']) ? $panelTable['file'] : [];
-
-            $menuLabel = '赞助专享';
-            $parentKey = null;
-            foreach ($parents as $k => $v) {
-                if (trim((string) $v) === $menuLabel) {
-                    $parentKey = (int) $k;
-                    break;
-                }
-            }
-            if ($parentKey === null) {
-                $parents[] = $menuLabel;
-                end($parents);
-                $parentKey = (int) key($parents);
-            }
-
-            $menuIndex = $parentKey + 10;
-            if (!isset($children[$menuIndex]) || !is_array($children[$menuIndex])) {
-                $children[$menuIndex] = [];
-            }
-
-            foreach ($children as $k => $rows) {
-                if (!is_array($rows)) {
-                    $children[$k] = [];
-                    continue;
-                }
-
-                $nextRows = [];
-                foreach ($rows as $row) {
-                    if (!is_array($row)) {
-                        continue;
-                    }
-                    $rowLink = trim((string) ($row[2] ?? ''));
-                    if ($rowLink === $panelLink) {
-                        continue;
-                    }
-                    $nextRows[] = $row;
-                }
-                $children[$k] = $nextRows;
-            }
-
-            $children[$menuIndex][] = [
-                $name,
-                '赞助页面',
-                $panelLink,
-                'administrator',
-                false,
-                '',
-            ];
-
-            $panelFile = urlencode($panelPath);
-            $fileSet = [];
-            foreach ($files as $fv) {
-                $fvv = trim((string) $fv);
-                if ($fvv === '') {
-                    continue;
-                }
-                $fileSet[$fvv] = 1;
-            }
-            $fileSet[$panelFile] = 1;
-            $files = array_keys($fileSet);
-
-            $panelTable['parent'] = $parents;
-            $panelTable['child'] = $children;
-            $panelTable['file'] = $files;
-
-            $panelRaw = json_encode($panelTable, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            if (!is_string($panelRaw) || $panelRaw === '') {
-                throw new \RuntimeException('Save panelTable failed');
-            }
-
-            v3a_upsert_option($db, 'panelTable', $panelRaw, 0);
-        } catch (\Throwable $e) {
-            v3a_exit_json(500, null, $e->getMessage() !== '' ? $e->getMessage() : 'Register panel failed');
         }
 
         $pages = [];
@@ -3840,7 +3735,6 @@ try {
             'title' => $name,
             'url' => $localUrl,
             'target' => $dest,
-            'panel' => $panelPath,
         ]);
     }
 
