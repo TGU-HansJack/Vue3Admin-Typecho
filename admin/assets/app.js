@@ -1151,17 +1151,27 @@
 
         sponsorInstallingId.value = id;
         try {
-          await apiPost("sponsor.install", {
+          const result = await apiPost("sponsor.install", {
             id: item.id || "",
             slug: item.slug || "",
             name: item.name || "",
             projectType,
             link: item.link || "",
             domain: sponsorDomain.value || "",
-            theme: "classic-22",
             overwrite: installed ? 1 : 0,
           });
-          toastSuccess("安装完成");
+
+          const panel = result && typeof result === "object" ? String(result.panel || "").trim() : "";
+          if (panel) {
+            toastSuccess("安装完成，已注册到额外功能面板");
+            const openNow = confirm("安装完成，已自动注册到面板，是否立即打开？");
+            if (openNow) {
+              navTo(`/extras/panel?panel=${encodeURIComponent(panel)}`);
+              return;
+            }
+          } else {
+            toastSuccess("安装完成");
+          }
 
           await fetchSponsorProjects(true);
         } catch (e) {
