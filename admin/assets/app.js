@@ -222,6 +222,7 @@
     plus: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
     copy: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>`,
     externalLink: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>`,
+    pencil: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-icon lucide-pencil"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>`,
     checkCheck: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>`,
     square: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>`,
     squareCheck: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>`,
@@ -1858,7 +1859,7 @@
               route: "/posts/manage",
               selector: "[data-tour='posts-manage-table']",
               title: "博文管理：列表",
-              description: "点击标题进入编辑；可查看评论数、点赞、状态与时间等。",
+              description: "点击标题进入编辑；可查看评论数、状态与时间等。",
             },
             {
               route: "/posts/write",
@@ -11630,56 +11631,114 @@
                   <div class="bd" style="padding: 0;">
                     <div v-if="postsLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
 
-                    <table v-else class="v3a-table v3a-posts-table">
-                      <thead>
-                        <tr>
-                          <th>
+                    <template v-else>
+                      <template v-if="isNarrowScreen">
+                        <div class="v3a-posts-narrow-toolbar">
+                          <label class="v3a-posts-narrow-selectall">
                             <input ref="postsSelectAllEl" class="v3a-check" type="checkbox" :checked="postsSelectedAll" @change="togglePostsSelectAll($event.target.checked)" />
-                          </th>
-                          <th>标题</th>
-                          <th v-if="V3A.canPublish && postsFilters.scope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))">作者</th>
-                          <th>分类</th>
-                          <th>标签</th>
-                          <th title="评论"><span class="v3a-icon" v-html="ICONS.comments"></span></th>
-                          <th title="点赞"><span class="v3a-icon" v-html="ICONS.thumbsUp"></span></th>
-                          <th>创建于</th>
-                          <th>修改于</th>
-                          <th>状态</th>
-                          <th>操作</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="p in postsItems" :key="p.cid">
-                          <td>
-                            <input class="v3a-check" type="checkbox" :checked="isPostSelected(p.cid)" @change="togglePostSelection(p.cid, $event.target.checked)" />
-                          </td>
-                          <td>
-                            <a href="###" @click.prevent="openPostEditor(p.cid)">{{ p.title || '（无标题）' }}</a>
-                          </td>
-                          <td v-if="V3A.canPublish && postsFilters.scope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))" class="v3a-muted">
-                            {{ (p.author && p.author.name) ? p.author.name : '—' }}
-                          </td>
-                          <td>{{ (p.categories && p.categories.length) ? p.categories[0].name : '—' }}</td>
-                          <td>{{ (p.tags && p.tags.length) ? p.tags.map(t => t.name).join(', ') : '—' }}</td>
-                          <td style="text-align:center;">{{ formatNumber(p.commentsNum) }}</td>
-                          <td style="text-align:center;">{{ formatNumber(p.likes) }}</td>
-                          <td>{{ formatTimeAgo(p.created) }}</td>
-                          <td>{{ (p.modified && p.modified > p.created) ? formatTimeAgo(p.modified) : '-' }}</td>
-                          <td>
-                            <span class="v3a-pill" :class="getPostBadge(p).tone">
-                              <span class="v3a-icon" v-html="postStatusIcon(p)"></span>
-                              {{ getPostBadge(p).text }}
-                            </span>
-                          </td>
-                          <td>
-                            <a href="###" class="v3a-link-danger" @click.prevent="deletePost(p.cid)">删除</a>
-                          </td>
-                        </tr>
-                        <tr v-if="!postsItems.length">
-                          <td :colspan="(V3A.canPublish && postsFilters.scope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))) ? 11 : 10" class="v3a-muted" style="padding: 16px;">暂无文章</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                            <span class="v3a-muted">全选</span>
+                          </label>
+                          <span v-if="postsSelectedCids.length" class="v3a-muted">已选 {{ formatNumber(postsSelectedCids.length) }}</span>
+                        </div>
+
+                        <div v-if="!postsItems.length" class="v3a-muted" style="padding: 16px;">暂无文章</div>
+
+                        <div v-else class="v3a-posts-narrow-list">
+                          <div class="v3a-posts-narrow-item" v-for="p in postsItems" :key="p.cid">
+                            <input class="v3a-check v3a-posts-narrow-check" type="checkbox" :checked="isPostSelected(p.cid)" @change="togglePostSelection(p.cid, $event.target.checked)" />
+
+                            <div class="v3a-posts-narrow-left">
+                              <div class="v3a-posts-narrow-title">
+                                <a href="###" @click.prevent="openPostEditor(p.cid)">{{ p.title || '（无标题）' }}</a>
+                              </div>
+
+                              <div class="v3a-posts-narrow-meta">
+                                <span>{{ (p.categories && p.categories.length) ? p.categories[0].name : '—' }}</span>
+                                <span class="v3a-posts-narrow-metric" title="评论">
+                                  <span class="v3a-icon" v-html="ICONS.comments"></span>
+                                  <span>{{ formatNumber(p.commentsNum) }}</span>
+                                </span>
+                                <span class="v3a-posts-narrow-metric" title="点赞">
+                                  <span class="v3a-icon" v-html="ICONS.thumbsUp"></span>
+                                  <span>{{ formatNumber(p.likes) }}</span>
+                                </span>
+                                <span>· {{ formatTimeAgo(p.created) }}</span>
+                                <span class="v3a-pill" :class="getPostBadge(p).tone">
+                                  <span class="v3a-icon" v-html="postStatusIcon(p)"></span>
+                                  {{ getPostBadge(p).text }}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div class="v3a-posts-narrow-actions">
+                              <a v-if="p.permalink" class="v3a-iconaction v3a-iconaction-sm" :href="p.permalink" target="_blank" rel="noreferrer" title="打开文章" @click.stop>
+                                <span class="v3a-icon" v-html="ICONS.externalLink"></span>
+                              </a>
+                              <button class="v3a-iconaction v3a-iconaction-sm" type="button" title="编辑" @click="openPostEditor(p.cid)">
+                                <span class="v3a-icon" v-html="ICONS.pencil"></span>
+                              </button>
+                              <button class="v3a-iconaction v3a-iconaction-sm danger" type="button" title="删除" @click="deletePost(p.cid)">
+                                <span class="v3a-icon" v-html="ICONS.trash"></span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+
+                      <table v-else class="v3a-table v3a-posts-table">
+                        <thead>
+                          <tr>
+                            <th>
+                              <input ref="postsSelectAllEl" class="v3a-check" type="checkbox" :checked="postsSelectedAll" @change="togglePostsSelectAll($event.target.checked)" />
+                            </th>
+                            <th>标题</th>
+                            <th v-if="V3A.canPublish && postsFilters.scope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))">作者</th>
+                            <th>分类</th>
+                            <th>标签</th>
+                            <th class="v3a-posts-col-comments" title="评论"><span class="v3a-icon" v-html="ICONS.comments"></span></th>
+                            <th>创建于</th>
+                            <th>修改于</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="p in postsItems" :key="p.cid">
+                            <td>
+                              <input class="v3a-check" type="checkbox" :checked="isPostSelected(p.cid)" @change="togglePostSelection(p.cid, $event.target.checked)" />
+                            </td>
+                            <td>
+                              <div class="v3a-posts-titlecell">
+                                <a href="###" @click.prevent="openPostEditor(p.cid)">{{ p.title || '（无标题）' }}</a>
+                                <a v-if="p.permalink" class="v3a-posts-open" :href="p.permalink" target="_blank" rel="noreferrer" title="打开文章" @click.stop>
+                                  <span class="v3a-icon" v-html="ICONS.externalLink"></span>
+                                </a>
+                              </div>
+                            </td>
+                            <td v-if="V3A.canPublish && postsFilters.scope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))" class="v3a-muted">
+                              {{ (p.author && p.author.name) ? p.author.name : '—' }}
+                            </td>
+                            <td>{{ (p.categories && p.categories.length) ? p.categories[0].name : '—' }}</td>
+                            <td>{{ (p.tags && p.tags.length) ? p.tags.map(t => t.name).join(', ') : '—' }}</td>
+                            <td class="v3a-posts-col-comments">{{ formatNumber(p.commentsNum) }}</td>
+                            <td>{{ formatTimeAgo(p.created) }}</td>
+                            <td>{{ (p.modified && p.modified > p.created) ? formatTimeAgo(p.modified) : '-' }}</td>
+                            <td>
+                              <span class="v3a-pill" :class="getPostBadge(p).tone">
+                                <span class="v3a-icon" v-html="postStatusIcon(p)"></span>
+                                {{ getPostBadge(p).text }}
+                              </span>
+                            </td>
+                            <td>
+                              <a href="###" class="v3a-link-danger" @click.prevent="deletePost(p.cid)">删除</a>
+                            </td>
+                          </tr>
+                          <tr v-if="!postsItems.length">
+                            <td :colspan="(V3A.canPublish && postsFilters.scope === 'all' && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))) ? 10 : 9" class="v3a-muted" style="padding: 16px;">暂无文章</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </template>
                   </div>
                 </div>
 

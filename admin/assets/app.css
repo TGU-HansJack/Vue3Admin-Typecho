@@ -3387,13 +3387,32 @@ a {
 .v3a-workshop-tablebox {
   border: 1px solid var(--sidebar-border);
   border-radius: 4px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   box-shadow: var(--content-shadow);
   transition: box-shadow 0.2s ease;
 }
 
 .v3a-workshop-tablebox:hover {
   box-shadow: var(--content-shadow-hover);
+}
+
+.v3a-workshop-tablebox .v3a-table tbody tr:hover td {
+  box-shadow: inset 0 1px 0 var(--v3a-divider-strong),
+    inset 0 -1px 0 var(--v3a-divider-strong);
+}
+
+.v3a-workshop-tablebox .v3a-table tbody tr:hover td:first-child {
+  box-shadow: inset 1px 0 0 var(--v3a-divider-strong),
+    inset 0 1px 0 var(--v3a-divider-strong),
+    inset 0 -1px 0 var(--v3a-divider-strong);
+}
+
+.v3a-workshop-tablebox .v3a-table tbody tr:hover td:last-child {
+  box-shadow: inset -1px 0 0 var(--v3a-divider-strong),
+    inset 0 1px 0 var(--v3a-divider-strong),
+    inset 0 -1px 0 var(--v3a-divider-strong);
 }
 
 .v3a-workshop-tablebox .v3a-table tbody tr:last-child td {
@@ -3508,18 +3527,174 @@ a {
   width: 44px;
 }
 
-.v3a-posts-table th:nth-child(5),
-.v3a-posts-table th:nth-child(6),
-.v3a-posts-table td:nth-child(5),
-.v3a-posts-table td:nth-child(6) {
+.v3a-posts-table th.v3a-posts-col-comments,
+.v3a-posts-table td.v3a-posts-col-comments {
   width: 86px;
   text-align: center;
 }
 
-.v3a-posts-table th:nth-child(10),
-.v3a-posts-table td:nth-child(10) {
+.v3a-posts-table th:last-child,
+.v3a-posts-table td:last-child {
   width: 80px;
   text-align: right;
+}
+
+.v3a-posts-titlecell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.v3a-posts-titlecell > a:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v3a-posts-open {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  color: var(--v3a-muted);
+  background: transparent;
+}
+
+.v3a-posts-open:hover {
+  color: var(--v3a-text);
+  border-color: var(--sidebar-border);
+  background: var(--v3a-control-bg-hover);
+}
+
+.v3a-posts-open:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--v3a-focus-ring);
+}
+
+.v3a-posts-open .v3a-icon,
+.v3a-posts-open .v3a-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.v3a-iconaction.v3a-iconaction-sm {
+  width: 30px;
+  height: 30px;
+}
+
+.v3a-iconaction.v3a-iconaction-sm .v3a-icon,
+.v3a-iconaction.v3a-iconaction-sm .v3a-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.v3a-iconaction.danger {
+  color: var(--v3a-danger);
+}
+
+.v3a-iconaction.danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.v3a-posts-narrow-toolbar {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--v3a-divider);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.v3a-posts-narrow-selectall {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.v3a-posts-narrow-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.v3a-posts-narrow-item {
+  padding: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid var(--v3a-divider);
+}
+
+.v3a-posts-narrow-item:hover {
+  background: var(--v3a-table-row-hover);
+}
+
+.v3a-posts-narrow-check {
+  margin-top: 2px;
+}
+
+.v3a-posts-narrow-left {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.v3a-posts-narrow-title a {
+  color: var(--v3a-text);
+  text-decoration: none;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.v3a-posts-narrow-title a:hover {
+  text-decoration: underline;
+}
+
+.v3a-posts-narrow-meta {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--v3a-muted);
+}
+
+.v3a-posts-narrow-metric {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.v3a-posts-narrow-metric .v3a-icon,
+.v3a-posts-narrow-metric .v3a-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.v3a-posts-narrow-meta .v3a-pill {
+  font-size: 11px;
+  padding: 1px 6px;
+  gap: 4px;
+}
+
+.v3a-posts-narrow-meta .v3a-pill .v3a-icon,
+.v3a-posts-narrow-meta .v3a-pill .v3a-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.v3a-posts-narrow-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
 }
 
 .v3a-posts-table .v3a-pill .v3a-icon {

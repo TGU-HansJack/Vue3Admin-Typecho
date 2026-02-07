@@ -5535,9 +5535,19 @@ try {
         foreach ($rows as $r) {
             $cid = (int) ($r['cid'] ?? 0);
             $aid = (int) ($r['authorId'] ?? 0);
+
+            $permalink = '';
+            if ($cid > 0 && (string) ($r['type'] ?? '') !== 'post_draft') {
+                try {
+                    $post = \Widget\Contents\Post\Edit::alloc(null, ['cid' => $cid], false)->prepare();
+                    $permalink = (string) ($post->permalink ?? '');
+                } catch (\Throwable $e) {
+                }
+            }
             $items[] = [
                 'cid' => $cid,
                 'title' => (string) ($r['title'] ?? ''),
+                'permalink' => $permalink,
                 'created' => (int) ($r['created'] ?? 0),
                 'modified' => (int) ($r['modified'] ?? 0),
                 'type' => (string) ($r['type'] ?? ''),
