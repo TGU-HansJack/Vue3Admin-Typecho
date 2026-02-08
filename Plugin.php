@@ -60,6 +60,7 @@ class Plugin implements PluginInterface
 
     public static function activate()
     {
+        self::repairSerializedCoreOptions();
         self::deployAdminDirectory();
         self::ensureLocalStorage();
         self::ensureDefaultRegisterGroupOption();
@@ -87,8 +88,51 @@ class Plugin implements PluginInterface
 
     public static function deactivate()
     {
+        self::repairSerializedCoreOptions();
         self::switchAdminDir('/admin/');
         return _t('Vue3Admin 已停用：后台路径已恢复为 /admin/');
+    }
+
+    private static function repairSerializedCoreOptions(): void
+    {
+        self::repairSerializedOption('plugins');
+        self::repairSerializedOption('routingTable');
+    }
+
+    private static function repairSerializedOption(string $name): void
+    {
+        try {
+            $db = Db::get();
+            $row = $db->fetchObject(
+                $db->select('value')
+                    ->from('table.options')
+                    ->where('name = ? AND user = ?', $name, 0)
+                    ->limit(1)
+            );
+
+            $raw = trim((string) ($row->value ?? ''));
+            if ($raw === '') {
+                return;
+            }
+
+            $unserialized = @unserialize($raw);
+            if (is_array($unserialized)) {
+                return;
+            }
+
+            $decoded = json_decode($raw, true);
+            if (!is_array($decoded)) {
+                return;
+            }
+
+            $db->query(
+                $db->update('table.options')
+                    ->rows(['value' => serialize($decoded)])
+                    ->where('name = ? AND user = ?', $name, 0),
+                Db::WRITE
+            );
+        } catch (\Throwable $e) {
+        }
     }
 
     private static function ensureDefaultRegisterGroupOption(): void

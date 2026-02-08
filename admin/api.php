@@ -38,6 +38,8 @@ function v3a_exit_json(int $code, $data = null, string $message = ''): void
  */
 function v3a_upsert_option($db, string $name, $value, int $user = 0): void
 {
+    $value = v3a_encode_option_value($name, $value);
+
     $exists = (int) ($db->fetchObject(
         $db->select(['COUNT(*)' => 'num'])->from('table.options')->where('name = ? AND user = ?', $name, $user)
     )->num ?? 0);
@@ -54,6 +56,107 @@ function v3a_upsert_option($db, string $name, $value, int $user = 0): void
         $db->insert('table.options')->rows(['name' => $name, 'value' => $value, 'user' => $user]),
         \Typecho\Db::WRITE
     );
+}
+
+function v3a_option_requires_serialized_value(string $name): bool
+{
+    return $name === 'plugins'
+        || $name === 'routingTable'
+        || strpos($name, 'theme:') === 0
+        || strpos($name, 'plugin:') === 0
+        || strpos($name, '_plugin:') === 0;
+}
+
+function v3a_try_unserialize_assoc(string $raw): array
+{
+    if ($raw === '') {
+        return [];
+    }
+
+    $decoded = @unserialize($raw);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function v3a_decode_assoc_option($value): array
+{
+    $raw = trim((string) ($value ?? ''));
+    if ($raw === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    if (is_array($decoded)) {
+        return $decoded;
+    }
+
+    return v3a_try_unserialize_assoc($raw);
+}
+
+function v3a_encode_option_value(string $name, $value)
+{
+    if (!v3a_option_requires_serialized_value($name)) {
+        return $value;
+    }
+
+    if (is_array($value)) {
+        return serialize($value);
+    }
+
+    if (is_object($value)) {
+        return serialize((array) $value);
+    }
+
+    if (is_string($value)) {
+        $raw = trim($value);
+        if ($raw === '') {
+            return $value;
+        }
+
+        if (preg_match('/^a:\\d+:\\{.*\\}$/s', $raw)) {
+            return $value;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            return serialize($decoded);
+        }
+    }
+
+    return $value;
+}
+
+function v3a_plugin_root_dir($options): string
+{
+    try {
+        $dir = trim((string) $options->pluginDir, " /\\");
+        if ($dir !== '') {
+            return $dir;
+        }
+    } catch (\Throwable $e) {
+    }
+
+    try {
+        if (is_object($options) && method_exists($options, 'pluginDir')) {
+            $dir = trim((string) $options->pluginDir(null), " /\\");
+            if ($dir !== '') {
+                return $dir;
+            }
+        }
+    } catch (\Throwable $e) {
+    }
+
+    $root = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\');
+    $pluginDir = trim((string) (__TYPECHO_PLUGIN_DIR__ ?? '/usr/plugins'), '/\\');
+
+    if ($root === '') {
+        return $pluginDir;
+    }
+
+    if ($pluginDir === '') {
+        return $root;
+    }
+
+    return $root . DIRECTORY_SEPARATOR . $pluginDir;
 }
 
 /**
@@ -9621,7 +9724,9 @@ try {
                 }
 
                 $db->query(
-                    $db->update('table.options')->rows(['value' => json_encode($routingTable)])->where('name = ?', 'routingTable'),
+                    $db->update('table.options')
+                        ->rows(['value' => v3a_encode_option_value('routingTable', $routingTable)])
+                        ->where('name = ?', 'routingTable'),
                     \Typecho\Db::WRITE
                 );
             }
@@ -9917,7 +10022,9 @@ try {
         }
 
         $db->query(
-            $db->update('table.options')->rows(['value' => json_encode($routingTable)])->where('name = ?', 'routingTable'),
+            $db->update('table.options')
+                ->rows(['value' => v3a_encode_option_value('routingTable', $routingTable)])
+                ->where('name = ?', 'routingTable'),
             \Typecho\Db::WRITE
         );
 
@@ -10040,7 +10147,7 @@ try {
                             v3a_upsert_option(
                                 $db,
                                 'theme:' . $theme,
-                                json_encode($defaults, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                                $defaults,
                                 0
                             );
                         }
@@ -10195,8 +10302,7 @@ try {
                 $db->select('value')->from('table.options')->where('name = ? AND user = ?', 'theme:' . $theme, 0)
             );
             $raw = is_object($row) ? (string) ($row->value ?? '') : '';
-            $decoded = json_decode($raw, true);
-            $themeOptions = is_array($decoded) ? $decoded : [];
+            $themeOptions = v3a_decode_assoc_option($raw);
         } catch (\Throwable $e) {
         }
 
@@ -10380,7 +10486,7 @@ try {
             v3a_upsert_option(
                 $db,
                 'theme:' . $theme,
-                json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                $settings,
                 0
             );
         }
@@ -10493,7 +10599,7 @@ try {
             v3a_exit_json(400, null, 'Invalid plugin');
         }
 
-        [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, (string) ($options->pluginDir ?? ''));
+        [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, v3a_plugin_root_dir($options));
         $info = \Typecho\Plugin::parseInfo($pluginFileName);
         if (!\Typecho\Plugin::checkDependence($info['since'] ?? null)) {
             v3a_exit_json(400, null, 'Plugin version dependence not met');
@@ -10513,7 +10619,7 @@ try {
         v3a_upsert_option(
             $db,
             'plugins',
-            json_encode(\Typecho\Plugin::export(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            \Typecho\Plugin::export(),
             0
         );
 
@@ -10579,7 +10685,7 @@ try {
         $className = '';
 
         try {
-            [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, (string) ($options->pluginDir ?? ''));
+            [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, v3a_plugin_root_dir($options));
         } catch (\Throwable $e) {
             $pluginFileExist = false;
             if (!isset($activatedPlugins[$pluginName])) {
@@ -10603,7 +10709,7 @@ try {
         v3a_upsert_option(
             $db,
             'plugins',
-            json_encode(\Typecho\Plugin::export(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            \Typecho\Plugin::export(),
             0
         );
 
@@ -10636,7 +10742,7 @@ try {
             v3a_exit_json(400, null, 'Plugin not activated');
         }
 
-        [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, (string) ($options->pluginDir ?? ''));
+        [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, v3a_plugin_root_dir($options));
         if (!file_exists($pluginFileName)) {
             v3a_exit_json(404, null, 'Plugin not found');
         }
@@ -10652,8 +10758,7 @@ try {
                 $db->select('value')->from('table.options')->where('name = ? AND user = ?', 'plugin:' . $pluginName, 0)
             );
             $raw = is_object($row) ? (string) ($row->value ?? '') : '';
-            $decoded = json_decode($raw, true);
-            $pluginOptions = is_array($decoded) ? $decoded : [];
+            $pluginOptions = v3a_decode_assoc_option($raw);
         } catch (\Throwable $e) {
         }
 
@@ -10784,7 +10889,7 @@ try {
 
         [$pluginFileName, $className] = \Typecho\Plugin::portal(
             $pluginName,
-            (string) ($options->pluginDir ?? '')
+            v3a_plugin_root_dir($options)
         );
         if (!file_exists($pluginFileName)) {
             v3a_exit_json(404, null, 'Plugin not found');
@@ -10842,7 +10947,7 @@ try {
             v3a_exit_json(400, null, 'Plugin not activated');
         }
 
-        [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, (string) ($options->pluginDir ?? ''));
+        [$pluginFileName, $className] = \Typecho\Plugin::portal($pluginName, v3a_plugin_root_dir($options));
         if (!file_exists($pluginFileName)) {
             v3a_exit_json(404, null, 'Plugin not found');
         }

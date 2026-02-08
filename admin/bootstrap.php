@@ -12,6 +12,51 @@ if (!defined('__TYPECHO_ROOT_DIR__') && !@include_once __DIR__ . '/../config.inc
     exit;
 }
 
+/**
+ * 兼容 Typecho 1.2.1：修复被错误写成 JSON 的核心序列化选项。
+ * 这些选项必须是 serialize() 格式，否则会在 Widget\Init 阶段触发 TypeError。
+ */
+if (!function_exists('v3a_repair_serialized_option')) {
+    function v3a_repair_serialized_option(string $name): void
+    {
+        try {
+            $db = \Typecho\Db::get();
+            $row = $db->fetchObject(
+                $db->select('value')
+                    ->from('table.options')
+                    ->where('name = ? AND user = ?', $name, 0)
+                    ->limit(1)
+            );
+
+            $raw = trim((string) ($row->value ?? ''));
+            if ($raw === '') {
+                return;
+            }
+
+            $unserialized = @unserialize($raw);
+            if (is_array($unserialized)) {
+                return;
+            }
+
+            $decoded = json_decode($raw, true);
+            if (!is_array($decoded)) {
+                return;
+            }
+
+            $db->query(
+                $db->update('table.options')
+                    ->rows(['value' => serialize($decoded)])
+                    ->where('name = ? AND user = ?', $name, 0),
+                \Typecho\Db::WRITE
+            );
+        } catch (\Throwable $e) {
+        }
+    }
+}
+
+v3a_repair_serialized_option('plugins');
+v3a_repair_serialized_option('routingTable');
+
 /** 初始化组件 */
 \Widget\Init::alloc();
 
