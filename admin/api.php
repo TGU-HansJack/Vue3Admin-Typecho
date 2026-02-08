@@ -125,38 +125,78 @@ function v3a_encode_option_value(string $name, $value)
     return $value;
 }
 
+function v3a_is_absolute_path(string $path): bool
+{
+    if ($path === '') {
+        return false;
+    }
+
+    $first = $path[0];
+    if ($first === '/' || $first === '\\') {
+        return true;
+    }
+
+    return (bool) preg_match('/^[A-Za-z]:[\\\\\/]/', $path);
+}
+
 function v3a_plugin_root_dir($options): string
 {
+    $root = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\');
+    $normalize = static function (string $path) use ($root): string {
+        $path = trim($path);
+        if ($path === '') {
+            return '';
+        }
+
+        if (!v3a_is_absolute_path($path) && $root !== '') {
+            $path = $root . DIRECTORY_SEPARATOR . ltrim($path, '/\\');
+        }
+
+        return rtrim($path, '/\\');
+    };
+
+    $candidates = [];
+
     try {
-        $dir = trim((string) $options->pluginDir, " /\\");
+        $dir = $normalize((string) $options->pluginDir);
         if ($dir !== '') {
-            return $dir;
+            $candidates[] = $dir;
         }
     } catch (\Throwable $e) {
     }
 
     try {
         if (is_object($options) && method_exists($options, 'pluginDir')) {
-            $dir = trim((string) $options->pluginDir(null), " /\\");
+            $dir = $normalize((string) $options->pluginDir(null));
             if ($dir !== '') {
-                return $dir;
+                $candidates[] = $dir;
             }
         }
     } catch (\Throwable $e) {
     }
 
-    $root = rtrim((string) (__TYPECHO_ROOT_DIR__ ?? ''), '/\\');
-    $pluginDir = trim((string) (__TYPECHO_PLUGIN_DIR__ ?? '/usr/plugins'), '/\\');
-
-    if ($root === '') {
-        return $pluginDir;
+    $pluginDir = trim((string) (__TYPECHO_PLUGIN_DIR__ ?? '/usr/plugins'));
+    if ($pluginDir !== '') {
+        $candidates[] = $normalize($pluginDir);
     }
 
-    if ($pluginDir === '') {
-        return $root;
+    if ($root !== '') {
+        $candidates[] = rtrim($root . DIRECTORY_SEPARATOR . 'usr' . DIRECTORY_SEPARATOR . 'plugins', '/\\');
     }
 
-    return $root . DIRECTORY_SEPARATOR . $pluginDir;
+    foreach ($candidates as $candidate) {
+        if ($candidate !== '' && is_dir($candidate)) {
+            return $candidate;
+        }
+    }
+
+    foreach ($candidates as $candidate) {
+        if ($candidate !== '') {
+            return $candidate;
+        }
+    }
+
+    return $root;
 }
 
 /**
@@ -9906,7 +9946,8 @@ try {
 
         try {
             if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Plugin')) {
-                $pluginFile = rtrim((string) __TYPECHO_ROOT_DIR__, "/\\") . __TYPECHO_PLUGIN_DIR__ . '/Vue3Admin/Plugin.php';
+                $pluginFile = rtrim(v3a_plugin_root_dir($options), '/\\') . DIRECTORY_SEPARATOR . 'Vue3Admin'
+                    . DIRECTORY_SEPARATOR . 'Plugin.php';
                 if (is_file($pluginFile)) {
                     require_once $pluginFile;
                 }
@@ -10499,7 +10540,8 @@ try {
             v3a_exit_json(403, null, 'Forbidden');
         }
 
-        $pluginDirs = glob(__TYPECHO_ROOT_DIR__ . '/' . __TYPECHO_PLUGIN_DIR__ . '/*');
+        $pluginRoot = v3a_plugin_root_dir($options);
+        $pluginDirs = $pluginRoot !== '' ? glob(rtrim($pluginRoot, '/\\') . DIRECTORY_SEPARATOR . '*') : [];
         $plugins = \Typecho\Plugin::export();
         $activatedPlugins = (array) ($plugins['activated'] ?? []);
 
