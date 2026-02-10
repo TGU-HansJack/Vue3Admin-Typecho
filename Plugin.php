@@ -1514,6 +1514,14 @@ HTML;
             return $comment;
         }
 
+        // Speed: only send "risky" comments to AI to avoid blocking submission.
+        try {
+            if (!Ai::isCommentRisky($comment)) {
+                return $comment;
+            }
+        } catch (\Throwable $e) {
+        }
+
         $siteUrl = '';
         try {
             $siteUrl = (string) ($options->siteUrl ?? '');
@@ -1521,8 +1529,42 @@ HTML;
             $siteUrl = '';
         }
 
+        $context = [];
         try {
-            $res = Ai::moderateComment($cfg, $comment, $siteUrl);
+            $postTitle = '';
+            $postUrl = '';
+            $postCid = 0;
+            $postType = '';
+            if (is_object($content)) {
+                $postTitle = (string) ($content->title ?? '');
+                $postUrl = (string) ($content->permalink ?? '');
+                $postCid = (int) ($content->cid ?? 0);
+                $postType = (string) ($content->type ?? '');
+            } elseif (is_array($content)) {
+                $postTitle = (string) ($content['title'] ?? '');
+                $postUrl = (string) ($content['permalink'] ?? '');
+                $postCid = (int) ($content['cid'] ?? 0);
+                $postType = (string) ($content['type'] ?? '');
+            }
+
+            if ($postTitle !== '') {
+                $context['postTitle'] = $postTitle;
+            }
+            if ($postUrl !== '') {
+                $context['postUrl'] = $postUrl;
+            }
+            if ($postCid > 0) {
+                $context['cid'] = $postCid;
+            }
+            if ($postType !== '') {
+                $context['type'] = $postType;
+            }
+        } catch (\Throwable $e) {
+            $context = [];
+        }
+
+        try {
+            $res = Ai::moderateComment($cfg, $comment, $siteUrl, $context);
             $action = strtolower(trim((string) ($res['action'] ?? 'waiting')));
             if ($action === 'approve') {
                 $comment['status'] = 'approved';

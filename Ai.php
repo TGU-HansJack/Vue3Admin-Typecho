@@ -524,9 +524,12 @@ final class Ai
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            // Enable gzip/br if available (reduces payload size for large posts)
+            curl_setopt($ch, CURLOPT_ENCODING, '');
             curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, min(10, $timeout));
+            // Faster fail for unreachable endpoints
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, min(5, $timeout));
             curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
 
             $resp = curl_exec($ch);
@@ -626,10 +629,13 @@ final class Ai
 
         $headers = [
             'Content-Type: application/json',
+            'Accept: application/json',
             'Authorization: Bearer ' . $apiKey,
+            // Disable "Expect: 100-continue" to reduce latency on large payloads.
+            'Expect:',
         ];
 
-        $json = self::httpPostJson($url, $payload, $headers, max(10, $timeout));
+        $json = self::httpPostJson($url, $payload, $headers, max(1, $timeout));
         $content = '';
         try {
             $content = (string) ($json['choices'][0]['message']['content'] ?? '');
@@ -640,6 +646,42 @@ final class Ai
             'content' => $content,
             'model' => $model,
         ];
+    }
+
+    private static function clipText(string $text, int $headChars, int $tailChars = 0, string $sep = "\n\n[...内容过长已截断...]\n\n"): string
+    {
+        $s = (string) $text;
+        if ($headChars <= 0) {
+            return $s;
+        }
+
+        $tailChars = max(0, (int) $tailChars);
+        if ($tailChars > $headChars) {
+            $tailChars = 0;
+        }
+
+        if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+            $len = (int) mb_strlen($s, 'UTF-8');
+            if ($len <= $headChars) {
+                return $s;
+            }
+            if ($tailChars <= 0) {
+                return (string) mb_substr($s, 0, $headChars, 'UTF-8') . $sep;
+            }
+            $head = (string) mb_substr($s, 0, $headChars - $tailChars, 'UTF-8');
+            $tail = (string) mb_substr($s, $len - $tailChars, $tailChars, 'UTF-8');
+            return $head . $sep . $tail;
+        }
+
+        if (strlen($s) <= $headChars) {
+            return $s;
+        }
+        if ($tailChars <= 0) {
+            return substr($s, 0, $headChars) . $sep;
+        }
+        $head = substr($s, 0, $headChars - $tailChars);
+        $tail = substr($s, -$tailChars);
+        return $head . $sep . $tail;
     }
 
     /**
@@ -668,6 +710,33 @@ final class Ai
 
         $decoded = json_decode($s, true);
         return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * Convert a decoded JSON value into plain text without PHP warnings.
+     *
+     * @param mixed $value
+     */
+    private static function jsonText($value, string $join = "\n"): string
+    {
+        if (is_string($value) || is_numeric($value)) {
+            return (string) $value;
+        }
+        if (is_array($value)) {
+            $parts = [];
+            foreach ($value as $v) {
+                $s = trim(self::jsonText($v, $join));
+                if ($s !== '') {
+                    $parts[] = $s;
+                }
+            }
+            return implode($join, $parts);
+        }
+        if (is_object($value)) {
+            $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            return is_string($json) ? $json : '';
+        }
+        return '';
     }
 
     /**
@@ -701,8 +770,8 @@ final class Ai
         ], ['temperature' => 0.2]);
 
         $obj = self::parseJsonFromText((string) ($res['content'] ?? '')) ?? [];
-        $outTitle = trim((string) ($obj['title'] ?? ''));
-        $outText = trim((string) ($obj['text'] ?? ''));
+        $outTitle = trim(self::jsonText($obj['title'] ?? ''));
+        $outText = trim(self::jsonText($obj['text'] ?? ''));
         if ($outText === '' && trim((string) ($res['content'] ?? '')) !== '') {
             $outText = trim((string) ($res['content'] ?? ''));
         }
@@ -724,6 +793,9 @@ final class Ai
             throw new \RuntimeException('Invalid language.');
         }
 
+        // Summaries do not need the full post body; limiting input reduces latency/cost and avoids timeouts.
+        $text = self::clipText($text, 16000, 4000);
+
         $system = "You are a concise summarizer for blog posts.\n"
             . "Write a clear summary in {$lang}.\n"
             . "Output ONLY a JSON object with key: summary.\n"
@@ -734,10 +806,10 @@ final class Ai
         $res = self::chat($cfg, [
             ['role' => 'system', 'content' => $system],
             ['role' => 'user', 'content' => $user],
-        ], ['temperature' => 0.2]);
+        ], ['temperature' => 0.2, 'max_tokens' => 600]);
 
         $obj = self::parseJsonFromText((string) ($res['content'] ?? '')) ?? [];
-        $summary = trim((string) ($obj['summary'] ?? ''));
+        $summary = trim(self::jsonText($obj['summary'] ?? ''));
         if ($summary === '' && trim((string) ($res['content'] ?? '')) !== '') {
             $summary = trim((string) ($res['content'] ?? ''));
         }
@@ -764,7 +836,7 @@ final class Ai
         ], ['temperature' => 0.4]);
 
         $obj = self::parseJsonFromText((string) ($res['content'] ?? '')) ?? [];
-        $out = trim((string) ($obj['text'] ?? ''));
+        $out = trim(self::jsonText($obj['text'] ?? ''));
         if ($out === '' && trim((string) ($res['content'] ?? '')) !== '') {
             $out = trim((string) ($res['content'] ?? ''));
         }
@@ -787,10 +859,10 @@ final class Ai
         $res = self::chat($cfg, [
             ['role' => 'system', 'content' => $system],
             ['role' => 'user', 'content' => $title],
-        ], ['temperature' => 0.2]);
+        ], ['temperature' => 0.2, 'max_tokens' => 80]);
 
         $obj = self::parseJsonFromText((string) ($res['content'] ?? '')) ?? [];
-        $slug = (string) ($obj['slug'] ?? '');
+        $slug = self::jsonText($obj['slug'] ?? '');
         $slug = strtolower(trim($slug));
         $slug = preg_replace('/[^0-9a-z\\-]+/i', '-', $slug);
         $slug = preg_replace('/-+/', '-', (string) $slug);
@@ -806,10 +878,160 @@ final class Ai
         ];
     }
 
+    private static function hasPromoKeywords(string $text, string $author = ''): bool
+    {
+        $spamWords = [
+            'casino', 'viagra', 'porn', 'sex', 'loan', 'credit',
+            '博彩', '赌场', '棋牌', '彩票', '贷款', '借贷', '投资', '理财', '返利', '赚钱', '代刷', '刷单', '推广',
+            'telegram', 'whatsapp', 'line', 'skype',
+        ];
+
+        foreach ($spamWords as $w) {
+            if ($w === '') {
+                continue;
+            }
+            if (stripos($text, $w) !== false || ($author !== '' && stripos($author, $w) !== false)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function hasAbuseKeywords(string $text, string $author = ''): bool
+    {
+        $s = trim(($author !== '' ? ($author . "\n") : '') . $text);
+        if ($s === '') {
+            return false;
+        }
+
+        $sLower = strtolower($s);
+
+        $direct = [
+            '傻逼', '煞笔', '傻比', '煞比', '傻叉',
+            '操你妈', '草你妈', '艹你妈', '日你妈', '去死', '死全家', '死妈', '死爹',
+            '滚蛋', '滚开',
+            '你妈', '尼玛', '他妈', '妈的',
+            'stfu', 'fuck you', 'asshole', 'bitch', 'cunt', 'dick', 'motherfucker',
+            'kys', 'kill yourself',
+        ];
+
+        foreach ($direct as $w) {
+            if ($w === '') {
+                continue;
+            }
+            if (strpos($sLower, strtolower($w)) !== false) {
+                return true;
+            }
+        }
+
+        $patterns = [
+            '/傻\\s*[逼比bｂＢ]/iu',
+            '/煞\\s*[逼比bｂＢ]/iu',
+            '/傻\\s*[x叉X]/u',
+            '/滚\\s*(蛋|开)/u',
+            '/(^|[\\s\\p{P}])滚(吧|啊|出去|远点)?($|[\\s\\p{P}])/u',
+            '/(操|草|艹|日)\\s*你(\\s*(妈|媽))?/u',
+            '/(你|尼|他)\\s*妈/u',
+            '/死\\s*(妈|媽|爹|全家)/u',
+            // Targeted insults (avoid matching neutral topics like "垃圾分类")
+            '/(你|你们|他|她|作者|博主|楼主|管理员|版主|站长|你这|你个|你这个)[^\\n]{0,8}(白\\s*痴|智\\s*障|蠢\\s*(货|蛋)|脑\\s*残|废\\s*物|畜\\s*生|垃\\s*圾|恶\\s*心|狗\\s*东西|贱\\s*人|不\\s*要\\s*脸|无\\s*耻|有\\s*病|神\\s*经\\s*病)/u',
+            '/\\bfuck\\s+you\\b/i',
+            '/\\bf\\*+k\\b/i',
+            '/\\bfuck\\b/i',
+            '/\\b(stfu|asshole|bitch|cunt|dick|motherfucker|idiot|stupid|moron)\\b/i',
+            '/\\b(kys|kill\\s+yourself)\\b/i',
+            // spaced abbreviations (avoid matching inside words like "usb")
+            '/(^|[^a-z0-9])s\\s*[-_]?\\s*b([^a-z0-9]|$)/i',
+            '/(^|[^a-z0-9])c\\s*n\\s*m([^a-z0-9]|$)/i',
+            '/(^|[^a-z0-9])n\\s*m\\s*s\\s*l([^a-z0-9]|$)/i',
+        ];
+
+        foreach ($patterns as $p) {
+            try {
+                if (preg_match($p, $s)) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+
+        return false;
+    }
+
+    private static function reasonSuggestsAbuse(string $reason): bool
+    {
+        $r = strtolower(trim($reason));
+        if ($r === '') {
+            return false;
+        }
+
+        $keys = [
+            '辱骂', '侮辱', '人身攻击', '骂人', '脏话', '仇恨', '歧视', '威胁', '攻击',
+            'abuse', 'abusive', 'harass', 'harassment', 'hate', 'hateful', 'insult', 'profanity', 'threat',
+        ];
+        foreach ($keys as $k) {
+            if ($k !== '' && strpos($r, strtolower($k)) !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A fast risk check used to avoid blocking front-end comment submission.
+     *
+     * - Only "risky" comments are sent to AI.
+     * - Safe comments keep Typecho's default moderation flow.
+     */
+    public static function isCommentRisky(array $comment): bool
+    {
+        $author = trim((string) ($comment['author'] ?? ''));
+        $url = trim((string) ($comment['url'] ?? ''));
+        $text = trim((string) ($comment['text'] ?? ''));
+
+        $textLinkCount = 0;
+        try {
+            $textLinkCount = (int) preg_match_all('~https?://|www\\.~i', $text);
+        } catch (\Throwable $e) {
+            $textLinkCount = 0;
+        }
+
+        $hasPromoWord = self::hasPromoKeywords($text, $author);
+        $hasAbuseWord = self::hasAbuseKeywords($text, $author);
+
+        if ($textLinkCount >= 1) {
+            return true;
+        }
+        if ($hasPromoWord || $hasAbuseWord) {
+            return true;
+        }
+
+        $len = 0;
+        try {
+            if (function_exists('mb_strlen')) {
+                $len = (int) mb_strlen($text, 'UTF-8');
+            } else {
+                $len = (int) strlen($text);
+            }
+        } catch (\Throwable $e) {
+            $len = (int) strlen($text);
+        }
+        if ($len > 300) {
+            return true;
+        }
+
+        if ($url !== '' && $len <= 40) {
+            return true;
+        }
+
+        return false;
+    }
+
     /**
      * @return array{action:string,reason:string,model:string}
      */
-    public static function moderateComment(array $cfg, array $comment, string $siteUrl = ''): array
+    public static function moderateComment(array $cfg, array $comment, string $siteUrl = '', array $context = []): array
     {
         $author = trim((string) ($comment['author'] ?? ''));
         $mail = trim((string) ($comment['mail'] ?? ''));
@@ -818,40 +1040,87 @@ final class Ai
         $ua = trim((string) ($comment['agent'] ?? ''));
         $text = trim((string) ($comment['text'] ?? ''));
 
-        $system = "You are a strict comment moderation system.\n"
-            . "Decide whether to approve, hold (waiting), or mark as spam.\n"
-            . "Output ONLY a JSON object with keys: action, reason.\n"
-            . "Allowed actions: approve, waiting, spam.";
+        $textLinkCount = 0;
+        try {
+            $textLinkCount = (int) preg_match_all('~https?://|www\\.~i', $text);
+        } catch (\Throwable $e) {
+            $textLinkCount = 0;
+        }
+        $hasWebsite = $url !== '';
 
-        $user = json_encode(
-            [
-                'author' => $author,
-                'mail' => $mail,
-                'url' => $url,
-                'ip' => $ip,
-                'userAgent' => $ua,
-                'text' => $text,
-                'site' => $siteUrl,
-            ],
-            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-        );
+        $hasPromoWord = self::hasPromoKeywords($text, $author);
+        $hasAbuseWord = self::hasAbuseKeywords($text, $author);
+
+        // Fast-path rules: avoid slow AI calls for obvious spam.
+        if ($hasAbuseWord) {
+            return ['action' => 'spam', 'reason' => 'abusive language', 'model' => 'rule'];
+        }
+        if ($textLinkCount >= 2) {
+            return ['action' => 'spam', 'reason' => 'multiple links in text', 'model' => 'rule'];
+        }
+        if ($textLinkCount >= 1 && strlen($text) <= 40) {
+            return ['action' => 'spam', 'reason' => 'short comment with link in text', 'model' => 'rule'];
+        }
+        if ($hasPromoWord && ($textLinkCount >= 1 || $hasWebsite)) {
+            return ['action' => 'spam', 'reason' => 'spam keyword with link', 'model' => 'rule'];
+        }
+        if ($hasWebsite && $textLinkCount === 0 && strlen($text) <= 40) {
+            return ['action' => 'waiting', 'reason' => 'short comment with website', 'model' => 'rule'];
+        }
+
+        // Reduce blocking time for front-end comment submission.
+        $cfgFast = $cfg;
+        $t = (int) ($cfgFast['timeout'] ?? 60);
+        $cfgFast['timeout'] = max(3, min($t > 0 ? $t : 60, 8));
+
+        $system = "You are a strict blog comment moderation system.\n"
+            . "Return ONLY a JSON object: {\"action\":\"approve|waiting|spam\",\"reason\":\"...\"}.\n"
+            . "Guidelines:\n"
+            . "- Prefer \"waiting\" if unsure.\n"
+            . "- Mark as \"spam\" for ads, scams, phishing, crypto/investment promotion, irrelevant SEO, mass-produced text.\n"
+            . "- Mark as \"spam\" for insults/abuse, harassment, hate speech, threats, or profanities (辱骂/人身攻击/仇恨/威胁/脏话).\n"
+            . "- Any comment with suspicious links should be at least \"waiting\".\n"
+            . "- Approve only normal human comments that are not promotional.";
+
+        $payload = [
+            'author' => $author,
+            'mail' => $mail,
+            'url' => $url,
+            'ip' => $ip,
+            'userAgent' => $ua,
+            'text' => $text,
+            'site' => $siteUrl,
+        ];
+        if (!empty($context)) {
+            $payload['context'] = $context;
+        }
+        $user = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if (!is_string($user)) {
             $user = $text;
         }
 
-        $res = self::chat($cfg, [
+        $res = self::chat($cfgFast, [
             ['role' => 'system', 'content' => $system],
             ['role' => 'user', 'content' => $user],
-        ], ['temperature' => 0.0]);
+        ], ['temperature' => 0.0, 'max_tokens' => 220]);
 
         $obj = self::parseJsonFromText((string) ($res['content'] ?? '')) ?? [];
-        $action = strtolower(trim((string) ($obj['action'] ?? 'waiting')));
+        $action = strtolower(trim(self::jsonText($obj['action'] ?? 'waiting')));
         if (!in_array($action, ['approve', 'waiting', 'spam'], true)) {
             $action = 'waiting';
         }
-        $reason = trim((string) ($obj['reason'] ?? ''));
+        $reason = trim(self::jsonText($obj['reason'] ?? ''));
         if (strlen($reason) > 200) {
             $reason = substr($reason, 0, 200);
+        }
+
+        // Safety overrides (reduce false positives/negatives)
+        if ($action === 'approve' && $textLinkCount >= 1) {
+            $action = 'waiting';
+        } elseif ($action === 'spam' && $textLinkCount === 0 && !$hasPromoWord && !$hasAbuseWord) {
+            if (!self::reasonSuggestsAbuse($reason)) {
+                $action = 'waiting';
+            }
         }
 
         return [
@@ -861,4 +1130,3 @@ final class Ai
         ];
     }
 }
-

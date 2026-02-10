@@ -5,7 +5,7 @@
     return;
   }
 
-  const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
+  const { createApp, ref, reactive, computed, onMounted, watch, nextTick, getCurrentInstance } = Vue;
   const V3A = window.V3A || {};
 
   const GROUP_LEVELS = {
@@ -6444,6 +6444,12 @@
         polishEnabled: 0,
         slugEnabled: 0,
       });
+      try {
+        const inst = typeof getCurrentInstance === "function" ? getCurrentInstance() : null;
+        if (inst && inst.proxy && inst.proxy.settingsAiForm === undefined) {
+          inst.proxy.settingsAiForm = settingsAiForm;
+        }
+      } catch (e) {}
 
       const settingsPermalinkForm = reactive({
         rewrite: 0,
@@ -11719,6 +11725,7 @@
         settingsReadingForm,
         settingsDiscussionForm,
         settingsNotifyForm,
+        settingsAiForm,
         settingsNotifyTesting,
         settingsNotifyTemplateEditorOpen,
         settingsNotifyTemplateKind,
