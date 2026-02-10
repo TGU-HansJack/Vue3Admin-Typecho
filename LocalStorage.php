@@ -197,6 +197,41 @@ final class LocalStorage
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_like_type ON v3a_like(type);");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_like_cid ON v3a_like(cid);");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_like_created ON v3a_like(created);");
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS v3a_ai_translation (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cid INTEGER NOT NULL,
+                ctype TEXT NOT NULL DEFAULT 'post',
+                lang TEXT NOT NULL DEFAULT '',
+                title TEXT NULL,
+                text TEXT NULL,
+                model TEXT NULL,
+                created INTEGER NOT NULL DEFAULT 0,
+                updated INTEGER NOT NULL DEFAULT 0,
+                UNIQUE (cid, ctype, lang)
+            );"
+        );
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_ai_translation_cid ON v3a_ai_translation(cid);");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_ai_translation_lang ON v3a_ai_translation(lang);");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_ai_translation_updated ON v3a_ai_translation(updated);");
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS v3a_ai_summary (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cid INTEGER NOT NULL,
+                ctype TEXT NOT NULL DEFAULT 'post',
+                lang TEXT NOT NULL DEFAULT '',
+                summary TEXT NULL,
+                model TEXT NULL,
+                created INTEGER NOT NULL DEFAULT 0,
+                updated INTEGER NOT NULL DEFAULT 0,
+                UNIQUE (cid, ctype, lang)
+            );"
+        );
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_ai_summary_cid ON v3a_ai_summary(cid);");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_ai_summary_lang ON v3a_ai_summary(lang);");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_ai_summary_updated ON v3a_ai_summary(updated);");
     }
 
     private static function truncate(string $value, int $max = 255): string

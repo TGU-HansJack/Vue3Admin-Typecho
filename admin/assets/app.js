@@ -198,6 +198,8 @@
     fileText: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg>`,
     bell: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>`,
     shield: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path></svg>`,
+    bot: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bot-icon lucide-bot"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>`,
+    codeXml: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code-xml-icon lucide-code-xml"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>`,
     palette: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-palette-icon lucide-palette"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></svg>`,
     blocks: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-blocks-icon lucide-blocks"><path d="M10 22V7a1 1 0 0 0-1-1H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5a1 1 0 0 0-1-1H2"/><rect x="14" y="2" width="8" height="8" rx="1"/></svg>`,
     maintenance: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench-icon lucide-wrench"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg>`,
@@ -267,6 +269,7 @@
     { key: "content", label: "内容", icon: "fileText", subtitle: "阅读、评论、文本", access: "administrator" },
     { key: "acl", label: "权限", icon: "shieldAlert", subtitle: "角色权限、上传限制", access: "administrator" },
     { key: "notify", label: "通知", icon: "bell", subtitle: "邮件、推送", access: "administrator" },
+    { key: "ai", label: "AI", icon: "bot", subtitle: "配置AI、启用AI", access: "administrator" },
     {
       key: "theme",
       label: "主题",
@@ -324,6 +327,26 @@
         const extras = V3A && V3A.extras && typeof V3A.extras === "object" ? V3A.extras : {};
         const panels = Array.isArray(extras.panels) ? extras.panels : [];
         const out = [];
+
+        const ai = extras.ai && typeof extras.ai === "object" ? extras.ai : {};
+        const aiEnabled = Number(ai.enabled || 0) ? true : false;
+        const aiFeatures = ai && typeof ai.features === "object" ? ai.features : {};
+        if (aiEnabled && Number(aiFeatures.summary || 0)) {
+          out.push({
+            key: "extras-ai-summary",
+            label: "AI摘要",
+            to: "/extras/ai-summary",
+            access: "contributor",
+          });
+        }
+        if (aiEnabled && Number(aiFeatures.translate || 0)) {
+          out.push({
+            key: "extras-ai-translate",
+            label: "AI翻译",
+            to: "/extras/ai-translate",
+            access: "contributor",
+          });
+        }
 
         if (extras.shouTuTaEnabled) {
           out.push({
@@ -3436,6 +3459,130 @@
         postVditorSyncing = false;
       }
 
+      // AI: write helpers (polish + slug)
+      const aiRuntimeConfig = computed(() => {
+        try {
+          const extras = V3A && V3A.extras && typeof V3A.extras === "object" ? V3A.extras : {};
+          const ai = extras.ai && typeof extras.ai === "object" ? extras.ai : {};
+          return ai;
+        } catch (e) {
+          return {};
+        }
+      });
+
+      const aiPolishAvailable = computed(() => {
+        const ai = aiRuntimeConfig.value && typeof aiRuntimeConfig.value === "object" ? aiRuntimeConfig.value : {};
+        const enabled = Number(ai.enabled || 0) ? 1 : 0;
+        const hasKey = Number(ai.hasApiKey || 0) ? 1 : 0;
+        const features = ai && typeof ai.features === "object" ? ai.features : {};
+        const ok = enabled && hasKey && Number(features.polish || 0);
+        return ok ? true : false;
+      });
+
+      const aiSlugAvailable = computed(() => {
+        const ai = aiRuntimeConfig.value && typeof aiRuntimeConfig.value === "object" ? aiRuntimeConfig.value : {};
+        const enabled = Number(ai.enabled || 0) ? 1 : 0;
+        const hasKey = Number(ai.hasApiKey || 0) ? 1 : 0;
+        const features = ai && typeof ai.features === "object" ? ai.features : {};
+        const ok = enabled && hasKey && Number(features.slug || 0);
+        return ok ? true : false;
+      });
+
+      const aiSlugLoading = ref(false);
+
+      async function generateAiSlug(title) {
+        const t = String(title || "").trim();
+        if (!t) {
+          throw new Error("请先输入标题");
+        }
+        const data = await apiPost("ai.slug", { title: t });
+        const slug = data && typeof data === "object" ? String(data.slug || "").trim() : "";
+        if (!slug) {
+          throw new Error("生成失败");
+        }
+        return slug;
+      }
+
+      async function generateAiSlugForPost() {
+        if (aiSlugLoading.value) return;
+        aiSlugLoading.value = true;
+        try {
+          const slug = await generateAiSlug(postForm.title);
+          postForm.slug = slug;
+          toastSuccess("已生成 slug");
+        } catch (e) {
+          toastError(e && e.message ? e.message : "生成失败");
+        } finally {
+          aiSlugLoading.value = false;
+        }
+      }
+
+      async function generateAiSlugForPage() {
+        if (aiSlugLoading.value) return;
+        aiSlugLoading.value = true;
+        try {
+          const slug = await generateAiSlug(pageForm.title);
+          pageForm.slug = slug;
+          toastSuccess("已生成 slug");
+        } catch (e) {
+          toastError(e && e.message ? e.message : "生成失败");
+        } finally {
+          aiSlugLoading.value = false;
+        }
+      }
+
+      const aiPolishModalOpen = ref(false);
+      const aiPolishLoading = ref(false);
+      const aiPolishError = ref("");
+      const aiPolishModel = ref("");
+      const aiPolishText = ref("");
+      const aiPolishPreviewEl = ref(null);
+
+      async function openAiPolishModal() {
+        if (aiPolishLoading.value) return;
+
+        syncPostTextFromEditor();
+        const text = String(postForm.text || "");
+        if (!text.trim()) {
+          toastError("请先输入正文");
+          return;
+        }
+
+        aiPolishModalOpen.value = true;
+        aiPolishLoading.value = true;
+        aiPolishError.value = "";
+        aiPolishModel.value = "";
+        aiPolishText.value = "";
+        try {
+          const data = await apiPost("ai.polish", { text });
+          aiPolishText.value = data && typeof data === "object" ? String(data.text || "") : "";
+          aiPolishModel.value = data && typeof data === "object" ? String(data.model || "") : "";
+          await nextTick();
+          await v3aPreviewMarkdown(aiPolishPreviewEl.value, aiPolishText.value);
+        } catch (e) {
+          aiPolishError.value = e && e.message ? e.message : "润色失败";
+        } finally {
+          aiPolishLoading.value = false;
+        }
+      }
+
+      function closeAiPolishModal() {
+        aiPolishModalOpen.value = false;
+        aiPolishLoading.value = false;
+        aiPolishError.value = "";
+        aiPolishModel.value = "";
+        aiPolishText.value = "";
+        if (aiPolishPreviewEl.value) aiPolishPreviewEl.value.innerHTML = "";
+      }
+
+      function applyAiPolishReplace() {
+        if (!aiPolishText.value) return;
+        postForm.text = String(aiPolishText.value || "");
+        setPostEditorValue(postForm.text, true);
+        closeAiPolishModal();
+        toastSuccess("已替换正文");
+      }
+
       function initPostVditor() {
         const VditorCtor =
           typeof window !== "undefined" ? window.Vditor : undefined;
@@ -5471,6 +5618,352 @@
         window.addEventListener("pointerup", onUp);
       }
 
+      // AI Extras (Translate / Summary)
+      const aiExtrasContentType = ref("post"); // post|page
+      const aiExtrasKeywords = ref("");
+      const aiExtrasLoading = ref(false);
+      const aiExtrasError = ref("");
+      const aiExtrasItems = ref([]);
+      const aiExtrasPagination = reactive({
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        pageCount: 1,
+      });
+      const aiExtrasPageJump = ref(1);
+      const aiExtrasSelectedCid = ref(0);
+      const aiExtrasLang = ref("");
+
+      const aiExtrasLanguageOptions = computed(() => {
+        try {
+          const extras = V3A && V3A.extras && typeof V3A.extras === "object" ? V3A.extras : {};
+          const ai = extras.ai && typeof extras.ai === "object" ? extras.ai : {};
+          const langs = Array.isArray(ai.languages) ? ai.languages : [];
+          return langs.map((v) => String(v || "").trim()).filter(Boolean);
+        } catch (e) {
+          return [];
+        }
+      });
+
+      function ensureAiExtrasLang() {
+        const current = String(aiExtrasLang.value || "").trim();
+        if (current) return;
+        const opts = Array.isArray(aiExtrasLanguageOptions.value) ? aiExtrasLanguageOptions.value : [];
+        aiExtrasLang.value = opts.length ? String(opts[0] || "en") : "en";
+      }
+
+      // Split (reuse comments layout styles)
+      const aiExtrasSplitLeftWidth = ref(360);
+      function clampAiExtrasSplitLeftWidth(w) {
+        const n = Number(w);
+        if (!Number.isFinite(n)) return 360;
+        return Math.max(280, Math.min(520, n));
+      }
+      function startAiExtrasSplitResize(event) {
+        const e = event;
+        if (!e || typeof e.clientX !== "number") return;
+        try {
+          e.preventDefault();
+        } catch (err) {}
+        const startX = e.clientX;
+        const startW = clampAiExtrasSplitLeftWidth(aiExtrasSplitLeftWidth.value);
+
+        const onMove = (ev) => {
+          if (!ev || typeof ev.clientX !== "number") return;
+          aiExtrasSplitLeftWidth.value = clampAiExtrasSplitLeftWidth(startW + (ev.clientX - startX));
+        };
+
+        const onUp = () => {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+        };
+
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+      }
+
+      const aiTranslateLoading = ref(false);
+      const aiTranslateGenerating = ref(false);
+      const aiTranslateError = ref("");
+      const aiTranslateItem = ref(null);
+      const aiTranslatePreviewEl = ref(null);
+
+      const aiSummaryLoading = ref(false);
+      const aiSummaryGenerating = ref(false);
+      const aiSummaryError = ref("");
+      const aiSummaryItem = ref(null);
+      const aiSummaryPreviewEl = ref(null);
+
+      async function v3aPreviewMarkdown(hostEl, markdown) {
+        const host = hostEl && typeof hostEl === "object" ? hostEl : null;
+        if (!host) return;
+
+        const raw = String(markdown || "");
+        if (!raw.trim()) {
+          host.innerHTML = `<div style="padding: 14px 16px;" class="v3a-muted">暂无内容</div>`;
+          return;
+        }
+
+        const VditorCtor = typeof window !== "undefined" ? window.Vditor : undefined;
+        if (VditorCtor && typeof VditorCtor.preview === "function") {
+          try {
+            host.innerHTML = "";
+            const maybe = VditorCtor.preview(host, raw);
+            if (maybe && typeof maybe.then === "function") {
+              await maybe;
+            }
+            return;
+          } catch (e) {}
+        }
+
+        host.textContent = raw;
+      }
+
+      function resetAiExtrasResults() {
+        aiTranslateError.value = "";
+        aiTranslateItem.value = null;
+        aiSummaryError.value = "";
+        aiSummaryItem.value = null;
+        if (aiTranslatePreviewEl.value) aiTranslatePreviewEl.value.innerHTML = "";
+        if (aiSummaryPreviewEl.value) aiSummaryPreviewEl.value.innerHTML = "";
+      }
+
+      async function fetchAiExtrasContents() {
+        aiExtrasLoading.value = true;
+        aiExtrasError.value = "";
+        try {
+          ensureAiExtrasLang();
+
+          const ctype = String(aiExtrasContentType.value || "post");
+          const keywords = String(aiExtrasKeywords.value || "").trim();
+
+          if (ctype === "page") {
+            const data = await apiGet("pages.list", { keywords, status: "all" });
+            aiExtrasItems.value = Array.isArray(data && data.items) ? data.items : [];
+            aiExtrasPagination.page = 1;
+            aiExtrasPagination.pageCount = 1;
+            aiExtrasPagination.total = aiExtrasItems.value.length;
+            return;
+          }
+
+          const scopeAllAllowed =
+            !!V3A.canPublish && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll));
+          const scope = scopeAllAllowed ? "all" : "mine";
+
+          const data = await apiGet("posts.list", {
+            page: aiExtrasPagination.page,
+            pageSize: aiExtrasPagination.pageSize,
+            status: "all",
+            keywords,
+            scope,
+          });
+          aiExtrasItems.value = data.items || [];
+          const p = data.pagination || {};
+          aiExtrasPagination.page = Number(p.page || aiExtrasPagination.page) || 1;
+          aiExtrasPagination.pageSize = Number(p.pageSize || aiExtrasPagination.pageSize) || 20;
+          aiExtrasPagination.total = Number(p.total || 0) || 0;
+          aiExtrasPagination.pageCount = Number(p.pageCount || 1) || 1;
+        } catch (e) {
+          aiExtrasError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          aiExtrasLoading.value = false;
+        }
+      }
+
+      function aiExtrasApplyFilters() {
+        aiExtrasPagination.page = 1;
+        aiExtrasPageJump.value = 1;
+        aiExtrasSelectedCid.value = 0;
+        resetAiExtrasResults();
+        fetchAiExtrasContents();
+      }
+
+      function aiExtrasGoPage(p) {
+        const next = Math.max(1, Math.min(aiExtrasPagination.pageCount || 1, p));
+        if (next === aiExtrasPagination.page) return;
+        aiExtrasPagination.page = next;
+        fetchAiExtrasContents();
+      }
+
+      function openAiExtrasEditor() {
+        const cid = Number(aiExtrasSelectedCid.value || 0);
+        if (!cid) return;
+        if (String(aiExtrasContentType.value || "post") === "page") {
+          openPageEditor(cid);
+        } else {
+          openPostEditor(cid);
+        }
+      }
+
+      async function renderAiTranslatePreview() {
+        const host = aiTranslatePreviewEl.value;
+        const t = aiTranslateItem.value && typeof aiTranslateItem.value === "object" ? aiTranslateItem.value : null;
+        const text = t ? String(t.text || "") : "";
+        if (!host) return;
+        await v3aPreviewMarkdown(host, text);
+      }
+
+      async function renderAiSummaryPreview() {
+        const host = aiSummaryPreviewEl.value;
+        const t = aiSummaryItem.value && typeof aiSummaryItem.value === "object" ? aiSummaryItem.value : null;
+        const text = t ? String(t.summary || "") : "";
+        if (!host) return;
+        await v3aPreviewMarkdown(host, text);
+      }
+
+      async function loadAiTranslation() {
+        aiTranslateError.value = "";
+        aiTranslateItem.value = null;
+        if (aiTranslatePreviewEl.value) aiTranslatePreviewEl.value.innerHTML = "";
+
+        const cid = Number(aiExtrasSelectedCid.value || 0);
+        const lang = String(aiExtrasLang.value || "").trim();
+        const ctype = String(aiExtrasContentType.value || "post") === "page" ? "page" : "post";
+        if (!cid) {
+          aiTranslateError.value = "请先从左侧选择内容";
+          return;
+        }
+        if (!lang) {
+          aiTranslateError.value = "请选择语言";
+          return;
+        }
+
+        aiTranslateLoading.value = true;
+        try {
+          const data = await apiGet("ai.translate.get", { cid, lang, ctype });
+          aiTranslateItem.value = data && typeof data === "object" ? data.translation || null : null;
+          await nextTick();
+          await renderAiTranslatePreview();
+        } catch (e) {
+          aiTranslateError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          aiTranslateLoading.value = false;
+        }
+      }
+
+      async function generateAiTranslation() {
+        aiTranslateError.value = "";
+        const cid = Number(aiExtrasSelectedCid.value || 0);
+        const lang = String(aiExtrasLang.value || "").trim();
+        const ctype = String(aiExtrasContentType.value || "post") === "page" ? "page" : "post";
+        if (!cid) {
+          aiTranslateError.value = "请先从左侧选择内容";
+          return;
+        }
+        if (!lang) {
+          aiTranslateError.value = "请选择语言";
+          return;
+        }
+
+        aiTranslateGenerating.value = true;
+        try {
+          const data = await apiPost("ai.translate.generate", { cid, lang, ctype });
+          aiTranslateItem.value = data && typeof data === "object" ? data.translation || null : null;
+          await nextTick();
+          await renderAiTranslatePreview();
+          toastSuccess("已生成翻译");
+        } catch (e) {
+          aiTranslateError.value = e && e.message ? e.message : "生成失败";
+        } finally {
+          aiTranslateGenerating.value = false;
+        }
+      }
+
+      async function loadAiSummary() {
+        aiSummaryError.value = "";
+        aiSummaryItem.value = null;
+        if (aiSummaryPreviewEl.value) aiSummaryPreviewEl.value.innerHTML = "";
+
+        const cid = Number(aiExtrasSelectedCid.value || 0);
+        const lang = String(aiExtrasLang.value || "").trim();
+        const ctype = String(aiExtrasContentType.value || "post") === "page" ? "page" : "post";
+        if (!cid) {
+          aiSummaryError.value = "请先从左侧选择内容";
+          return;
+        }
+        if (!lang) {
+          aiSummaryError.value = "请选择语言";
+          return;
+        }
+
+        aiSummaryLoading.value = true;
+        try {
+          const data = await apiGet("ai.summary.get", { cid, lang, ctype });
+          aiSummaryItem.value = data && typeof data === "object" ? data.summary || null : null;
+          await nextTick();
+          await renderAiSummaryPreview();
+        } catch (e) {
+          aiSummaryError.value = e && e.message ? e.message : "加载失败";
+        } finally {
+          aiSummaryLoading.value = false;
+        }
+      }
+
+      async function generateAiSummary() {
+        aiSummaryError.value = "";
+        const cid = Number(aiExtrasSelectedCid.value || 0);
+        const lang = String(aiExtrasLang.value || "").trim();
+        const ctype = String(aiExtrasContentType.value || "post") === "page" ? "page" : "post";
+        if (!cid) {
+          aiSummaryError.value = "请先从左侧选择内容";
+          return;
+        }
+        if (!lang) {
+          aiSummaryError.value = "请选择语言";
+          return;
+        }
+
+        aiSummaryGenerating.value = true;
+        try {
+          const data = await apiPost("ai.summary.generate", { cid, lang, ctype });
+          aiSummaryItem.value = data && typeof data === "object" ? data.summary || null : null;
+          await nextTick();
+          await renderAiSummaryPreview();
+          toastSuccess("已生成摘要");
+        } catch (e) {
+          aiSummaryError.value = e && e.message ? e.message : "生成失败";
+        } finally {
+          aiSummaryGenerating.value = false;
+        }
+      }
+
+      function selectAiExtrasContent(cid) {
+        const id = Number(cid || 0);
+        if (!id) return;
+        aiExtrasSelectedCid.value = id;
+        resetAiExtrasResults();
+
+        if (routePath.value === "/extras/ai-translate") {
+          loadAiTranslation();
+        } else if (routePath.value === "/extras/ai-summary") {
+          loadAiSummary();
+        }
+      }
+
+      watch(
+        () => String(aiExtrasContentType.value || "post"),
+        (t) => {
+          if (!routePath.value.startsWith("/extras/ai-")) return;
+          aiExtrasPagination.page = 1;
+          aiExtrasPageJump.value = 1;
+          aiExtrasSelectedCid.value = 0;
+          resetAiExtrasResults();
+          fetchAiExtrasContents();
+        }
+      );
+
+      watch(
+        () => String(aiExtrasLang.value || ""),
+        () => {
+          if (!routePath.value.startsWith("/extras/ai-")) return;
+          if (!aiExtrasSelectedCid.value) return;
+          const hasOptions = Array.isArray(aiExtrasLanguageOptions.value) && aiExtrasLanguageOptions.value.length;
+          if (!hasOptions) return;
+          if (routePath.value === "/extras/ai-translate") loadAiTranslation();
+          else if (routePath.value === "/extras/ai-summary") loadAiSummary();
+        }
+      );
+
       const commentEditorOpen = ref(false);
       const commentEditorLoading = ref(false);
       const commentEditorSaving = ref(false);
@@ -5667,6 +6160,7 @@
         },
         discussion: {},
         notify: {},
+        ai: {},
         permalink: {},
         lists: { langs: [], frontPagePages: [], frontPageFiles: [], timezones: SETTINGS_TIMEZONES },
       });
@@ -5935,6 +6429,22 @@
         }
         settingsNotifyTemplateEditorOpen.value = false;
       }
+
+      const settingsAiForm = reactive({
+        enabled: 0,
+        baseUrl: "",
+        model: "",
+        temperature: 0.2,
+        timeout: 60,
+        languages: "",
+        apiKey: "",
+        translateEnabled: 0,
+        summaryEnabled: 0,
+        commentEnabled: 0,
+        polishEnabled: 0,
+        slugEnabled: 0,
+      });
+
       const settingsPermalinkForm = reactive({
         rewrite: 0,
         postPattern: "",
@@ -8379,6 +8889,7 @@
           Object.assign(settingsData.reading, data.reading || {});
           settingsData.discussion = Object.assign({}, data.discussion || {});
           settingsData.notify = Object.assign({}, data.notify || {});
+          settingsData.ai = Object.assign({}, data.ai || {});
           settingsData.permalink = Object.assign({}, data.permalink || {});
           settingsData.lists = Object.assign(
             {
@@ -8486,6 +8997,22 @@
           settingsNotifyForm.friendLinkTemplate = String(
             settingsData.notify.friendLinkTemplate || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
           );
+
+          settingsAiForm.enabled = Number(settingsData.ai.enabled || 0);
+          settingsAiForm.baseUrl = String(settingsData.ai.baseUrl || "");
+          settingsAiForm.model = String(settingsData.ai.model || "");
+          settingsAiForm.temperature = Number(settingsData.ai.temperature ?? 0.2);
+          settingsAiForm.timeout = Number(settingsData.ai.timeout || 60);
+          settingsAiForm.languages = Array.isArray(settingsData.ai.languages)
+            ? settingsData.ai.languages.join(",")
+            : String(settingsData.ai.languages || "");
+          settingsAiForm.apiKey = "";
+          const aiFeatures = settingsData.ai.features || {};
+          settingsAiForm.translateEnabled = Number(aiFeatures.translate || 0);
+          settingsAiForm.summaryEnabled = Number(aiFeatures.summary || 0);
+          settingsAiForm.commentEnabled = Number(aiFeatures.comment || 0);
+          settingsAiForm.polishEnabled = Number(aiFeatures.polish || 0);
+          settingsAiForm.slugEnabled = Number(aiFeatures.slug || 0);
 
           settingsPermalinkForm.rewrite = Number(settingsData.permalink.rewrite || 0);
           const postUrlRaw = String(settingsData.permalink.postUrl || "");
@@ -8859,6 +9386,58 @@
             );
           } else {
             settingsNotifyForm.smtpPass = "";
+          }
+          if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
+        } catch (e) {
+          settingsError.value = e && e.message ? e.message : "保存失败";
+        } finally {
+          settingsSaving.value = false;
+        }
+      }
+
+      async function saveSettingsAi() {
+        settingsSaving.value = true;
+        settingsError.value = "";
+        settingsMessage.value = "";
+        try {
+          const payload = {
+            enabled: settingsAiForm.enabled ? 1 : 0,
+            baseUrl: settingsAiForm.baseUrl || "",
+            model: settingsAiForm.model || "",
+            temperature: settingsAiForm.temperature,
+            timeout: settingsAiForm.timeout,
+            languages: settingsAiForm.languages || "",
+            apiKey: settingsAiForm.apiKey || "",
+            translateEnabled: settingsAiForm.translateEnabled ? 1 : 0,
+            summaryEnabled: settingsAiForm.summaryEnabled ? 1 : 0,
+            commentEnabled: settingsAiForm.commentEnabled ? 1 : 0,
+            polishEnabled: settingsAiForm.polishEnabled ? 1 : 0,
+            slugEnabled: settingsAiForm.slugEnabled ? 1 : 0,
+          };
+          const data = await apiPost("settings.ai.save", payload);
+          if (data && data.ai) {
+            settingsData.ai = Object.assign({}, data.ai || {});
+            settingsAiForm.enabled = Number(settingsData.ai.enabled || 0);
+            settingsAiForm.baseUrl = String(settingsData.ai.baseUrl || "");
+            settingsAiForm.model = String(settingsData.ai.model || "");
+            settingsAiForm.temperature = Number(settingsData.ai.temperature ?? 0.2);
+            settingsAiForm.timeout = Number(settingsData.ai.timeout || 60);
+            settingsAiForm.languages = Array.isArray(settingsData.ai.languages)
+              ? settingsData.ai.languages.join(",")
+              : String(settingsData.ai.languages || "");
+            settingsAiForm.apiKey = "";
+            const aiFeatures = settingsData.ai.features || {};
+            settingsAiForm.translateEnabled = Number(aiFeatures.translate || 0);
+            settingsAiForm.summaryEnabled = Number(aiFeatures.summary || 0);
+            settingsAiForm.commentEnabled = Number(aiFeatures.comment || 0);
+            settingsAiForm.polishEnabled = Number(aiFeatures.polish || 0);
+            settingsAiForm.slugEnabled = Number(aiFeatures.slug || 0);
+            try {
+              if (!V3A.extras || typeof V3A.extras !== "object") V3A.extras = {};
+              V3A.extras.ai = Object.assign({}, settingsData.ai || {});
+            } catch (e) {}
+          } else {
+            settingsAiForm.apiKey = "";
           }
           if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
@@ -9569,6 +10148,7 @@
             reading: false,
             discussion: false,
             notify: false,
+            ai: false,
             permalink: false,
             acl: false,
           };
@@ -9603,6 +10183,7 @@
             reading: false,
             discussion: false,
             notify: false,
+            ai: false,
             permalink: false,
             acl: false,
           };
@@ -9719,6 +10300,25 @@
             ) ||
           v3aNormStr(settingsNotifyForm.smtpPass) !== "";
 
+        const ai = settingsData.ai || {};
+        const aiFeatures = ai.features || {};
+        const aiLanguages = Array.isArray(ai.languages)
+          ? ai.languages.join(",")
+          : String(ai.languages || "");
+        const aiDirty =
+          v3aNormNum(settingsAiForm.enabled) !== v3aNormNum(ai.enabled) ||
+          v3aNormStr(settingsAiForm.baseUrl) !== v3aNormStr(ai.baseUrl || "") ||
+          v3aNormStr(settingsAiForm.model) !== v3aNormStr(ai.model || "") ||
+          v3aNormNum(settingsAiForm.temperature, 0.2) !== v3aNormNum(ai.temperature, 0.2) ||
+          v3aNormNum(settingsAiForm.timeout, 60) !== v3aNormNum(ai.timeout, 60) ||
+          v3aNormStr(settingsAiForm.languages) !== v3aNormStr(aiLanguages) ||
+          v3aNormNum(settingsAiForm.translateEnabled) !== v3aNormNum(aiFeatures.translate) ||
+          v3aNormNum(settingsAiForm.summaryEnabled) !== v3aNormNum(aiFeatures.summary) ||
+          v3aNormNum(settingsAiForm.commentEnabled) !== v3aNormNum(aiFeatures.comment) ||
+          v3aNormNum(settingsAiForm.polishEnabled) !== v3aNormNum(aiFeatures.polish) ||
+          v3aNormNum(settingsAiForm.slugEnabled) !== v3aNormNum(aiFeatures.slug) ||
+          v3aNormStr(settingsAiForm.apiKey) !== "";
+
         const permalink = settingsData.permalink || {};
         const permalinkRewrite = v3aNormNum(permalink.rewrite || 0) ? 1 : 0;
         const permalinkPostUrl = v3aNormPermalinkPattern(permalink.postUrl || "");
@@ -9754,6 +10354,7 @@
           reading: readingDirty,
           discussion: discussionDirty,
           notify: notifyDirty,
+          ai: aiDirty,
           permalink: permalinkDirty,
           acl: aclDirty,
         };
@@ -9768,6 +10369,7 @@
         if (settingsLoading.value || settingsSaving.value || settingsBatchSaving.value) return;
 
         const dirty = settingsDirtyState.value || {};
+        const reloadAfterSave = !!dirty.ai;
         const tasks = [];
         if (dirty.profile) tasks.push(saveSettingsProfile);
         if (dirty.userOptions) tasks.push(saveSettingsUserOptions);
@@ -9776,6 +10378,7 @@
         if (dirty.reading) tasks.push(saveSettingsReading);
         if (dirty.discussion) tasks.push(saveSettingsDiscussion);
         if (dirty.notify) tasks.push(saveSettingsNotify);
+        if (dirty.ai) tasks.push(saveSettingsAi);
         if (dirty.permalink) tasks.push(saveSettingsPermalink);
         if (dirty.acl) tasks.push(saveSettingsAcl);
         if (!tasks.length) return;
@@ -9792,6 +10395,13 @@
 
         if (!settingsError.value) {
           settingsMessage.value = tasks.length > 1 ? "已保存全部" : "已保存";
+          if (reloadAfterSave) {
+            setTimeout(() => {
+              try {
+                location.reload();
+              } catch (e) {}
+            }, 600);
+          }
         }
       }
 
@@ -10526,6 +11136,14 @@
           await fetchUpgradeSettings();
           await fetchUpgradeInfo();
         }
+        if (routePath.value === "/extras/ai-translate" || routePath.value === "/extras/ai-summary") {
+          ensureAiExtrasLang();
+          await fetchAiExtrasContents();
+          if (aiExtrasSelectedCid.value) {
+            if (routePath.value === "/extras/ai-translate") await loadAiTranslation();
+            else await loadAiSummary();
+          }
+        }
         if (routePath.value === "/extras/workshop") {
           await fetchWorkshopProjects();
         }
@@ -10770,6 +11388,20 @@
         postTagActiveIndex,
         postTextEl,
         postEditorType,
+        aiPolishAvailable,
+        aiSlugAvailable,
+        aiSlugLoading,
+        generateAiSlugForPost,
+        generateAiSlugForPage,
+        aiPolishModalOpen,
+        aiPolishLoading,
+        aiPolishError,
+        aiPolishModel,
+        aiPolishText,
+        aiPolishPreviewEl,
+        openAiPolishModal,
+        closeAiPolishModal,
+        applyAiPolishReplace,
         autoSizePostText,
         addPostTag,
         removePostTag,
@@ -10990,6 +11622,37 @@
         applyCommentsFilters,
         commentsGoPage,
         quickSetCommentsStatus,
+        aiExtrasContentType,
+        aiExtrasKeywords,
+        aiExtrasLoading,
+        aiExtrasError,
+        aiExtrasItems,
+        aiExtrasPagination,
+        aiExtrasSplitLeftWidth,
+        startAiExtrasSplitResize,
+        aiExtrasPageJump,
+        aiExtrasSelectedCid,
+        aiExtrasLang,
+        aiExtrasLanguageOptions,
+        fetchAiExtrasContents,
+        aiExtrasApplyFilters,
+        aiExtrasGoPage,
+        selectAiExtrasContent,
+        openAiExtrasEditor,
+        aiTranslateLoading,
+        aiTranslateGenerating,
+        aiTranslateError,
+        aiTranslateItem,
+        aiTranslatePreviewEl,
+        loadAiTranslation,
+        generateAiTranslation,
+        aiSummaryLoading,
+        aiSummaryGenerating,
+        aiSummaryError,
+        aiSummaryItem,
+        aiSummaryPreviewEl,
+        loadAiSummary,
+        generateAiSummary,
         commentEditorOpen,
         commentEditorLoading,
         commentEditorSaving,
@@ -11925,6 +12588,9 @@
                     <button class="v3a-iconbtn v3a-write-side-toggle" type="button" @click="toggleWriteSidebar()" :title="writeSidebarOpen ? '收起发布设置' : '展开发布设置'" data-tour="write-side-toggle">
                       <span class="v3a-icon" v-html="ICONS.settings"></span>
                     </button>
+                    <button v-if="aiPolishAvailable" class="v3a-iconaction" type="button" @click="openAiPolishModal()" :disabled="postSaving || postLoading || aiPolishLoading" aria-label="AI润色" data-tooltip="AI润色">
+                      <span class="v3a-icon" v-html="ICONS.bot"></span>
+                    </button>
                     <button class="v3a-iconaction" type="button" @click="submitPost('save')" :disabled="postSaving || postLoading" aria-label="保存草稿" data-tooltip="保存草稿">
                       <span class="v3a-icon" v-html="ICONS.save"></span>
                     </button>
@@ -11949,6 +12615,9 @@
                             <span class="v3a-write-baseurl">{{ postSlugPrefix }}</span>
                             <template v-if="postSlugHasSlug">
                               <input class="v3a-write-slug" v-model="postForm.slug" placeholder="slug" :style="{ width: postSlugInputWidth + 'ch' }" data-tour="write-post-slug" />
+                              <button v-if="aiSlugAvailable" class="v3a-iconaction v3a-iconaction-sm" type="button" @click="generateAiSlugForPost()" :disabled="aiSlugLoading || !String(postForm.title || '').trim()" aria-label="AI生成slug" data-tooltip="AI生成slug">
+                                <span class="v3a-icon" v-html="ICONS.codeXml"></span>
+                              </button>
                               <span v-if="postSlugSuffix" class="v3a-write-baseurl v3a-write-baseurl-suffix">{{ postSlugSuffix }}</span>
                             </template>
                           </div>
@@ -12156,6 +12825,33 @@
                       </div>
 
                       <div class="v3a-muted" style="margin: calc(var(--spacing) * 4) 0;">发布权限：{{ postCapabilities.canPublish ? '可直接发布' : '将以待审核方式提交' }}</div>
+                    </div>
+                  </div>
+
+                  <div v-if="aiPolishModalOpen" class="v3a-modal-mask" @click.self="closeAiPolishModal()">
+                    <div class="v3a-modal-card v3a-scroll-modal" role="dialog" aria-modal="true">
+                      <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeAiPolishModal()">
+                        <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+                      </button>
+
+                      <div class="v3a-modal-head">
+                        <div class="v3a-modal-title">AI 润色</div>
+                        <div class="v3a-modal-subtitle">Markdown 渲染预览</div>
+                      </div>
+
+                      <div class="v3a-modal-body">
+                        <div v-if="aiPolishError" class="v3a-alert" style="margin-bottom: 12px;">{{ aiPolishError }}</div>
+                        <div v-if="aiPolishLoading" class="v3a-muted">正在生成…</div>
+                        <template v-else>
+                          <div v-if="aiPolishModel" class="v3a-muted" style="margin-bottom: 10px;">模型：{{ aiPolishModel }}</div>
+                          <div ref="aiPolishPreviewEl" class="v3a-ai-preview"></div>
+                        </template>
+                      </div>
+
+                      <div class="v3a-modal-actions">
+                        <button class="v3a-btn v3a-modal-btn" type="button" @click="closeAiPolishModal()" :disabled="aiPolishLoading">取消</button>
+                        <button class="v3a-btn primary v3a-modal-btn" type="button" @click="applyAiPolishReplace()" :disabled="aiPolishLoading || !String(aiPolishText || '').trim()">一键替换</button>
+                      </div>
                     </div>
                   </div>
               </div>
@@ -12946,6 +13642,9 @@
                             <span class="v3a-write-baseurl">{{ pageSlugPrefix }}</span>
                             <template v-if="pageSlugHasSlug">
                               <input class="v3a-write-slug" v-model="pageForm.slug" placeholder="slug" :style="{ width: pageSlugInputWidth + 'ch' }" data-tour="write-page-slug" />
+                              <button v-if="aiSlugAvailable" class="v3a-iconaction v3a-iconaction-sm" type="button" @click="generateAiSlugForPage()" :disabled="aiSlugLoading || !String(pageForm.title || '').trim()" aria-label="AI生成slug" data-tooltip="AI生成slug">
+                                <span class="v3a-icon" v-html="ICONS.codeXml"></span>
+                              </button>
                               <span v-if="pageSlugSuffix" class="v3a-write-baseurl v3a-write-baseurl-suffix">{{ pageSlugSuffix }}</span>
                             </template>
                           </div>
@@ -13790,6 +14489,304 @@
                       <div class="v3a-modal-actions">
                         <button class="v3a-btn v3a-modal-btn" type="button" @click="closeUserEditor()" :disabled="userEditorSaving">取消</button>
                         <button class="v3a-btn primary v3a-modal-btn" type="button" @click="saveUserEditor()" :disabled="userEditorSaving">{{ userEditorSaving ? "保存中…" : "保存" }}</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/extras/ai-translate'">
+              <div class="v3a-container v3a-container-comments">
+                <div class="v3a-pagehead">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
+                    </button>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="aiExtrasLoading" @click="fetchAiExtrasContents()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="v3a-comments-split" :style="{ '--v3a-comments-left': aiExtrasSplitLeftWidth + 'px' }">
+                  <div class="v3a-comments-left">
+                    <div class="v3a-card v3a-comments-panel">
+                      <div class="hd">
+                        <div class="v3a-comments-tabs">
+                          <select class="v3a-select v3a-comments-filter" v-model="aiExtrasContentType" aria-label="内容类型">
+                            <option value="post">博文</option>
+                            <option value="page">页面</option>
+                          </select>
+                        </div>
+                        <div class="v3a-comments-count v3a-muted">
+                          {{ formatNumber(aiExtrasContentType === 'page' ? aiExtrasItems.length : aiExtrasPagination.total) }} 条
+                        </div>
+                      </div>
+
+                      <div class="bd" style="padding: 0;">
+                        <div class="v3a-comments-toolbar">
+                          <div class="v3a-searchbox v3a-searchbox-full">
+                            <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                            <input class="v3a-input" v-model="aiExtrasKeywords" @keyup.enter="aiExtrasApplyFilters()" placeholder="搜索标题 / 内容..." />
+                          </div>
+                          <button class="v3a-btn" type="button" @click="aiExtrasApplyFilters()" :disabled="aiExtrasLoading">搜索</button>
+                        </div>
+
+                        <div v-if="aiExtrasError" class="v3a-alert v3a-comments-alert">{{ aiExtrasError }}</div>
+
+                        <div class="v3a-comments-list">
+                          <div v-if="aiExtrasLoading" class="v3a-comments-empty">
+                            <div class="v3a-muted">正在加载…</div>
+                          </div>
+                          <div v-else-if="!aiExtrasItems.length" class="v3a-comments-empty">
+                            <span class="v3a-icon v3a-comments-empty-icon" v-html="aiExtrasContentType === 'page' ? ICONS.pages : ICONS.fileText"></span>
+                            <div class="v3a-muted">暂无内容</div>
+                          </div>
+                          <div v-else>
+                            <div
+                              v-for="c in aiExtrasItems"
+                              :key="c.cid"
+                              class="v3a-comment-item"
+                              :class="{ active: Number(aiExtrasSelectedCid) === Number(c.cid) }"
+                              role="button"
+                              tabindex="0"
+                              @click="selectAiExtrasContent(c.cid)"
+                              @keyup.enter="selectAiExtrasContent(c.cid)"
+                            >
+                              <div class="v3a-comment-avatar">
+                                <span class="v3a-icon" v-html="aiExtrasContentType === 'page' ? ICONS.pages : ICONS.fileText"></span>
+                              </div>
+                              <div class="v3a-comment-body">
+                                <div class="v3a-comment-top">
+                                  <span class="v3a-comment-author" :style="{ paddingLeft: (aiExtrasContentType === 'page' ? (Number(c.levels || 0) * 12) : 0) + 'px' }">
+                                    {{ c.title || ('#' + c.cid) }}
+                                  </span>
+                                  <span class="v3a-comment-time v3a-muted">{{ formatTimeAgo(Number(c.modified || 0) || Number(c.created || 0)) }}</span>
+                                </div>
+                                <div class="v3a-comment-excerpt v3a-muted">#{{ c.cid }}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div v-if="aiExtrasContentType === 'post' && aiExtrasPagination.pageCount > 1" class="v3a-pagination" style="padding: 12px;">
+                          <button class="v3a-pagebtn" type="button" @click="aiExtrasGoPage(aiExtrasPagination.page - 1)" :disabled="aiExtrasPagination.page <= 1">
+                            <span class="v3a-icon" v-html="ICONS.collapse"></span>
+                          </button>
+                          <div class="v3a-pagecurrent">{{ aiExtrasPagination.page }}</div>
+                          <button class="v3a-pagebtn" type="button" @click="aiExtrasGoPage(aiExtrasPagination.page + 1)" :disabled="aiExtrasPagination.page >= aiExtrasPagination.pageCount">
+                            <span class="v3a-icon" v-html="ICONS.expand"></span>
+                          </button>
+                          <span class="v3a-muted">跳至</span>
+                          <input class="v3a-pagejump" type="number" min="1" :max="aiExtrasPagination.pageCount" v-model.number="aiExtrasPageJump" @keyup.enter="aiExtrasGoPage(aiExtrasPageJump)" @blur="aiExtrasGoPage(aiExtrasPageJump)" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="v3a-comments-resizer" @pointerdown="startAiExtrasSplitResize"></div>
+
+                  <div class="v3a-comments-right">
+                    <div class="v3a-card v3a-comments-panel">
+                      <div class="hd">
+                        <div class="v3a-comments-tabs">
+                          <select v-if="aiExtrasLanguageOptions && aiExtrasLanguageOptions.length" class="v3a-select v3a-comments-filter" v-model="aiExtrasLang" aria-label="语言">
+                            <option v-for="l in aiExtrasLanguageOptions" :key="l" :value="l">{{ l }}</option>
+                          </select>
+                          <input v-else class="v3a-input v3a-comments-filter" v-model="aiExtrasLang" placeholder="lang (e.g. en)" />
+                        </div>
+                        <div class="v3a-comments-count v3a-muted">
+                          <template v-if="aiTranslateItem && aiTranslateItem.updated">更新于 {{ formatTime(aiTranslateItem.updated, settingsData.site.timezone) }}</template>
+                          <template v-else>—</template>
+                        </div>
+                      </div>
+
+                      <div class="bd" style="padding: 0;">
+                        <div class="v3a-comments-toolbar">
+                          <button class="v3a-btn" type="button" @click="loadAiTranslation()" :disabled="aiTranslateLoading || aiTranslateGenerating || !aiExtrasSelectedCid || !String(aiExtrasLang || '').trim()">读取</button>
+                          <button class="v3a-btn primary" type="button" @click="generateAiTranslation()" :disabled="aiTranslateLoading || aiTranslateGenerating || !aiExtrasSelectedCid || !String(aiExtrasLang || '').trim()">
+                            {{ aiTranslateGenerating ? "生成中…" : "生成" }}
+                          </button>
+                          <button class="v3a-btn" type="button" @click="openAiExtrasEditor()" :disabled="!aiExtrasSelectedCid">编辑原文</button>
+                          <span v-if="aiTranslateItem && aiTranslateItem.model" class="v3a-muted">模型：{{ aiTranslateItem.model }}</span>
+                        </div>
+
+                        <div v-if="aiTranslateError" class="v3a-alert v3a-comments-alert">{{ aiTranslateError }}</div>
+
+                        <div class="v3a-comments-list">
+                          <div v-if="!aiExtrasSelectedCid" class="v3a-comments-empty">
+                            <span class="v3a-icon v3a-comments-empty-icon" v-html="ICONS.fileText"></span>
+                            <div class="v3a-muted">从左侧选择内容</div>
+                          </div>
+                          <div v-else-if="aiTranslateLoading" class="v3a-comments-empty">
+                            <div class="v3a-muted">正在加载…</div>
+                          </div>
+                          <div v-else-if="!aiTranslateItem" class="v3a-comments-empty">
+                            <div class="v3a-muted">暂无翻译结果</div>
+                          </div>
+                          <div v-else>
+                            <div style="padding: 12px 12px 0;">
+                              <div class="v3a-muted" style="font-size: 12px; margin-bottom: 6px;">标题</div>
+                              <input class="v3a-input" :value="aiTranslateItem.title || ''" readonly />
+                            </div>
+                            <div ref="aiTranslatePreviewEl" class="v3a-ai-preview"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/extras/ai-summary'">
+              <div class="v3a-container v3a-container-comments">
+                <div class="v3a-pagehead">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
+                    </button>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <button class="v3a-actionbtn" type="button" title="刷新" :disabled="aiExtrasLoading" @click="fetchAiExtrasContents()">
+                      <span class="v3a-icon" v-html="ICONS.refreshCw"></span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="v3a-comments-split" :style="{ '--v3a-comments-left': aiExtrasSplitLeftWidth + 'px' }">
+                  <div class="v3a-comments-left">
+                    <div class="v3a-card v3a-comments-panel">
+                      <div class="hd">
+                        <div class="v3a-comments-tabs">
+                          <select class="v3a-select v3a-comments-filter" v-model="aiExtrasContentType" aria-label="内容类型">
+                            <option value="post">博文</option>
+                            <option value="page">页面</option>
+                          </select>
+                        </div>
+                        <div class="v3a-comments-count v3a-muted">
+                          {{ formatNumber(aiExtrasContentType === 'page' ? aiExtrasItems.length : aiExtrasPagination.total) }} 条
+                        </div>
+                      </div>
+
+                      <div class="bd" style="padding: 0;">
+                        <div class="v3a-comments-toolbar">
+                          <div class="v3a-searchbox v3a-searchbox-full">
+                            <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
+                            <input class="v3a-input" v-model="aiExtrasKeywords" @keyup.enter="aiExtrasApplyFilters()" placeholder="搜索标题 / 内容..." />
+                          </div>
+                          <button class="v3a-btn" type="button" @click="aiExtrasApplyFilters()" :disabled="aiExtrasLoading">搜索</button>
+                        </div>
+
+                        <div v-if="aiExtrasError" class="v3a-alert v3a-comments-alert">{{ aiExtrasError }}</div>
+
+                        <div class="v3a-comments-list">
+                          <div v-if="aiExtrasLoading" class="v3a-comments-empty">
+                            <div class="v3a-muted">正在加载…</div>
+                          </div>
+                          <div v-else-if="!aiExtrasItems.length" class="v3a-comments-empty">
+                            <span class="v3a-icon v3a-comments-empty-icon" v-html="aiExtrasContentType === 'page' ? ICONS.pages : ICONS.fileText"></span>
+                            <div class="v3a-muted">暂无内容</div>
+                          </div>
+                          <div v-else>
+                            <div
+                              v-for="c in aiExtrasItems"
+                              :key="c.cid"
+                              class="v3a-comment-item"
+                              :class="{ active: Number(aiExtrasSelectedCid) === Number(c.cid) }"
+                              role="button"
+                              tabindex="0"
+                              @click="selectAiExtrasContent(c.cid)"
+                              @keyup.enter="selectAiExtrasContent(c.cid)"
+                            >
+                              <div class="v3a-comment-avatar">
+                                <span class="v3a-icon" v-html="aiExtrasContentType === 'page' ? ICONS.pages : ICONS.fileText"></span>
+                              </div>
+                              <div class="v3a-comment-body">
+                                <div class="v3a-comment-top">
+                                  <span class="v3a-comment-author" :style="{ paddingLeft: (aiExtrasContentType === 'page' ? (Number(c.levels || 0) * 12) : 0) + 'px' }">
+                                    {{ c.title || ('#' + c.cid) }}
+                                  </span>
+                                  <span class="v3a-comment-time v3a-muted">{{ formatTimeAgo(Number(c.modified || 0) || Number(c.created || 0)) }}</span>
+                                </div>
+                                <div class="v3a-comment-excerpt v3a-muted">#{{ c.cid }}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div v-if="aiExtrasContentType === 'post' && aiExtrasPagination.pageCount > 1" class="v3a-pagination" style="padding: 12px;">
+                          <button class="v3a-pagebtn" type="button" @click="aiExtrasGoPage(aiExtrasPagination.page - 1)" :disabled="aiExtrasPagination.page <= 1">
+                            <span class="v3a-icon" v-html="ICONS.collapse"></span>
+                          </button>
+                          <div class="v3a-pagecurrent">{{ aiExtrasPagination.page }}</div>
+                          <button class="v3a-pagebtn" type="button" @click="aiExtrasGoPage(aiExtrasPagination.page + 1)" :disabled="aiExtrasPagination.page >= aiExtrasPagination.pageCount">
+                            <span class="v3a-icon" v-html="ICONS.expand"></span>
+                          </button>
+                          <span class="v3a-muted">跳至</span>
+                          <input class="v3a-pagejump" type="number" min="1" :max="aiExtrasPagination.pageCount" v-model.number="aiExtrasPageJump" @keyup.enter="aiExtrasGoPage(aiExtrasPageJump)" @blur="aiExtrasGoPage(aiExtrasPageJump)" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="v3a-comments-resizer" @pointerdown="startAiExtrasSplitResize"></div>
+
+                  <div class="v3a-comments-right">
+                    <div class="v3a-card v3a-comments-panel">
+                      <div class="hd">
+                        <div class="v3a-comments-tabs">
+                          <select v-if="aiExtrasLanguageOptions && aiExtrasLanguageOptions.length" class="v3a-select v3a-comments-filter" v-model="aiExtrasLang" aria-label="语言">
+                            <option v-for="l in aiExtrasLanguageOptions" :key="l" :value="l">{{ l }}</option>
+                          </select>
+                          <input v-else class="v3a-input v3a-comments-filter" v-model="aiExtrasLang" placeholder="lang (e.g. en)" />
+                        </div>
+                        <div class="v3a-comments-count v3a-muted">
+                          <template v-if="aiSummaryItem && aiSummaryItem.updated">更新于 {{ formatTime(aiSummaryItem.updated, settingsData.site.timezone) }}</template>
+                          <template v-else>—</template>
+                        </div>
+                      </div>
+
+                      <div class="bd" style="padding: 0;">
+                        <div class="v3a-comments-toolbar">
+                          <button class="v3a-btn" type="button" @click="loadAiSummary()" :disabled="aiSummaryLoading || aiSummaryGenerating || !aiExtrasSelectedCid || !String(aiExtrasLang || '').trim()">读取</button>
+                          <button class="v3a-btn primary" type="button" @click="generateAiSummary()" :disabled="aiSummaryLoading || aiSummaryGenerating || !aiExtrasSelectedCid || !String(aiExtrasLang || '').trim()">
+                            {{ aiSummaryGenerating ? "生成中…" : "生成" }}
+                          </button>
+                          <button class="v3a-btn" type="button" @click="openAiExtrasEditor()" :disabled="!aiExtrasSelectedCid">编辑原文</button>
+                          <span v-if="aiSummaryItem && aiSummaryItem.model" class="v3a-muted">模型：{{ aiSummaryItem.model }}</span>
+                        </div>
+
+                        <div v-if="aiSummaryError" class="v3a-alert v3a-comments-alert">{{ aiSummaryError }}</div>
+
+                        <div class="v3a-comments-list">
+                          <div v-if="!aiExtrasSelectedCid" class="v3a-comments-empty">
+                            <span class="v3a-icon v3a-comments-empty-icon" v-html="ICONS.fileText"></span>
+                            <div class="v3a-muted">从左侧选择内容</div>
+                          </div>
+                          <div v-else-if="aiSummaryLoading" class="v3a-comments-empty">
+                            <div class="v3a-muted">正在加载…</div>
+                          </div>
+                          <div v-else-if="!aiSummaryItem" class="v3a-comments-empty">
+                            <div class="v3a-muted">暂无摘要结果</div>
+                          </div>
+                          <div v-else>
+                            <div ref="aiSummaryPreviewEl" class="v3a-ai-preview"></div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -16053,6 +17050,219 @@
                             <button class="v3a-btn primary v3a-modal-btn" type="button" @click="applySettingsNotifyTemplateDraft()">确定</button>
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  </template>
+
+                  <template v-else-if="settingsActiveKey === 'ai'">
+                    <div class="v3a-settings-user">
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.bot"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">AI 模型设置</div>
+                              <div class="v3a-settings-section-subtitle">配置模型、接口与语言</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能修改 AI 设置。</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <template v-else>
+                          <div class="v3a-settings-fields">
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>启用 AI</label>
+                                <div class="v3a-settings-row-help">总开关：开启后可使用 AI 翻译 / 摘要 / 审核 / 润色 / 缩略名。</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsAiForm.enabled" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>Base URL</label>
+                                <div class="v3a-settings-row-help">OpenAI 兼容接口的 /v1 地址，例如 https://api.openai.com/v1</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsAiForm.baseUrl" placeholder="https://api.openai.com/v1" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>API Key</label>
+                                <div class="v3a-settings-row-help">
+                                  留空表示不修改（当前状态：{{ Number(settingsData.ai.hasApiKey || 0) ? "已配置" : "未配置" }}）。
+                                </div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" type="password" v-model="settingsAiForm.apiKey" placeholder="sk-..." autocomplete="new-password" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>模型</label>
+                                <div class="v3a-settings-row-help">例如 gpt-4o-mini</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsAiForm.model" placeholder="gpt-4o-mini" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>Temperature</label>
+                                <div class="v3a-settings-row-help">取值范围 0 - 2（建议 0.2 - 0.6）</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" type="number" step="0.1" min="0" max="2" v-model.number="settingsAiForm.temperature" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>Timeout</label>
+                                <div class="v3a-settings-row-help">请求超时（秒）</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" type="number" min="10" max="300" v-model.number="settingsAiForm.timeout" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>语言列表</label>
+                                <div class="v3a-settings-row-help">
+                                  用于 AI 翻译/摘要的语言（逗号或空格分隔），也用于前台路径前缀：/en/ /zh/ /ja/ /fr/
+                                </div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsAiForm.languages" placeholder="en,zh,ja,fr" />
+                              </div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+
+                      <div class="v3a-settings-section">
+                        <div class="v3a-settings-section-hd">
+                          <div class="v3a-settings-section-hd-left">
+                            <div class="v3a-settings-section-icon">
+                              <span class="v3a-icon" v-html="ICONS.cable"></span>
+                            </div>
+                            <div class="v3a-settings-section-titles">
+                              <div class="v3a-settings-section-title">AI 功能启用</div>
+                              <div class="v3a-settings-section-subtitle">翻译、摘要、评论审核、润色、缩略名</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div v-if="!settingsData.isAdmin" class="v3a-settings-fields">
+                          <div class="v3a-settings-row">
+                            <div class="v3a-settings-row-label">
+                              <label>提示</label>
+                            </div>
+                            <div class="v3a-settings-row-control">
+                              <div class="v3a-muted">需要管理员权限才能修改 AI 设置。</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <template v-else>
+                          <div class="v3a-settings-fields">
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>AI 翻译</label>
+                                <div class="v3a-settings-row-help">启用后，“额外功能”中可使用 AI 翻译，并支持 /{lang}/ 前缀访问翻译内容。</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsAiForm.translateEnabled" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>AI 摘要</label>
+                                <div class="v3a-settings-row-help">启用后，“额外功能”中可使用 AI 摘要。</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsAiForm.summaryEnabled" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>AI 评论审核</label>
+                                <div class="v3a-settings-row-help">新评论提交时由 AI 判定：通过 / 待审 / 垃圾。</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsAiForm.commentEnabled" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>AI 润色</label>
+                                <div class="v3a-settings-row-help">撰写文章时提供“AI 润色”按钮。</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsAiForm.polishEnabled" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>AI 缩略名</label>
+                                <div class="v3a-settings-row-help">在 slug 输入框旁显示生成按钮，自动生成英文 slug（SEO）。</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsAiForm.slugEnabled" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>提示</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-muted">保存后如需立即看到“额外功能”里的 AI 按钮，请刷新页面（或使用页面顶部“保存全部”，会自动刷新）。</div>
+                              </div>
+                            </div>
+                          </div>
+                        </template>
                       </div>
                     </div>
                   </template>

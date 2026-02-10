@@ -13,6 +13,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) {
 }
 
 require_once __DIR__ . '/LocalStorage.php';
+require_once __DIR__ . '/Ai.php';
 
 /**
  * Vue3Admin
@@ -27,6 +28,9 @@ class Plugin implements PluginInterface
     private const ADMIN_DIR = 'Vue3Admin';
     private const VERSION = '1.2.4';
     private const DEPLOY_MARKER = '.v3a_deploy_version';
+
+    /** @var string */
+    private static $aiLang = '';
 
     private static function getDeployVersion(): string
     {
@@ -82,6 +86,12 @@ class Plugin implements PluginInterface
 
         // 评论邮件提醒（仅用于新评论提交）
         \Typecho\Plugin::factory('Widget_Feedback')->finishComment = __CLASS__ . '::notifyComment';
+
+        // AI：评论审核（新评论提交前）
+        \Typecho\Plugin::factory('Widget_Feedback')->comment = __CLASS__ . '::aiModerateComment';
+
+        // AI：前台 /{lang}/ 前缀翻译输出（替换 title/text）
+        \Typecho\Plugin::factory('Widget_Abstract_Contents')->filter = __CLASS__ . '::aiTranslateContentsFilter';
 
         return _t('Vue3Admin 已启用：后台路径已切换到 /%s/', self::ADMIN_DIR);
     }
@@ -1301,6 +1311,7 @@ HTML;
     {
         try {
             self::redirectLegacyAdminRequest();
+            self::initAiFrontendLangPrefix();
 
             static $runtimeInit = false;
             if (!$runtimeInit) {
@@ -1310,6 +1321,8 @@ HTML;
                 self::ensureAclConfigOption();
                 \Typecho\Plugin::factory('Widget_Register')->register = __CLASS__ . '::filterRegisterGroup';
                 \Typecho\Plugin::factory('Widget_Upload')->uploadHandle = __CLASS__ . '::uploadHandle';
+                \Typecho\Plugin::factory('Widget_Feedback')->comment = __CLASS__ . '::aiModerateComment';
+                \Typecho\Plugin::factory('Widget_Abstract_Contents')->filter = __CLASS__ . '::aiTranslateContentsFilter';
             }
 
             $target = rtrim(__TYPECHO_ROOT_DIR__, '/\\') . DIRECTORY_SEPARATOR . self::ADMIN_DIR;
@@ -1353,6 +1366,241 @@ HTML;
         } catch (\Throwable $e) {
             // 自愈失败不影响前台/后台正常使用
         }
+    }
+
+    /**
+     * 前台语言前缀：/en/... /zh/... /ja/...（仅在启用 AI 翻译后生效）。
+     * - 将语言写入 self::$aiLang
+     * - 剥离 URL 前缀以匹配 Typecho 路由
+     * - 修改 options->index 以便生成带语言前缀的链接（不影响静态资源地址）
+     */
+    private static function initAiFrontendLangPrefix(): void
+    {
+        self::$aiLang = '';
+
+        if (defined('__TYPECHO_ADMIN__')) {
+            return;
+        }
+
+        try {
+            $options = \Widget\Options::alloc();
+        } catch (\Throwable $e) {
+            return;
+        }
+
+        $cfg = [];
+        try {
+            $cfg = Ai::getConfig($options);
+        } catch (\Throwable $e) {
+            $cfg = [];
+        }
+
+        if (empty($cfg['enabled']) || empty($cfg['features']['translate'])) {
+            return;
+        }
+
+        $langs = (array) ($cfg['languages'] ?? []);
+        if (empty($langs)) {
+            return;
+        }
+
+        $requestUri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+        if (trim($requestUri) === '') {
+            return;
+        }
+
+        $path = (string) (parse_url($requestUri, PHP_URL_PATH) ?? '');
+        $query = (string) (parse_url($requestUri, PHP_URL_QUERY) ?? '');
+        if ($path === '') {
+            return;
+        }
+
+        // Handle site installed in subdirectory.
+        $rootPath = '';
+        try {
+            $rootUrl = (string) ($options->rootUrl ?? '');
+            $rootPath = (string) (parse_url($rootUrl, PHP_URL_PATH) ?? '');
+        } catch (\Throwable $e) {
+            $rootPath = '';
+        }
+        $rootPath = '/' . trim($rootPath, '/');
+        if ($rootPath === '/') {
+            $rootPath = '';
+        }
+
+        $relPath = $path;
+        if ($rootPath !== '' && 0 === strpos($path, $rootPath)) {
+            $relPath = substr($path, strlen($rootPath));
+            if ($relPath === '') {
+                $relPath = '/';
+            }
+        }
+
+        $rel = ltrim((string) $relPath, '/');
+        if ($rel === '') {
+            return;
+        }
+
+        $seg = strtok($rel, '/');
+        $seg = strtolower(trim((string) $seg));
+        if ($seg === '') {
+            return;
+        }
+
+        if (!in_array($seg, $langs, true)) {
+            return;
+        }
+
+        self::$aiLang = $seg;
+
+        // Strip language prefix for routing.
+        $rest = substr($rel, strlen($seg));
+        $rest = ltrim((string) $rest, '/');
+        $newRelPath = $rest !== '' ? '/' . $rest : '/';
+        $newPath = ($rootPath !== '' ? $rootPath : '') . $newRelPath;
+        if ($newPath === '') {
+            $newPath = '/';
+        }
+
+        $newRequestUri = $newPath . ($query !== '' ? '?' . $query : '');
+        $_SERVER['REQUEST_URI'] = $newRequestUri;
+
+        // Update Request singleton cache if it was already initialized.
+        try {
+            $req = \Typecho\Request::getInstance();
+            $ref = new \ReflectionObject($req);
+            foreach (['requestUri' => $newRequestUri, 'pathInfo' => null] as $k => $v) {
+                if (!$ref->hasProperty($k)) {
+                    continue;
+                }
+                $prop = $ref->getProperty($k);
+                $prop->setAccessible(true);
+                $prop->setValue($req, $v);
+            }
+        } catch (\Throwable $e) {
+        }
+
+        // Make generated URLs keep the language prefix.
+        try {
+            $index = (string) ($options->index ?? '');
+            $index = rtrim($index, '/');
+            $options->index = $index . '/' . self::$aiLang;
+        } catch (\Throwable $e) {
+        }
+    }
+
+    /**
+     * AI 评论审核：approve / waiting / spam
+     *
+     * @param array $comment
+     * @param mixed $content
+     * @return array
+     */
+    public static function aiModerateComment(array $comment, $content): array
+    {
+        try {
+            $options = \Widget\Options::alloc();
+        } catch (\Throwable $e) {
+            return $comment;
+        }
+
+        try {
+            $cfg = Ai::getRuntimeConfig($options);
+        } catch (\Throwable $e) {
+            return $comment;
+        }
+
+        if (empty($cfg['enabled']) || empty($cfg['features']['comment']) || empty($cfg['apiKey'])) {
+            return $comment;
+        }
+
+        $siteUrl = '';
+        try {
+            $siteUrl = (string) ($options->siteUrl ?? '');
+        } catch (\Throwable $e) {
+            $siteUrl = '';
+        }
+
+        try {
+            $res = Ai::moderateComment($cfg, $comment, $siteUrl);
+            $action = strtolower(trim((string) ($res['action'] ?? 'waiting')));
+            if ($action === 'approve') {
+                $comment['status'] = 'approved';
+            } elseif ($action === 'spam') {
+                $comment['status'] = 'spam';
+            } else {
+                $comment['status'] = 'waiting';
+            }
+        } catch (\Throwable $e) {
+            // AI 审核失败时不影响正常评论流程，沿用原状态。
+        }
+
+        return $comment;
+    }
+
+    /**
+     * 前台翻译输出：根据 self::$aiLang 从本地数据中读取翻译并替换 title/text。
+     *
+     * @param array $row
+     * @param mixed $contents
+     * @return array
+     */
+    public static function aiTranslateContentsFilter(array $row, $contents): array
+    {
+        if (defined('__TYPECHO_ADMIN__')) {
+            return $row;
+        }
+
+        $lang = (string) self::$aiLang;
+        if ($lang === '') {
+            return $row;
+        }
+
+        $cid = (int) ($row['cid'] ?? 0);
+        if ($cid <= 0) {
+            return $row;
+        }
+
+        $type = strtolower(trim((string) ($row['type'] ?? '')));
+        if ($type === '') {
+            return $row;
+        }
+
+        $ctype = '';
+        if ($type === 'page' || $type === 'page_draft') {
+            $ctype = 'page';
+        } elseif ($type === 'post' || $type === 'post_draft') {
+            $ctype = 'post';
+        } else {
+            return $row;
+        }
+
+        try {
+            $tr = Ai::getTranslation($cid, $ctype, $lang);
+        } catch (\Throwable $e) {
+            $tr = null;
+        }
+
+        if (!$tr || !is_array($tr)) {
+            return $row;
+        }
+
+        $title = trim((string) ($tr['title'] ?? ''));
+        $text = (string) ($tr['text'] ?? '');
+        $isMarkdown = 0 === strpos((string) ($row['text'] ?? ''), '<!--markdown-->');
+
+        if ($title !== '') {
+            $row['title'] = $title;
+        }
+        if (trim($text) !== '') {
+            if ($isMarkdown && 0 !== strpos($text, '<!--markdown-->')) {
+                $row['text'] = '<!--markdown-->' . $text;
+            } else {
+                $row['text'] = $text;
+            }
+        }
+
+        return $row;
     }
 
     private static function redirectLegacyAdminRequest(): void

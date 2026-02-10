@@ -5645,6 +5645,15 @@ html:not(.dark) .v3a-content {
   height: 28px;
 }
 
+/* AI Extras (preview) */
+.v3a-ai-preview {
+  padding: 14px 16px 16px;
+}
+
+.v3a-ai-preview .vditor-reset {
+  padding: 0;
+}
+
 .v3a-comments-footer .v3a-icon,
 .v3a-comments-footer .v3a-icon svg {
   width: 16px;

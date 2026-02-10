@@ -9313,6 +9313,14 @@ try {
         } catch (\Throwable $e) {
         }
 
+        $ai = [];
+        try {
+            if (class_exists('\\TypechoPlugin\\Vue3Admin\\Ai')) {
+                $ai = \TypechoPlugin\Vue3Admin\Ai::getConfig($options);
+            }
+        } catch (\Throwable $e) {
+        }
+
         v3a_exit_json(0, [
             'isAdmin' => $isAdmin,
             'profile' => [
@@ -9396,6 +9404,7 @@ try {
                 'lastError' => v3a_json_assoc($options->v3a_mail_last_error ?? ''),
                 'lastSuccess' => v3a_json_assoc($options->v3a_mail_last_success ?? ''),
             ],
+            'ai' => $ai,
             'permalink' => [
                 'rewrite' => (int) ($options->rewrite ?? 0),
                 'rewriteLocked' => defined('__TYPECHO_REWRITE__'),
@@ -10082,6 +10091,306 @@ try {
                     : '',
             ],
         ]);
+    }
+
+    if ($do === 'settings.ai.save') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+
+        if (!$user->pass('administrator', true)) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Ai')) {
+            v3a_exit_json(500, null, 'AI module not loaded');
+        }
+
+        $payload = v3a_payload();
+        try {
+            $res = \TypechoPlugin\Vue3Admin\Ai::saveConfig($db, is_array($payload) ? $payload : []);
+            v3a_exit_json(0, $res);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+    }
+
+    if ($do === 'ai.translate.get') {
+        v3a_require_role($user, 'contributor');
+
+        if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Ai')) {
+            v3a_exit_json(500, null, 'AI module not loaded');
+        }
+
+        $cid = (int) $request->get('cid', 0);
+        $lang = v3a_string($request->get('lang', ''), '');
+        $ctype = strtolower(trim(v3a_string($request->get('ctype', 'post'), 'post')));
+        $ctype = $ctype === 'page' ? 'page' : 'post';
+
+        if ($cid <= 0 || $lang === '') {
+            v3a_exit_json(400, null, 'Missing cid/lang');
+        }
+
+        $translation = \TypechoPlugin\Vue3Admin\Ai::getTranslation($cid, $ctype, $lang);
+        v3a_exit_json(0, ['translation' => $translation]);
+    }
+
+    if ($do === 'ai.translate.generate') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
+
+        if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Ai')) {
+            v3a_exit_json(500, null, 'AI module not loaded');
+        }
+
+        $payload = v3a_payload();
+        $cid = v3a_int($payload['cid'] ?? 0, 0);
+        $lang = v3a_string($payload['lang'] ?? '', '');
+        $ctype = strtolower(trim(v3a_string($payload['ctype'] ?? 'post', 'post')));
+        $ctype = $ctype === 'page' ? 'page' : 'post';
+
+        if ($cid <= 0 || $lang === '') {
+            v3a_exit_json(400, null, 'Missing cid/lang');
+        }
+
+        $cfg = \TypechoPlugin\Vue3Admin\Ai::getRuntimeConfig($options);
+        if (empty($cfg['enabled']) || empty($cfg['features']['translate'])) {
+            v3a_exit_json(400, null, 'AI 翻译未启用');
+        }
+
+        $allowedLangs = (array) ($cfg['languages'] ?? []);
+        if (!empty($allowedLangs) && !in_array(strtolower(trim($lang)), $allowedLangs, true)) {
+            v3a_exit_json(400, null, '不支持的语言');
+        }
+
+        $acl = v3a_acl_for_user($db, $user);
+
+        if ($ctype === 'post') {
+            if (empty($acl['posts']['manage'])) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+        } else {
+            if (empty($acl['pages']['manage'])) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+        }
+
+        $select = $db->select('cid', 'title', 'text', 'type', 'authorId')
+            ->from('table.contents')
+            ->where('cid = ?', $cid)
+            ->where('parent = ?', 0);
+
+        if ($ctype === 'post') {
+            $select->where('type = ? OR type = ?', 'post', 'post_draft');
+            $scopeAll = !empty($acl['posts']['scopeAll']) && $user->pass('editor', true);
+            if (!$scopeAll) {
+                $select->where('authorId = ?', (int) ($user->uid ?? 0));
+            }
+        } else {
+            $select->where('type = ? OR type = ?', 'page', 'page_draft');
+            if (!$user->pass('editor', true)) {
+                $select->where('authorId = ?', (int) ($user->uid ?? 0));
+            }
+        }
+
+        $row = $db->fetchRow($select->limit(1));
+        if (!$row) {
+            v3a_exit_json(404, null, 'Content not found');
+        }
+
+        $title = (string) ($row['title'] ?? '');
+        $rawText = (string) ($row['text'] ?? '');
+        $markdown = false;
+        if (strpos($rawText, '<!--markdown-->') === 0) {
+            $markdown = true;
+            $rawText = substr($rawText, 15);
+        }
+
+        try {
+            $res = \TypechoPlugin\Vue3Admin\Ai::translate($cfg, $title, $rawText, $lang, $markdown);
+            $saved = \TypechoPlugin\Vue3Admin\Ai::saveTranslation(
+                $cid,
+                $ctype,
+                $lang,
+                (string) ($res['title'] ?? ''),
+                (string) ($res['text'] ?? ''),
+                (string) ($res['model'] ?? '')
+            );
+            v3a_exit_json(0, ['translation' => $saved]);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+    }
+
+    if ($do === 'ai.summary.get') {
+        v3a_require_role($user, 'contributor');
+
+        if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Ai')) {
+            v3a_exit_json(500, null, 'AI module not loaded');
+        }
+
+        $cid = (int) $request->get('cid', 0);
+        $lang = v3a_string($request->get('lang', ''), '');
+        $ctype = strtolower(trim(v3a_string($request->get('ctype', 'post'), 'post')));
+        $ctype = $ctype === 'page' ? 'page' : 'post';
+
+        if ($cid <= 0 || $lang === '') {
+            v3a_exit_json(400, null, 'Missing cid/lang');
+        }
+
+        $summary = \TypechoPlugin\Vue3Admin\Ai::getSummary($cid, $ctype, $lang);
+        v3a_exit_json(0, ['summary' => $summary]);
+    }
+
+    if ($do === 'ai.summary.generate') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
+
+        if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Ai')) {
+            v3a_exit_json(500, null, 'AI module not loaded');
+        }
+
+        $payload = v3a_payload();
+        $cid = v3a_int($payload['cid'] ?? 0, 0);
+        $lang = v3a_string($payload['lang'] ?? '', '');
+        $ctype = strtolower(trim(v3a_string($payload['ctype'] ?? 'post', 'post')));
+        $ctype = $ctype === 'page' ? 'page' : 'post';
+
+        if ($cid <= 0 || $lang === '') {
+            v3a_exit_json(400, null, 'Missing cid/lang');
+        }
+
+        $cfg = \TypechoPlugin\Vue3Admin\Ai::getRuntimeConfig($options);
+        if (empty($cfg['enabled']) || empty($cfg['features']['summary'])) {
+            v3a_exit_json(400, null, 'AI 摘要未启用');
+        }
+
+        $allowedLangs = (array) ($cfg['languages'] ?? []);
+        if (!empty($allowedLangs) && !in_array(strtolower(trim($lang)), $allowedLangs, true)) {
+            v3a_exit_json(400, null, '不支持的语言');
+        }
+
+        $acl = v3a_acl_for_user($db, $user);
+
+        if ($ctype === 'post') {
+            if (empty($acl['posts']['manage'])) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+        } else {
+            if (empty($acl['pages']['manage'])) {
+                v3a_exit_json(403, null, 'Forbidden');
+            }
+        }
+
+        $select = $db->select('cid', 'title', 'text', 'type', 'authorId')
+            ->from('table.contents')
+            ->where('cid = ?', $cid)
+            ->where('parent = ?', 0);
+
+        if ($ctype === 'post') {
+            $select->where('type = ? OR type = ?', 'post', 'post_draft');
+            $scopeAll = !empty($acl['posts']['scopeAll']) && $user->pass('editor', true);
+            if (!$scopeAll) {
+                $select->where('authorId = ?', (int) ($user->uid ?? 0));
+            }
+        } else {
+            $select->where('type = ? OR type = ?', 'page', 'page_draft');
+            if (!$user->pass('editor', true)) {
+                $select->where('authorId = ?', (int) ($user->uid ?? 0));
+            }
+        }
+
+        $row = $db->fetchRow($select->limit(1));
+        if (!$row) {
+            v3a_exit_json(404, null, 'Content not found');
+        }
+
+        $title = (string) ($row['title'] ?? '');
+        $rawText = (string) ($row['text'] ?? '');
+        if (strpos($rawText, '<!--markdown-->') === 0) {
+            $rawText = substr($rawText, 15);
+        }
+
+        try {
+            $res = \TypechoPlugin\Vue3Admin\Ai::summarize($cfg, $title, $rawText, $lang);
+            $saved = \TypechoPlugin\Vue3Admin\Ai::saveSummary(
+                $cid,
+                $ctype,
+                $lang,
+                (string) ($res['summary'] ?? ''),
+                (string) ($res['model'] ?? '')
+            );
+            v3a_exit_json(0, ['summary' => $saved]);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+    }
+
+    if ($do === 'ai.polish') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
+
+        if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Ai')) {
+            v3a_exit_json(500, null, 'AI module not loaded');
+        }
+
+        $cfg = \TypechoPlugin\Vue3Admin\Ai::getRuntimeConfig($options);
+        if (empty($cfg['enabled']) || empty($cfg['features']['polish'])) {
+            v3a_exit_json(400, null, 'AI 润色未启用');
+        }
+
+        $payload = v3a_payload();
+        $text = v3a_string($payload['text'] ?? '', '');
+        if (trim($text) === '') {
+            v3a_exit_json(400, null, 'Missing text');
+        }
+
+        try {
+            $res = \TypechoPlugin\Vue3Admin\Ai::polish($cfg, $text);
+            v3a_exit_json(0, ['text' => (string) ($res['text'] ?? ''), 'model' => (string) ($res['model'] ?? '')]);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+    }
+
+    if ($do === 'ai.slug') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'contributor');
+
+        if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Ai')) {
+            v3a_exit_json(500, null, 'AI module not loaded');
+        }
+
+        $cfg = \TypechoPlugin\Vue3Admin\Ai::getRuntimeConfig($options);
+        if (empty($cfg['enabled']) || empty($cfg['features']['slug'])) {
+            v3a_exit_json(400, null, 'AI 缩略名未启用');
+        }
+
+        $payload = v3a_payload();
+        $title = v3a_string($payload['title'] ?? '', '');
+        if (trim($title) === '') {
+            v3a_exit_json(400, null, 'Missing title');
+        }
+
+        try {
+            $res = \TypechoPlugin\Vue3Admin\Ai::makeSlug($cfg, $title);
+            v3a_exit_json(0, ['slug' => (string) ($res['slug'] ?? ''), 'model' => (string) ($res['model'] ?? '')]);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
     }
 
     if ($do === 'themes.list') {

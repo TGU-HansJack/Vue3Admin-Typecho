@@ -2,6 +2,12 @@
 
 require_once __DIR__ . '/common.php';
 
+// Optional: AI module (for Extras menu feature flags)
+try {
+    require_once __TYPECHO_ROOT_DIR__ . '/usr/plugins/Vue3Admin/Ai.php';
+} catch (\Throwable $e) {
+}
+
 $pluginOptions = null;
 try {
     $pluginOptions = $options->plugin('Vue3Admin');
@@ -158,6 +164,15 @@ try {
     $shouTuTaEnabled = isset($activated['ShouTuTa']);
 } catch (\Throwable $e) {
 }
+
+$aiConfig = [];
+try {
+    if (class_exists('\\TypechoPlugin\\Vue3Admin\\Ai')) {
+        $aiConfig = \TypechoPlugin\Vue3Admin\Ai::getConfig($options);
+    }
+} catch (\Throwable $e) {
+    $aiConfig = [];
+}
 ?>
 <!doctype html>
 <html lang="zh-CN" style="--color-primary: <?php echo htmlspecialchars($primaryColor, ENT_QUOTES); ?>; --color-primary-shallow: <?php echo htmlspecialchars($primaryShallow, ENT_QUOTES); ?>; --color-primary-deep: <?php echo htmlspecialchars($primaryDeep, ENT_QUOTES); ?>;">
@@ -191,6 +206,7 @@ try {
             acl: <?php echo json_encode($acl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
             extras: {
                 panels: <?php echo json_encode($extraPanels, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
+                ai: <?php echo json_encode($aiConfig, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
                 shouTuTaEnabled: <?php echo $shouTuTaEnabled ? 'true' : 'false'; ?>
             },
             user: {
