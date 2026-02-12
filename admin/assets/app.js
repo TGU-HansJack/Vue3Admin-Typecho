@@ -16676,14 +16676,14 @@
                 </div>
 
                 <div class="v3a-card">
-                  <div class="hd">
-                    <div class="title">Vue3Admin</div>
-                    <div style="display:flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                      <span v-if="aboutVersion" class="v3a-pill info">v{{ aboutVersion }}</span>
-                      <span v-if="aboutBuildTime" class="v3a-pill">Build {{ aboutBuildTime }}</span>
-                    </div>
-                  </div>
                   <div class="bd">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                      <div class="v3a-muted" style="font-weight: 500;">Vue3Admin</div>
+                      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+                        <span v-if="aboutVersion" class="v3a-pill info">v{{ aboutVersion }}</span>
+                        <span v-if="aboutBuildTime" class="v3a-pill">Build {{ aboutBuildTime }}</span>
+                      </div>
+                    </div>
                     <div style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">基于现代化风格的 Typecho 后台面板插件</div>
                     <div class="v3a-muted" style="line-height: 1.7;">
                       启用后接管 Typecho 后台路径，并自动部署资源到站点根目录的
@@ -16737,11 +16737,11 @@
 
                 <div class="v3a-grid two" style="margin-top: 16px;">
                   <div class="v3a-card">
-                    <div class="hd">
-                      <div class="title">更新日志</div>
-                      <div class="v3a-muted" style="font-size: 12px;">简要记录</div>
-                    </div>
                     <div class="bd">
+                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <div class="v3a-muted" style="font-weight: 500;">更新日志</div>
+                        <div class="v3a-muted" style="font-size: 12px;">简要记录</div>
+                      </div>
                       <div v-for="v in aboutChangelog" :key="v.version" style="margin-bottom: 14px;">
                         <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                           <span class="v3a-pill info">v{{ v.version }}</span>
@@ -16759,11 +16759,11 @@
                   </div>
 
                   <div class="v3a-card">
-                    <div class="hd">
-                      <div class="title">赞助</div>
-                      <div class="v3a-muted" style="font-size: 12px;">感谢支持</div>
-                    </div>
                     <div class="bd">
+                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <div class="v3a-muted" style="font-weight: 500;">赞助</div>
+                        <div class="v3a-muted" style="font-size: 12px;">感谢支持</div>
+                      </div>
                       <div class="v3a-muted" style="margin-bottom: 12px; line-height: 1.7;">如果这个项目对你有帮助，欢迎赞助支持持续更新与维护。</div>
                       <div style="display:flex; justify-content: center;">
                         <img :src="aboutSponsorUrl" alt="赞助二维码" style="width: 240px; max-width: 100%; border-radius: 10px; border: 1px solid var(--sidebar-border);" loading="lazy" />
@@ -16772,11 +16772,11 @@
                   </div>
 
                   <div class="v3a-card">
-                    <div class="hd">
-                      <div class="title">版权与声明</div>
-                      <div class="v3a-muted" style="font-size: 12px;">Copyright</div>
-                    </div>
                     <div class="bd">
+                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <div class="v3a-muted" style="font-weight: 500;">版权与声明</div>
+                        <div class="v3a-muted" style="font-size: 12px;">Copyright</div>
+                      </div>
                       <div style="line-height: 1.7;">
                         <div>© HansJack. All rights reserved.</div>
                         <div class="v3a-muted" style="margin-top: 8px;">源码/资源的许可协议请以 GitHub 仓库中的 LICENSE（如有）为准。</div>
@@ -16785,11 +16785,11 @@
                   </div>
 
                   <div class="v3a-card">
-                    <div class="hd">
-                      <div class="title">致谢</div>
-                      <div class="v3a-muted" style="font-size: 12px;">Thanks</div>
-                    </div>
                     <div class="bd">
+                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <div class="v3a-muted" style="font-weight: 500;">致谢</div>
+                        <div class="v3a-muted" style="font-size: 12px;">Thanks</div>
+                      </div>
                       <div class="v3a-muted" style="margin-bottom: 10px;">本插件在实现过程中参考/使用了以下项目：</div>
                       <ul style="margin: 0 0 0 18px; padding: 0; line-height: 1.8;">
                         <li v-for="t in aboutThanks" :key="t.name">
