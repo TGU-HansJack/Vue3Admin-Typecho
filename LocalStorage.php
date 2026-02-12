@@ -273,23 +273,6 @@ final class LocalStorage
         }
 
         $created = $created > 0 ? $created : time();
-        $since = $created - 10;
-
-        try {
-            $stmt = $pdo->prepare(
-                'SELECT COUNT(id) AS num FROM v3a_visit_log WHERE ip = :ip AND uri = :uri AND created >= :since'
-            );
-            $stmt->execute([
-                ':ip' => $ip,
-                ':uri' => $uri,
-                ':since' => $since,
-            ]);
-            $dup = (int) ($stmt->fetchColumn() ?: 0);
-            if ($dup > 0) {
-                return false;
-            }
-        } catch (\Throwable $e) {
-        }
 
         try {
             $stmt = $pdo->prepare(

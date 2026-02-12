@@ -5425,7 +5425,7 @@ try {
 
             if ($pdo) {
                 $stmt = $pdo->prepare(
-                    "SELECT strftime('%Y-%m-%d', created, 'unixepoch') AS d,
+                    "SELECT strftime('%Y-%m-%d', created, 'unixepoch', 'localtime') AS d,
                             COUNT(id) AS pv,
                             COUNT(DISTINCT ip) AS uv
                      FROM v3a_visit_log
