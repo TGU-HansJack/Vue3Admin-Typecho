@@ -2017,7 +2017,6 @@ HTML;
     {
         try {
             self::redirectLegacyAdminRequest();
-            self::initAiFrontendLangPrefix();
 
             static $runtimeInit = false;
             if (!$runtimeInit) {
