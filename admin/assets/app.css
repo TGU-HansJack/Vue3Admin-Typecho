@@ -1143,6 +1143,25 @@ html:not(.dark) .v3a-content {
   }
 }
 
+.v3a-about-thanks-list {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.8;
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 10px 20px;
+}
+
+.v3a-about-thanks-item {
+  margin: 0;
+}
+
+@media (min-width: 64rem) {
+  .v3a-about-thanks-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .v3a-write-shell {
   position: relative;
 }

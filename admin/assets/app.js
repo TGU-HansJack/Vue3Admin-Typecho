@@ -17212,27 +17212,7 @@
                 </div>
 
                 <div class="v3a-grid two" style="margin-top: 16px;">
-                  <div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                      <div class="v3a-muted" style="font-weight: 500;">更新日志</div>
-                      <div class="v3a-muted" style="font-size: 12px;">简要记录</div>
-                    </div>
-                    <div v-for="v in aboutChangelog" :key="v.version" style="margin-bottom: 14px;">
-                      <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <span class="v3a-pill info">v{{ v.version }}</span>
-                        <span v-if="v.date" class="v3a-muted" style="font-size: 12px;">{{ v.date }}</span>
-                      </div>
-                      <ul style="margin: 10px 0 0 18px; padding: 0; line-height: 1.7;">
-                        <li v-for="(it, idx) in v.items" :key="idx">{{ it }}</li>
-                      </ul>
-                    </div>
-                    <div class="v3a-muted" style="line-height: 1.7;">
-                      更完整的提交记录可在 <a :href="aboutRepoUrl + '/releases'" target="_blank" rel="noreferrer">GitHub Release</a> /
-                      <a :href="aboutRepoUrl + '/commits/main'" target="_blank" rel="noreferrer">Commit History</a> 中查看。
-                    </div>
-                  </div>
-
-                  <div>
+                  <div style="grid-column: 1 / -1;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                       <div class="v3a-muted" style="font-weight: 500;">赞助</div>
                       <div class="v3a-muted" style="font-size: 12px;">感谢支持</div>
@@ -17240,14 +17220,14 @@
                     <div class="v3a-card">
                       <div class="bd">
                         <div class="v3a-muted" style="margin-bottom: 12px; line-height: 1.7;">如果这个项目对你有帮助，欢迎赞助支持持续更新与维护。</div>
-                        <div style="display:flex; justify-content: center;">
-                          <img :src="aboutSponsorUrl" alt="赞助二维码" style="width: 240px; max-width: 100%; border-radius: 10px; border: 1px solid var(--sidebar-border);" loading="lazy" />
+                        <div>
+                          <img :src="aboutSponsorUrl" alt="赞助二维码" style="width: 100%; max-width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid var(--sidebar-border);" loading="lazy" />
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div>
+                  <div style="grid-column: 1 / -1;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                       <div class="v3a-muted" style="font-weight: 500;">致谢</div>
                       <div class="v3a-muted" style="font-size: 12px;">Thanks</div>
@@ -17255,8 +17235,8 @@
                     <div class="v3a-card">
                       <div class="bd">
                         <div class="v3a-muted" style="margin-bottom: 10px; line-height: 1.7;">基于 GitHub Commit 记录与当前代码调用点整理（持续补充）：</div>
-                        <ul style="margin: 0 0 0 18px; padding: 0; line-height: 1.8;">
-                          <li v-for="t in aboutThanks" :key="t.name" style="margin-bottom: 10px;">
+                        <ul class="v3a-about-thanks-list">
+                          <li v-for="t in aboutThanks" :key="t.name" class="v3a-about-thanks-item">
                             <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                               <a v-if="t.url" :href="t.url" target="_blank" rel="noreferrer">{{ t.name }}</a>
                               <span v-else>{{ t.name }}</span>
