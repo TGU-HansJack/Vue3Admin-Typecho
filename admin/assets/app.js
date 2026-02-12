@@ -14358,7 +14358,7 @@
 
             <template v-else-if="routePath === '/drafts'">
               <div class="v3a-container v3a-container-drafts">
-                <div class="v3a-pagehead v3a-pagehead-sticky">
+                <div class="v3a-pagehead">
                   <div class="v3a-head-left">
                     <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
                       <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
