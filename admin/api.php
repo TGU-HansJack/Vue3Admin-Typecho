@@ -2609,7 +2609,7 @@ class V3A_CommentsEditProxy extends \Widget\Comments\Edit
 
         if ($comment && $this->commentIsWriteable()) {
             /** 增加评论编辑插件接口 */
-            self::pluginHandle()->call('mark', $comment, $this, $status);
+            \Widget\Comments\Edit::pluginHandle()->call('mark', $comment, $this, $status);
 
             /** 不必更新的情况 */
             if ($status == $comment['status']) {
@@ -2672,7 +2672,7 @@ class V3A_CommentsEditProxy extends \Widget\Comments\Edit
             );
 
             if ($comment && $this->commentIsWriteable()) {
-                self::pluginHandle()->call('delete', $comment, $this);
+                \Widget\Comments\Edit::pluginHandle()->call('delete', $comment, $this);
 
                 /** 删除评论 */
                 $this->db->query($this->db->delete('table.comments')->where('coid = ?', (int) $coid));
@@ -2686,7 +2686,7 @@ class V3A_CommentsEditProxy extends \Widget\Comments\Edit
                     );
                 }
 
-                self::pluginHandle()->call('finishDelete', $comment, $this);
+                \Widget\Comments\Edit::pluginHandle()->call('finishDelete', $comment, $this);
 
                 $deleteRows++;
             }
@@ -2718,7 +2718,7 @@ class V3A_CommentsEditProxy extends \Widget\Comments\Edit
             }
 
             /** 评论插件接口 */
-            $comment = self::pluginHandle()->filter('edit', $comment, $this);
+            $comment = \Widget\Comments\Edit::pluginHandle()->filter('edit', $comment, $this);
 
             /** 更新评论 */
             $this->update($comment, $this->db->sql()->where('coid = ?', $coid));
@@ -2732,7 +2732,7 @@ class V3A_CommentsEditProxy extends \Widget\Comments\Edit
             }
 
             /** 评论插件接口 */
-            self::pluginHandle()->call('finishEdit', $this);
+            \Widget\Comments\Edit::pluginHandle()->call('finishEdit', $this);
 
             return is_array($updated) ? $updated : [];
         }
@@ -2769,7 +2769,7 @@ class V3A_CommentsEditProxy extends \Widget\Comments\Edit
             ];
 
             /** 评论插件接口 */
-            self::pluginHandle()->call('comment', $comment, $this);
+            \Widget\Comments\Edit::pluginHandle()->call('comment', $comment, $this);
 
             /** 回复评论 */
             $commentId = $this->insert($comment);
@@ -2783,7 +2783,7 @@ class V3A_CommentsEditProxy extends \Widget\Comments\Edit
             }
 
             /** 评论完成接口 */
-            self::pluginHandle()->call('finishComment', $this);
+            \Widget\Comments\Edit::pluginHandle()->call('finishComment', $this);
 
             return is_array($inserted) ? $inserted : [];
         }

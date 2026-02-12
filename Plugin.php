@@ -86,14 +86,7 @@ class Plugin implements PluginInterface
 
         // 评论邮件提醒（新评论提交 & 后台回复评论）
         \Typecho\Plugin::factory('Widget_Feedback')->finishComment = __CLASS__ . '::notifyComment';
-        try {
-            if (class_exists('\\Widget\\Comments\\Edit')) {
-                \Widget\Comments\Edit::pluginHandle()->finishComment = __CLASS__ . '::notifyComment';
-                // 评论审核通过（后台标记）后发送通知（用于“需要审核”的场景）
-                \Widget\Comments\Edit::pluginHandle()->mark = __CLASS__ . '::notifyCommentMark';
-            }
-        } catch (\Throwable $e) {
-        }
+        self::ensureCommentMailHooks();
 
         // AI：评论审核（新评论提交前）
         \Typecho\Plugin::factory('Widget_Feedback')->comment = __CLASS__ . '::aiModerateComment';
@@ -1158,6 +1151,20 @@ class Plugin implements PluginInterface
                 return;
             }
 
+            // Only send when status actually changes to approved.
+            try {
+                $prev = '';
+                if (is_array($comment)) {
+                    $prev = (string) ($comment['status'] ?? '');
+                } elseif (is_object($comment)) {
+                    $prev = (string) ($comment->status ?? '');
+                }
+                if (strtolower(trim($prev)) === 'approved') {
+                    return;
+                }
+            } catch (\Throwable $e) {
+            }
+
             // Ensure status is visible to notifyComment.
             if (is_object($edit)) {
                 try {
@@ -1964,6 +1971,7 @@ HTML;
                 self::ensureLocalStorage();
                 self::ensureDefaultRegisterGroupOption();
                 self::ensureAclConfigOption();
+                self::ensureCommentMailHooks();
                 \Typecho\Plugin::factory('Widget_Register')->register = __CLASS__ . '::filterRegisterGroup';
                 \Typecho\Plugin::factory('Widget_Upload')->uploadHandle = __CLASS__ . '::uploadHandle';
                 \Typecho\Plugin::factory('Widget_Feedback')->comment = __CLASS__ . '::aiModerateComment';
@@ -2333,6 +2341,64 @@ HTML;
     {
         try {
             LocalStorage::pdo();
+        } catch (\Throwable $e) {
+        }
+    }
+
+    private static function ensureCommentMailHooks(): void
+    {
+        $callbackFinish = __CLASS__ . '::notifyComment';
+        $callbackMark = __CLASS__ . '::notifyCommentMark';
+
+        try {
+            $plugins = \Typecho\Plugin::export();
+        } catch (\Throwable $e) {
+            $plugins = [];
+        }
+
+        $handles = [];
+        try {
+            $handles = (array) ($plugins['handles'] ?? []);
+        } catch (\Throwable $e) {
+            $handles = [];
+        }
+
+        $handleName = \Typecho\Common::nativeClassName('Widget\\Comments\\Edit');
+        $keyFinish = $handleName . ':finishComment';
+        $keyMark = $handleName . ':mark';
+
+        $hasCallback = static function (array $callbacks, string $needle): bool {
+            foreach ($callbacks as $cb) {
+                if ($cb === $needle) {
+                    return true;
+                }
+                if (is_string($cb) && ltrim($cb, '\\') === ltrim($needle, '\\')) {
+                    return true;
+                }
+                if (is_array($cb) && count($cb) === 2) {
+                    $a0 = is_string($cb[0] ?? null) ? (string) $cb[0] : '';
+                    $a1 = is_string($cb[1] ?? null) ? (string) $cb[1] : '';
+                    if ($a0 !== '' && $a1 !== '' && (ltrim($a0, '\\') . '::' . $a1) === ltrim($needle, '\\')) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+
+        try {
+            $existing = isset($handles[$keyFinish]) && is_array($handles[$keyFinish]) ? $handles[$keyFinish] : [];
+            if (!$hasCallback($existing, $callbackFinish)) {
+                \Widget\Comments\Edit::pluginHandle()->finishComment = $callbackFinish;
+            }
+        } catch (\Throwable $e) {
+        }
+
+        try {
+            $existing = isset($handles[$keyMark]) && is_array($handles[$keyMark]) ? $handles[$keyMark] : [];
+            if (!$hasCallback($existing, $callbackMark)) {
+                \Widget\Comments\Edit::pluginHandle()->mark = $callbackMark;
+            }
         } catch (\Throwable $e) {
         }
     }
