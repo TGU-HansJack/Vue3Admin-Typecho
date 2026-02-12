@@ -5819,15 +5819,50 @@
 
       const aiTranslateLoading = ref(false);
       const aiTranslateGenerating = ref(false);
+      const aiTranslateSaving = ref(false);
       const aiTranslateError = ref("");
       const aiTranslateItem = ref(null);
       const aiTranslatePreviewEl = ref(null);
+      const aiTranslateForm = reactive({
+        title: "",
+        text: "",
+      });
 
       const aiSummaryLoading = ref(false);
       const aiSummaryGenerating = ref(false);
+      const aiSummarySaving = ref(false);
       const aiSummaryError = ref("");
       const aiSummaryItem = ref(null);
       const aiSummaryPreviewEl = ref(null);
+      const aiSummaryForm = reactive({
+        summary: "",
+      });
+
+      const aiTranslateDirty = computed(() => {
+        const item = aiTranslateItem.value && typeof aiTranslateItem.value === "object" ? aiTranslateItem.value : null;
+        if (!item) return false;
+        return (
+          String(aiTranslateForm.title || "") !== String(item.title || "") ||
+          String(aiTranslateForm.text || "") !== String(item.text || "")
+        );
+      });
+
+      const aiSummaryDirty = computed(() => {
+        const item = aiSummaryItem.value && typeof aiSummaryItem.value === "object" ? aiSummaryItem.value : null;
+        if (!item) return false;
+        return String(aiSummaryForm.summary || "") !== String(item.summary || "");
+      });
+
+      function syncAiTranslateFormFromItem() {
+        const item = aiTranslateItem.value && typeof aiTranslateItem.value === "object" ? aiTranslateItem.value : null;
+        aiTranslateForm.title = item ? String(item.title || "") : "";
+        aiTranslateForm.text = item ? String(item.text || "") : "";
+      }
+
+      function syncAiSummaryFormFromItem() {
+        const item = aiSummaryItem.value && typeof aiSummaryItem.value === "object" ? aiSummaryItem.value : null;
+        aiSummaryForm.summary = item ? String(item.summary || "") : "";
+      }
 
       async function v3aPreviewMarkdown(hostEl, markdown) {
         const host = hostEl && typeof hostEl === "object" ? hostEl : null;
@@ -5857,8 +5892,10 @@
       function resetAiExtrasResults() {
         aiTranslateError.value = "";
         aiTranslateItem.value = null;
+        syncAiTranslateFormFromItem();
         aiSummaryError.value = "";
         aiSummaryItem.value = null;
+        syncAiSummaryFormFromItem();
         if (aiTranslatePreviewEl.value) aiTranslatePreviewEl.value.innerHTML = "";
         if (aiSummaryPreviewEl.value) aiSummaryPreviewEl.value.innerHTML = "";
       }
@@ -5905,19 +5942,21 @@
         }
       }
 
-      function aiExtrasApplyFilters() {
+      async function aiExtrasApplyFilters() {
+        await flushAiExtrasDraftOnSwitch(routePath.value);
         aiExtrasPagination.page = 1;
         aiExtrasPageJump.value = 1;
         aiExtrasSelectedCid.value = 0;
         resetAiExtrasResults();
-        fetchAiExtrasContents();
+        await fetchAiExtrasContents();
       }
 
-      function aiExtrasGoPage(p) {
+      async function aiExtrasGoPage(p) {
+        await flushAiExtrasDraftOnSwitch(routePath.value);
         const next = Math.max(1, Math.min(aiExtrasPagination.pageCount || 1, p));
         if (next === aiExtrasPagination.page) return;
         aiExtrasPagination.page = next;
-        fetchAiExtrasContents();
+        await fetchAiExtrasContents();
       }
 
       function openAiExtrasEditor() {
@@ -5933,7 +5972,7 @@
       async function renderAiTranslatePreview() {
         const host = aiTranslatePreviewEl.value;
         const t = aiTranslateItem.value && typeof aiTranslateItem.value === "object" ? aiTranslateItem.value : null;
-        const text = t ? String(t.text || "") : "";
+        const text = t ? String(aiTranslateForm.text || "") : "";
         if (!host) return;
         await v3aPreviewMarkdown(host, text);
       }
@@ -5941,14 +5980,19 @@
       async function renderAiSummaryPreview() {
         const host = aiSummaryPreviewEl.value;
         const t = aiSummaryItem.value && typeof aiSummaryItem.value === "object" ? aiSummaryItem.value : null;
-        const text = t ? String(t.summary || "") : "";
+        const text = t ? String(aiSummaryForm.summary || "") : "";
         if (!host) return;
         await v3aPreviewMarkdown(host, text);
+      }
+
+      function aiExtrasNormalizeCtype(raw) {
+        return String(raw || "post") === "page" ? "page" : "post";
       }
 
       async function loadAiTranslation() {
         aiTranslateError.value = "";
         aiTranslateItem.value = null;
+        syncAiTranslateFormFromItem();
         if (aiTranslatePreviewEl.value) aiTranslatePreviewEl.value.innerHTML = "";
 
         const cid = Number(aiExtrasSelectedCid.value || 0);
@@ -5967,6 +6011,7 @@
         try {
           const data = await apiGet("ai.translate.get", { cid, lang, ctype });
           aiTranslateItem.value = data && typeof data === "object" ? data.translation || null : null;
+          syncAiTranslateFormFromItem();
           await nextTick();
           await renderAiTranslatePreview();
         } catch (e) {
@@ -5994,6 +6039,7 @@
         try {
           const data = await apiPost("ai.translate.generate", { cid, lang, ctype });
           aiTranslateItem.value = data && typeof data === "object" ? data.translation || null : null;
+          syncAiTranslateFormFromItem();
           await nextTick();
           await renderAiTranslatePreview();
           toastSuccess("已生成翻译");
@@ -6007,6 +6053,7 @@
       async function loadAiSummary() {
         aiSummaryError.value = "";
         aiSummaryItem.value = null;
+        syncAiSummaryFormFromItem();
         if (aiSummaryPreviewEl.value) aiSummaryPreviewEl.value.innerHTML = "";
 
         const cid = Number(aiExtrasSelectedCid.value || 0);
@@ -6025,6 +6072,7 @@
         try {
           const data = await apiGet("ai.summary.get", { cid, lang, ctype });
           aiSummaryItem.value = data && typeof data === "object" ? data.summary || null : null;
+          syncAiSummaryFormFromItem();
           await nextTick();
           await renderAiSummaryPreview();
         } catch (e) {
@@ -6052,6 +6100,7 @@
         try {
           const data = await apiPost("ai.summary.generate", { cid, lang, ctype });
           aiSummaryItem.value = data && typeof data === "object" ? data.summary || null : null;
+          syncAiSummaryFormFromItem();
           await nextTick();
           await renderAiSummaryPreview();
           toastSuccess("已生成摘要");
@@ -6062,40 +6111,170 @@
         }
       }
 
-      function selectAiExtrasContent(cid) {
+      async function saveAiTranslation(silent, forceCtype) {
+        aiTranslateError.value = "";
+        const cid = Number(aiExtrasSelectedCid.value || 0);
+        const lang = String(aiExtrasLang.value || "").trim();
+        const ctype = aiExtrasNormalizeCtype(forceCtype !== undefined ? forceCtype : aiExtrasContentType.value);
+        if (!cid || !lang) {
+          return false;
+        }
+        if (!aiTranslateItem.value) {
+          return false;
+        }
+        if (!aiTranslateDirty.value) {
+          return true;
+        }
+
+        aiTranslateSaving.value = true;
+        try {
+          const model = aiTranslateItem.value && typeof aiTranslateItem.value === "object"
+            ? String(aiTranslateItem.value.model || "")
+            : "";
+          const data = await apiPost("ai.translate.save", {
+            cid,
+            lang,
+            ctype,
+            title: String(aiTranslateForm.title || ""),
+            text: String(aiTranslateForm.text || ""),
+            model,
+          });
+          aiTranslateItem.value = data && typeof data === "object" ? data.translation || null : null;
+          syncAiTranslateFormFromItem();
+          await nextTick();
+          await renderAiTranslatePreview();
+          if (!silent) toastSuccess("已保存翻译");
+          return true;
+        } catch (e) {
+          aiTranslateError.value = e && e.message ? e.message : "保存失败";
+          return false;
+        } finally {
+          aiTranslateSaving.value = false;
+        }
+      }
+
+      async function saveAiSummary(silent, forceCtype) {
+        aiSummaryError.value = "";
+        const cid = Number(aiExtrasSelectedCid.value || 0);
+        const lang = String(aiExtrasLang.value || "").trim();
+        const ctype = aiExtrasNormalizeCtype(forceCtype !== undefined ? forceCtype : aiExtrasContentType.value);
+        if (!cid || !lang) {
+          return false;
+        }
+        if (!aiSummaryItem.value) {
+          return false;
+        }
+        if (!aiSummaryDirty.value) {
+          return true;
+        }
+
+        aiSummarySaving.value = true;
+        try {
+          const model = aiSummaryItem.value && typeof aiSummaryItem.value === "object"
+            ? String(aiSummaryItem.value.model || "")
+            : "";
+          const data = await apiPost("ai.summary.save", {
+            cid,
+            lang,
+            ctype,
+            summary: String(aiSummaryForm.summary || ""),
+            model,
+          });
+          aiSummaryItem.value = data && typeof data === "object" ? data.summary || null : null;
+          syncAiSummaryFormFromItem();
+          await nextTick();
+          await renderAiSummaryPreview();
+          if (!silent) toastSuccess("已保存摘要");
+          return true;
+        } catch (e) {
+          aiSummaryError.value = e && e.message ? e.message : "保存失败";
+          return false;
+        } finally {
+          aiSummarySaving.value = false;
+        }
+      }
+
+      async function flushAiExtrasDraftOnSwitch(pathname, forceCtype) {
+        const path = String(pathname || routePath.value || "");
+        if (path === "/extras/ai-translate") {
+          if (aiTranslateDirty.value && aiTranslateItem.value && !aiTranslateSaving.value && !aiTranslateLoading.value && !aiTranslateGenerating.value) {
+            await saveAiTranslation(true, forceCtype);
+          }
+          return;
+        }
+        if (path === "/extras/ai-summary") {
+          if (aiSummaryDirty.value && aiSummaryItem.value && !aiSummarySaving.value && !aiSummaryLoading.value && !aiSummaryGenerating.value) {
+            await saveAiSummary(true, forceCtype);
+          }
+        }
+      }
+
+      async function selectAiExtrasContent(cid) {
         const id = Number(cid || 0);
         if (!id) return;
+        await flushAiExtrasDraftOnSwitch(routePath.value);
         aiExtrasSelectedCid.value = id;
         resetAiExtrasResults();
 
         if (routePath.value === "/extras/ai-translate") {
-          loadAiTranslation();
+          await loadAiTranslation();
         } else if (routePath.value === "/extras/ai-summary") {
-          loadAiSummary();
+          await loadAiSummary();
         }
       }
 
       watch(
         () => String(aiExtrasContentType.value || "post"),
-        (t) => {
+        async (t, oldT) => {
           if (!routePath.value.startsWith("/extras/ai-")) return;
+          await flushAiExtrasDraftOnSwitch(routePath.value, oldT);
           aiExtrasPagination.page = 1;
           aiExtrasPageJump.value = 1;
           aiExtrasSelectedCid.value = 0;
           resetAiExtrasResults();
-          fetchAiExtrasContents();
+          await fetchAiExtrasContents();
         }
       );
 
       watch(
         () => String(aiExtrasLang.value || ""),
-        () => {
+        async () => {
           if (!routePath.value.startsWith("/extras/ai-")) return;
           if (!aiExtrasSelectedCid.value) return;
           const hasOptions = Array.isArray(aiExtrasLanguageOptions.value) && aiExtrasLanguageOptions.value.length;
           if (!hasOptions) return;
-          if (routePath.value === "/extras/ai-translate") loadAiTranslation();
-          else if (routePath.value === "/extras/ai-summary") loadAiSummary();
+          await flushAiExtrasDraftOnSwitch(routePath.value);
+          if (routePath.value === "/extras/ai-translate") await loadAiTranslation();
+          else if (routePath.value === "/extras/ai-summary") await loadAiSummary();
+        }
+      );
+
+      watch(
+        () => String(routePath.value || ""),
+        async (to, from) => {
+          const leavingTranslate = from === "/extras/ai-translate" && to !== "/extras/ai-translate";
+          const leavingSummary = from === "/extras/ai-summary" && to !== "/extras/ai-summary";
+          if (leavingTranslate || leavingSummary) {
+            await flushAiExtrasDraftOnSwitch(from);
+          }
+        }
+      );
+
+      watch(
+        () => String(aiTranslateForm.text || ""),
+        () => {
+          if (!aiTranslateItem.value) return;
+          if (routePath.value !== "/extras/ai-translate") return;
+          renderAiTranslatePreview();
+        }
+      );
+
+      watch(
+        () => String(aiSummaryForm.summary || ""),
+        () => {
+          if (!aiSummaryItem.value) return;
+          if (routePath.value !== "/extras/ai-summary") return;
+          renderAiSummaryPreview();
         }
       );
 
@@ -12637,18 +12816,26 @@
         openAiExtrasEditor,
         aiTranslateLoading,
         aiTranslateGenerating,
+        aiTranslateSaving,
         aiTranslateError,
         aiTranslateItem,
+        aiTranslateForm,
+        aiTranslateDirty,
         aiTranslatePreviewEl,
         loadAiTranslation,
         generateAiTranslation,
+        saveAiTranslation,
         aiSummaryLoading,
         aiSummaryGenerating,
+        aiSummarySaving,
         aiSummaryError,
         aiSummaryItem,
+        aiSummaryForm,
+        aiSummaryDirty,
         aiSummaryPreviewEl,
         loadAiSummary,
         generateAiSummary,
+        saveAiSummary,
         commentEditorOpen,
         commentEditorLoading,
         commentEditorSaving,
@@ -15618,6 +15805,9 @@
                           <button class="v3a-btn primary" type="button" @click="generateAiTranslation()" :disabled="aiTranslateLoading || aiTranslateGenerating || !aiExtrasSelectedCid || !String(aiExtrasLang || '').trim()">
                             {{ aiTranslateGenerating ? "生成中…" : "生成" }}
                           </button>
+                          <button class="v3a-btn" type="button" @click="saveAiTranslation()" :disabled="aiTranslateLoading || aiTranslateGenerating || aiTranslateSaving || !aiTranslateItem || !aiTranslateDirty">
+                            {{ aiTranslateSaving ? "保存中…" : "保存" }}
+                          </button>
                           <button class="v3a-btn" type="button" @click="openAiExtrasEditor()" :disabled="!aiExtrasSelectedCid">编辑原文</button>
                           <span v-if="aiTranslateItem && aiTranslateItem.model" class="v3a-muted">模型：{{ aiTranslateItem.model }}</span>
                         </div>
@@ -15638,8 +15828,13 @@
                           <div v-else>
                             <div style="padding: 12px 12px 0;">
                               <div class="v3a-muted" style="font-size: 12px; margin-bottom: 6px;">标题</div>
-                              <input class="v3a-input" :value="aiTranslateItem.title || ''" readonly />
+                              <input class="v3a-input" v-model="aiTranslateForm.title" />
                             </div>
+                            <div style="padding: 12px 12px 0;">
+                              <div class="v3a-muted" style="font-size: 12px; margin-bottom: 6px;">正文（可编辑）</div>
+                              <textarea class="v3a-textarea" v-model="aiTranslateForm.text" style="min-height: 180px;"></textarea>
+                            </div>
+                            <div style="padding: 8px 12px 0;" class="v3a-muted">预览</div>
                             <div ref="aiTranslatePreviewEl" class="v3a-ai-preview"></div>
                           </div>
                         </div>
@@ -15769,6 +15964,9 @@
                           <button class="v3a-btn primary" type="button" @click="generateAiSummary()" :disabled="aiSummaryLoading || aiSummaryGenerating || !aiExtrasSelectedCid || !String(aiExtrasLang || '').trim()">
                             {{ aiSummaryGenerating ? "生成中…" : "生成" }}
                           </button>
+                          <button class="v3a-btn" type="button" @click="saveAiSummary()" :disabled="aiSummaryLoading || aiSummaryGenerating || aiSummarySaving || !aiSummaryItem || !aiSummaryDirty">
+                            {{ aiSummarySaving ? "保存中…" : "保存" }}
+                          </button>
                           <button class="v3a-btn" type="button" @click="openAiExtrasEditor()" :disabled="!aiExtrasSelectedCid">编辑原文</button>
                           <span v-if="aiSummaryItem && aiSummaryItem.model" class="v3a-muted">模型：{{ aiSummaryItem.model }}</span>
                         </div>
@@ -15787,6 +15985,11 @@
                             <div class="v3a-muted">暂无摘要结果</div>
                           </div>
                           <div v-else>
+                            <div style="padding: 12px 12px 0;">
+                              <div class="v3a-muted" style="font-size: 12px; margin-bottom: 6px;">摘要（可编辑）</div>
+                              <textarea class="v3a-textarea" v-model="aiSummaryForm.summary" style="min-height: 180px;"></textarea>
+                            </div>
+                            <div style="padding: 8px 12px 0;" class="v3a-muted">预览</div>
                             <div ref="aiSummaryPreviewEl" class="v3a-ai-preview"></div>
                           </div>
                         </div>

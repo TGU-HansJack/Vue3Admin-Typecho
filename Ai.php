@@ -280,7 +280,18 @@ final class Ai
             ]);
             $row = $stmt->fetch();
             if (!$row) {
-                return null;
+                // Backward compatibility: older data may have non-canonical ctype.
+                $stmt = $pdo->prepare(
+                    'SELECT cid, ctype, lang, title, text, model, updated FROM v3a_ai_translation WHERE cid = :cid AND lang = :lang ORDER BY updated DESC LIMIT 1'
+                );
+                $stmt->execute([
+                    ':cid' => $cid,
+                    ':lang' => $lang,
+                ]);
+                $row = $stmt->fetch();
+                if (!$row) {
+                    return null;
+                }
             }
             return [
                 'cid' => (int) ($row['cid'] ?? 0),
@@ -414,7 +425,18 @@ final class Ai
             ]);
             $row = $stmt->fetch();
             if (!$row) {
-                return null;
+                // Backward compatibility: older data may have non-canonical ctype.
+                $stmt = $pdo->prepare(
+                    'SELECT cid, ctype, lang, summary, model, updated FROM v3a_ai_summary WHERE cid = :cid AND lang = :lang ORDER BY updated DESC LIMIT 1'
+                );
+                $stmt->execute([
+                    ':cid' => $cid,
+                    ':lang' => $lang,
+                ]);
+                $row = $stmt->fetch();
+                if (!$row) {
+                    return null;
+                }
             }
             return [
                 'cid' => (int) ($row['cid'] ?? 0),
