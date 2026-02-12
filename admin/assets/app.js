@@ -11787,7 +11787,8 @@
                 textStyle: { color: axisLabelColor, fontSize: 12 },
                 data: ["IP", "PV"],
               },
-              grid: { left: 36, right: 24, top: 36, bottom: 36 },
+              // Keep y-axis labels inside canvas (avoid being clipped on narrow cards).
+              grid: { left: 44, right: 24, top: 36, bottom: 36, containLabel: true },
               tooltip: {
                 trigger: "axis",
                 axisPointer: { type: "cross" },
@@ -11869,7 +11870,8 @@
                   textStyle: { color: axisLabelColor, fontSize: 12 },
                   data: ["Views", "UV"],
                 },
-                grid: { left: 36, right: 24, top: 36, bottom: 36 },
+                // Keep y-axis labels inside canvas (avoid being clipped on narrow cards).
+                grid: { left: 44, right: 24, top: 36, bottom: 36, containLabel: true },
                 tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
                 xAxis: {
                   type: "category",
@@ -11947,7 +11949,8 @@
             chartDataTrafficReferring.setOption(
               {
                 color: [palette[0]],
-                grid: { left: 90, right: 24, top: 16, bottom: 24 },
+                // Leave a bit more room for long y-axis labels.
+                grid: { left: 100, right: 24, top: 16, bottom: 24, containLabel: true },
                 tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
                 xAxis: {
                   type: "value",
@@ -11998,7 +12001,8 @@
             chartDataTrafficPopular.setOption(
               {
                 color: [palette[1]],
-                grid: { left: 120, right: 24, top: 16, bottom: 24 },
+                // Leave a bit more room for long y-axis labels.
+                grid: { left: 130, right: 24, top: 16, bottom: 24, containLabel: true },
                 tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
                 xAxis: {
                   type: "value",
@@ -12051,7 +12055,8 @@
                 textStyle: { color: axisLabelColor, fontSize: 12 },
                 data: ["博文", "页面"],
               },
-              grid: { left: 36, right: 24, top: 36, bottom: 36 },
+              // Keep y-axis labels inside canvas (avoid being clipped on narrow cards).
+              grid: { left: 44, right: 24, top: 36, bottom: 36, containLabel: true },
               tooltip: {
                 trigger: "axis",
                 axisPointer: { type: "cross" },
@@ -12161,7 +12166,8 @@
           chartComment.setOption(
             {
               color: ["#8884d8"], // mx-admin fixed color
-              grid: { left: 36, right: 24, top: 24, bottom: 36 },
+              // Keep y-axis labels inside canvas (avoid being clipped on narrow cards).
+              grid: { left: 44, right: 24, top: 24, bottom: 36, containLabel: true },
               tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
               xAxis: {
                 type: "category",
