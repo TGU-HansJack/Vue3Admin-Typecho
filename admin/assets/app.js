@@ -17208,26 +17208,22 @@
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                <div class="v3a-grid two" style="margin-top: 16px;">
-                  <div style="grid-column: 1 / -1;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                      <div class="v3a-muted" style="font-weight: 500;">赞助</div>
-                      <div class="v3a-muted" style="font-size: 12px;">感谢支持</div>
-                    </div>
-                    <div class="v3a-card">
-                      <div class="bd">
-                        <div class="v3a-muted" style="margin-bottom: 12px; line-height: 1.7;">如果这个项目对你有帮助，欢迎赞助支持持续更新与维护。</div>
-                        <div>
-                          <img :src="aboutSponsorUrl" alt="赞助二维码" style="width: 100%; max-width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid var(--sidebar-border);" loading="lazy" />
-                        </div>
+                    <div style="margin-top: 16px;">
+                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <div class="v3a-muted" style="font-weight: 500;">赞助</div>
+                        <div class="v3a-muted" style="font-size: 12px;">感谢支持</div>
+                      </div>
+                      <div class="v3a-muted" style="margin-bottom: 12px; line-height: 1.7;">如果这个项目对你有帮助，欢迎赞助支持持续更新与维护。</div>
+                      <div style="display: flex; justify-content: center;">
+                        <img :src="aboutSponsorUrl" alt="赞助二维码" style="width: 100%; max-width: 600px; height: auto; display: block; border-radius: 10px; border: 1px solid var(--sidebar-border);" loading="lazy" />
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <div style="grid-column: 1 / -1;">
+                <div style="margin-top: 16px;">
+                  <div>
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                       <div class="v3a-muted" style="font-weight: 500;">致谢</div>
                       <div class="v3a-muted" style="font-size: 12px;">Thanks</div>
