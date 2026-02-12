@@ -837,6 +837,258 @@ function v3a_device_info_from_ua(string $ua): array
     return ['type' => $type, 'name' => $name];
 }
 
+function v3a_host_normalize(string $host): string
+{
+    $host = strtolower(trim($host));
+    if ($host === '') {
+        return '';
+    }
+
+    $host = preg_replace('/:\d+$/', '', $host);
+    $host = preg_replace('/^www\./', '', (string) $host);
+    return (string) trim((string) $host, '.');
+}
+
+function v3a_extract_referer_host(string $referer): string
+{
+    $referer = trim($referer);
+    if ($referer === '') {
+        return '';
+    }
+
+    if (strpos($referer, '//') === 0) {
+        $referer = 'http:' . $referer;
+    }
+
+    $host = '';
+    try {
+        $parsed = @parse_url($referer);
+        if (is_array($parsed)) {
+            $host = (string) ($parsed['host'] ?? '');
+        }
+    } catch (\Throwable $e) {
+        $host = '';
+    }
+
+    if ($host === '') {
+        try {
+            $parsed = @parse_url('http://' . ltrim($referer, '/'));
+            if (is_array($parsed)) {
+                $host = (string) ($parsed['host'] ?? '');
+            }
+        } catch (\Throwable $e) {
+            $host = '';
+        }
+    }
+
+    return v3a_host_normalize($host);
+}
+
+function v3a_host_equals_or_subdomain(string $host, string $siteHost): bool
+{
+    $host = v3a_host_normalize($host);
+    $siteHost = v3a_host_normalize($siteHost);
+    if ($host === '' || $siteHost === '') {
+        return false;
+    }
+
+    if ($host === $siteHost) {
+        return true;
+    }
+
+    return substr($host, -strlen('.' . $siteHost)) === ('.' . $siteHost)
+        || substr($siteHost, -strlen('.' . $host)) === ('.' . $host);
+}
+
+/**
+ * @return array{windowDays:int,referringSites:array<int,array{site:string,views:int,uv:int}>,popularContent:array<int,array{cid:?int,title:string,uri:string,views:int,uv:int}>}
+ */
+function v3a_visit_traffic_summary(\PDO $pdo, $db, $options, int $windowDays = 14, int $siteLimit = 10, int $contentLimit = 10): array
+{
+    $windowDays = max(1, min(90, (int) $windowDays));
+    $siteLimit = max(1, min(50, (int) $siteLimit));
+    $contentLimit = max(1, min(50, (int) $contentLimit));
+
+    $summary = [
+        'windowDays' => $windowDays,
+        'referringSites' => [],
+        'popularContent' => [],
+    ];
+
+    $since = time() - $windowDays * 86400;
+
+    $siteHost = '';
+    try {
+        $siteUrl = trim((string) ($options->siteUrl ?? ''));
+        if ($siteUrl !== '') {
+            $siteHost = v3a_host_normalize((string) (parse_url($siteUrl, PHP_URL_HOST) ?? ''));
+        }
+    } catch (\Throwable $e) {
+        $siteHost = '';
+    }
+
+    $siteMap = [];
+    try {
+        $stmt = $pdo->prepare(
+            'SELECT ip, referer, COUNT(*) AS views FROM v3a_visit_log
+             WHERE created >= :since AND referer IS NOT NULL AND referer <> ""'
+             . ' GROUP BY referer, ip'
+        );
+        $stmt->execute([':since' => $since]);
+        foreach ((array) $stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $host = v3a_extract_referer_host((string) ($row['referer'] ?? ''));
+            if ($host === '') {
+                continue;
+            }
+
+            if ($siteHost !== '' && v3a_host_equals_or_subdomain($host, $siteHost)) {
+                continue;
+            }
+
+            if (!isset($siteMap[$host])) {
+                $siteMap[$host] = [
+                    'site' => $host,
+                    'views' => 0,
+                    'ips' => [],
+                ];
+            }
+
+            $siteMap[$host]['views'] += max(1, (int) ($row['views'] ?? 0));
+            $ip = trim((string) ($row['ip'] ?? ''));
+            if ($ip !== '') {
+                $siteMap[$host]['ips'][$ip] = 1;
+            }
+        }
+    } catch (\Throwable $e) {
+        $siteMap = [];
+    }
+
+    $referringSites = [];
+    foreach ($siteMap as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $referringSites[] = [
+            'site' => (string) ($row['site'] ?? ''),
+            'views' => (int) ($row['views'] ?? 0),
+            'uv' => is_array($row['ips'] ?? null) ? count($row['ips']) : 0,
+        ];
+    }
+    usort($referringSites, static function (array $left, array $right): int {
+        $leftViews = (int) ($left['views'] ?? 0);
+        $rightViews = (int) ($right['views'] ?? 0);
+        if ($leftViews !== $rightViews) {
+            return $rightViews <=> $leftViews;
+        }
+
+        $leftUv = (int) ($left['uv'] ?? 0);
+        $rightUv = (int) ($right['uv'] ?? 0);
+        if ($leftUv !== $rightUv) {
+            return $rightUv <=> $leftUv;
+        }
+
+        return strcmp((string) ($left['site'] ?? ''), (string) ($right['site'] ?? ''));
+    });
+    $summary['referringSites'] = array_slice($referringSites, 0, $siteLimit);
+
+    $popularRows = [];
+    try {
+        $sql = "SELECT
+                    CASE
+                        WHEN cid IS NOT NULL AND cid > 0 THEN 'cid:' || cid
+                        ELSE 'uri:' || uri
+                    END AS content_key,
+                    MAX(CASE WHEN cid IS NOT NULL AND cid > 0 THEN cid ELSE 0 END) AS cid,
+                    MAX(uri) AS uri,
+                    COUNT(*) AS views,
+                    COUNT(DISTINCT ip) AS uv
+                FROM v3a_visit_log
+                WHERE created >= :since
+                GROUP BY content_key
+                ORDER BY views DESC, uv DESC, content_key ASC
+                LIMIT :limit";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':since', (int) $since, \PDO::PARAM_INT);
+        $stmt->bindValue(':limit', (int) $contentLimit, \PDO::PARAM_INT);
+        $stmt->execute();
+        $popularRows = (array) $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        $popularRows = [];
+    }
+
+    $cids = [];
+    foreach ($popularRows as $row) {
+        $cid = (int) ($row['cid'] ?? 0);
+        if ($cid > 0) {
+            $cids[] = $cid;
+        }
+    }
+    $cids = array_values(array_unique($cids));
+
+    $contentMap = [];
+    if (!empty($cids)) {
+        try {
+            $contentRows = $db->fetchAll(
+                $db->select('cid', 'title', 'type')
+                    ->from('table.contents')
+                    ->where('cid IN ?', $cids)
+            );
+            foreach ((array) $contentRows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $cid = (int) ($row['cid'] ?? 0);
+                if ($cid <= 0) {
+                    continue;
+                }
+                $contentMap[$cid] = [
+                    'title' => trim((string) ($row['title'] ?? '')),
+                    'type' => trim((string) ($row['type'] ?? '')),
+                ];
+            }
+        } catch (\Throwable $e) {
+            $contentMap = [];
+        }
+    }
+
+    $popularContent = [];
+    foreach ($popularRows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $cid = (int) ($row['cid'] ?? 0);
+        $uri = trim((string) ($row['uri'] ?? ''));
+        $mapped = $cid > 0 && isset($contentMap[$cid]) ? $contentMap[$cid] : null;
+        $title = trim((string) (is_array($mapped) ? ($mapped['title'] ?? '') : ''));
+
+        if ($title === '') {
+            if ($uri !== '') {
+                $title = $uri;
+            } elseif ($cid > 0) {
+                $title = '#' . $cid;
+            } else {
+                $title = '—';
+            }
+        }
+
+        $popularContent[] = [
+            'cid' => $cid > 0 ? $cid : null,
+            'title' => $title,
+            'uri' => $uri,
+            'views' => (int) ($row['views'] ?? 0),
+            'uv' => (int) ($row['uv'] ?? 0),
+        ];
+    }
+
+    $summary['popularContent'] = $popularContent;
+    return $summary;
+}
+
 /**
  * Backup helpers (Typecho .dat format, compatible with old admin/backup.php).
  */
@@ -8704,6 +8956,11 @@ try {
                 $type = (string) ($r['ctype'] ?? '');
             }
 
+            $referer = isset($r['referer']) && $r['referer'] !== null ? trim((string) $r['referer']) : '';
+            if ($referer !== '' && !preg_match('#^https?://#i', $referer)) {
+                $referer = '';
+            }
+
             $items[] = [
                 'id' => (int) ($r['id'] ?? 0),
                 'ip' => (string) ($r['ip'] ?? ''),
@@ -8711,7 +8968,7 @@ try {
                 'cid' => $cid,
                 'title' => is_array($mapped) ? (string) ($mapped['title'] ?? '') : '',
                 'type' => $type,
-                'referer' => isset($r['referer']) && $r['referer'] !== null ? (string) $r['referer'] : '',
+                'referer' => $referer,
                 'ua' => $ua,
                 'deviceType' => (string) ($deviceInfo['type'] ?? ''),
                 'device' => (string) ($deviceInfo['name'] ?? ''),
@@ -8720,6 +8977,7 @@ try {
         }
 
         $pageCount = $pageSize > 0 ? (int) ceil($total / $pageSize) : 1;
+        $traffic = v3a_visit_traffic_summary($pdo, $db, $options, 14, 10, 10);
 
         v3a_exit_json(0, [
             'items' => $items,
@@ -8729,6 +8987,7 @@ try {
                 'total' => $total,
                 'pageCount' => $pageCount,
             ],
+            'traffic' => $traffic,
         ]);
     }
 

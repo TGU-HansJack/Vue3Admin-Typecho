@@ -4899,6 +4899,11 @@
       const dataVisitLoading = ref(false);
       const dataVisitError = ref("");
       const dataVisitItems = ref([]);
+      const dataVisitTraffic = ref({
+        windowDays: 14,
+        referringSites: [],
+        popularContent: [],
+      });
       const dataVisitFilters = reactive({
         keywords: "",
         onlyPosts: false,
@@ -4931,10 +4936,22 @@
             onlyPosts: dataVisitFilters.onlyPosts ? 1 : 0,
           });
           dataVisitItems.value = Array.isArray(data?.items) ? data.items : [];
+          const traffic =
+            data && typeof data === "object" && data.traffic && typeof data.traffic === "object"
+              ? data.traffic
+              : null;
+          dataVisitTraffic.value = {
+            windowDays: traffic ? Number(traffic.windowDays || 14) || 14 : 14,
+            referringSites:
+              traffic && Array.isArray(traffic.referringSites) ? traffic.referringSites : [],
+            popularContent:
+              traffic && Array.isArray(traffic.popularContent) ? traffic.popularContent : [],
+          };
           Object.assign(dataVisitPagination, data?.pagination || {});
           dataVisitPageJump.value = Number(dataVisitPagination.page || 1) || 1;
         } catch (e) {
           dataVisitItems.value = [];
+          dataVisitTraffic.value = { windowDays: 14, referringSites: [], popularContent: [] };
           dataVisitError.value = e && e.message ? e.message : "加载失败";
         } finally {
           dataVisitLoading.value = false;
@@ -12789,6 +12806,7 @@
         dataVisitLoading,
         dataVisitError,
         dataVisitItems,
+        dataVisitTraffic,
         dataVisitFilters,
         dataVisitPagination,
         dataVisitPageJump,
@@ -15601,6 +15619,65 @@
                   <div class="v3a-muted">{{ formatNumber(dataVisitPagination.total) }} 条</div>
                 </div>
 
+                <div class="v3a-grid two" style="margin-bottom: 12px;">
+                  <div>
+                    <div class="v3a-muted" style="font-weight: 500; margin-bottom: 8px;">Referring sites（最近 {{ dataVisitTraffic.windowDays || 14 }} 天）</div>
+                    <div class="v3a-card">
+                      <div class="bd" style="padding: 0;">
+                        <div v-if="dataVisitLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+                        <div v-else-if="!dataVisitTraffic.referringSites || !dataVisitTraffic.referringSites.length" class="v3a-muted" style="padding: 16px;">暂无来源数据</div>
+                        <table v-else class="v3a-table">
+                          <thead>
+                            <tr>
+                              <th>Site</th>
+                              <th style="text-align:right;">Views</th>
+                              <th style="text-align:right;">Unique Visitors</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="(s, idx) in dataVisitTraffic.referringSites" :key="(s && s.site ? s.site : '') + ':' + idx">
+                              <td style="word-break: break-all;">
+                                <a :href="'https://' + (s && s.site ? s.site : '')" target="_blank" rel="noreferrer">{{ s && s.site ? s.site : '—' }}</a>
+                              </td>
+                              <td style="text-align:right; white-space: nowrap;">{{ formatNumber(s && s.views ? s.views : 0) }}</td>
+                              <td style="text-align:right; white-space: nowrap;">{{ formatNumber(s && s.uv ? s.uv : 0) }}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="v3a-muted" style="font-weight: 500; margin-bottom: 8px;">Popular content（最近 {{ dataVisitTraffic.windowDays || 14 }} 天）</div>
+                    <div class="v3a-card">
+                      <div class="bd" style="padding: 0;">
+                        <div v-if="dataVisitLoading" class="v3a-muted" style="padding: 16px;">正在加载…</div>
+                        <div v-else-if="!dataVisitTraffic.popularContent || !dataVisitTraffic.popularContent.length" class="v3a-muted" style="padding: 16px;">暂无热门内容</div>
+                        <table v-else class="v3a-table">
+                          <thead>
+                            <tr>
+                              <th>Content</th>
+                              <th style="text-align:right;">Views</th>
+                              <th style="text-align:right;">Unique Visitors</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="(p, idx) in dataVisitTraffic.popularContent" :key="(p && p.cid ? p.cid : (p && p.uri ? p.uri : '')) + ':' + idx">
+                              <td style="word-break: break-all;">
+                                <a v-if="p && p.uri" :href="p.uri" target="_blank" rel="noreferrer">{{ p && p.title ? p.title : (p && p.uri ? p.uri : '—') }}</a>
+                                <span v-else>{{ p && p.title ? p.title : '—' }}</span>
+                              </td>
+                              <td style="text-align:right; white-space: nowrap;">{{ formatNumber(p && p.views ? p.views : 0) }}</td>
+                              <td style="text-align:right; white-space: nowrap;">{{ formatNumber(p && p.uv ? p.uv : 0) }}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="v3a-card" data-tour="data-table">
                   <div class="bd" style="padding: 0;">
                     <div v-if="dataVisitError" class="v3a-alert" style="margin: 16px;">{{ dataVisitError }}</div>
@@ -15611,6 +15688,7 @@
                         <tr>
                           <th>IP</th>
                           <th>路径</th>
+                          <th>来源</th>
                           <th style="text-align:center;">设备</th>
                           <th>时间</th>
                         </tr>
@@ -15624,13 +15702,17 @@
                               {{ v.title || ('#' + (v.cid || '')) }}
                             </div>
                           </td>
+                          <td style="word-break: break-all;">
+                            <a v-if="v.referer" :href="v.referer" target="_blank" rel="noreferrer">{{ v.referer }}</a>
+                            <span v-else class="v3a-muted">直接访问</span>
+                          </td>
                           <td style="text-align:center;">
                             <span class="v3a-pill" :class="dataDeviceTone(v.deviceType)">{{ v.device || '—' }}</span>
                           </td>
                           <td>{{ formatTime(v.created, settingsData.site.timezone) }}</td>
                         </tr>
                         <tr v-if="!dataVisitItems.length">
-                          <td colspan="4" class="v3a-muted" style="padding: 16px;">暂无访问日志</td>
+                          <td colspan="5" class="v3a-muted" style="padding: 16px;">暂无访问日志</td>
                         </tr>
                       </tbody>
                     </table>
