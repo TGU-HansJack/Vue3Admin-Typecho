@@ -8102,12 +8102,141 @@
         ];
       })();
       const aboutThanks = [
-        { name: "Typecho", url: "https://typecho.org/" },
-        { name: "Vue 3", url: "https://vuejs.org/" },
-        { name: "ECharts", url: "https://echarts.apache.org/" },
-        { name: "Vditor", url: "https://b3log.org/vditor/" },
-        { name: "CodeMirror 6", url: "https://codemirror.net/6/" },
-        { name: "Lucide Icons", url: "https://lucide.dev/" },
+        {
+          name: "mx-space / mx-admin",
+          url: "https://github.com/mx-space/mx-admin",
+          scope: "界面参考与布局实现",
+          desc: "Vue3Admin 的后台视觉与交互中，存在基于 mx-admin 的结构化参考与适配实现。",
+          refs:
+            "Vue3Admin: admin/assets/app.css, admin/assets/app.js; 来源参考: mx-admin/src/components/sidebar/index.module.css, mx-admin/src/layouts/sidebar/index.module.css, mx-admin/src/layouts/sidebar/index.tsx, mx-admin/src/index.css",
+          adopted:
+            "侧边栏/内容区变量体系（--sidebar-width、--page-bg、--content-shadow 等）、折叠与移动端遮罩布局思路、Toast 的 sonner 风格层次、评论页 master-detail 分栏交互、Dashboard/Settings 的间距与尺寸标尺映射。",
+        },
+        {
+          name: "Typecho",
+          url: "https://typecho.org/",
+          scope: "宿主框架",
+          desc: "提供插件体系、Widget、路由与后台能力，是 Vue3Admin 的运行基础。",
+          refs: "Plugin.php / admin/api.php / admin/index.php",
+        },
+        {
+          name: "Vue 3",
+          url: "https://vuejs.org/",
+          scope: "前端框架",
+          desc: "后台 SPA 的响应式状态、组件渲染与交互逻辑基于 Vue 3。",
+          refs: "admin/index.php (vueCdn) / admin/assets/app.js",
+        },
+        {
+          name: "Apache ECharts",
+          url: "https://echarts.apache.org/",
+          scope: "图表引擎",
+          desc: "用于仪表盘访问趋势、分类/发布数据等可视化图表。",
+          refs: "admin/index.php (echartsCdn) / admin/assets/app.js",
+        },
+        {
+          name: "ECharts WordCloud",
+          url: "https://github.com/ecomfe/echarts-wordcloud",
+          scope: "图表扩展",
+          desc: "用于标签词云等扩展图表能力。",
+          refs: "admin/index.php (echarts-wordcloud.min.js)",
+          commits: "af8099f",
+        },
+        {
+          name: "Vditor",
+          url: "https://b3log.org/vditor/",
+          scope: "Markdown 编辑器",
+          desc: "文章/页面编辑、预览与上传流程支持。",
+          refs: "Plugin.php (vditorCdn*) / admin/index.php / admin/assets/app.js",
+          commits: "04c69f8, d168d4f",
+        },
+        {
+          name: "CodeMirror 6",
+          url: "https://codemirror.net/6/",
+          scope: "代码编辑器",
+          desc: "用于主题编辑器与 JSON 字段编辑弹窗。",
+          refs: "admin/assets/vendor/codemirror6.bundle.js / admin/assets/app.js",
+          commits: "d6a1d56",
+        },
+        {
+          name: "PHPMailer",
+          url: "https://github.com/PHPMailer/PHPMailer",
+          scope: "邮件发送",
+          desc: "评论通知、友链通知、测试邮件等 SMTP 发送能力。",
+          refs: "lib/PHPMailer/* / Plugin.php",
+          commits: "995dd7c, f202efb, 33c2a7a",
+        },
+        {
+          name: "jQuery",
+          url: "https://jquery.com/",
+          scope: "兼容层",
+          desc: "兼容旧版后台插件配置页与脚本执行环境。",
+          refs: "admin/js/jquery.js / admin/assets/app.js",
+        },
+        {
+          name: "jQuery UI",
+          url: "https://jqueryui.com/",
+          scope: "兼容层",
+          desc: "为旧后台依赖的 UI 组件与交互提供兼容支持。",
+          refs: "admin/js/jquery-ui.js / admin/assets/app.js",
+        },
+        {
+          name: "DOMPurify",
+          url: "https://github.com/cure53/DOMPurify",
+          scope: "安全清洗",
+          desc: "用于 HTML 内容清洗，降低富文本渲染风险。",
+          refs: "admin/js/purify.js",
+        },
+        {
+          name: "HyperDown",
+          url: "https://github.com/hyperdown/hyperdown",
+          scope: "Markdown 兼容",
+          desc: "沿用 Typecho 传统后台的 Markdown 相关处理能力。",
+          refs: "admin/js/hyperdown.js",
+        },
+        {
+          name: "PageDown",
+          url: "https://github.com/StackExchange/pagedown",
+          scope: "Markdown 兼容",
+          desc: "沿用 Typecho 传统后台编辑链路中的解析与工具能力。",
+          refs: "admin/js/pagedown.js",
+        },
+        {
+          name: "Normalize.css",
+          url: "https://necolas.github.io/normalize.css/",
+          scope: "样式基础",
+          desc: "统一浏览器默认样式基线，减少后台页面差异。",
+          refs: "admin/css/normalize.css",
+        },
+        {
+          name: "Lucide Icons",
+          url: "https://lucide.dev/",
+          scope: "图标系统",
+          desc: "后台导航与操作图标的主要来源。",
+          refs: "admin/assets/app.js (ICONS)",
+        },
+        {
+          name: "ShouTuTa（守兔塔）",
+          url: "",
+          scope: "插件联动",
+          desc: "对已安装守兔塔插件进行状态读取、统计查询与管理联动。",
+          refs: "admin/api.php / admin/index.php / admin/assets/app.js",
+          commits: "1b12a6f, c149dfc",
+        },
+        {
+          name: "AbuseIPDB",
+          url: "https://www.abuseipdb.com/",
+          scope: "威胁情报",
+          desc: "在守兔塔联动场景中提供 IP 信誉查询能力。",
+          refs: "admin/api.php / admin/assets/app.js",
+        },
+        {
+          name: "Gravatar",
+          url: "https://gravatar.com/",
+          scope: "头像服务",
+          desc: "用户头像展示与镜像配置支持。",
+          refs: "admin/assets/app.js / admin/api.php",
+          commits: "aadac7c",
+        },
       ];
       const aboutChangelog = computed(() => {
         const build = aboutBuildTime.value ? `Build ${aboutBuildTime.value}` : "";
@@ -17021,15 +17150,16 @@
                   </div>
                 </div>
 
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                  <div class="v3a-muted" style="font-weight: 500;">Vue3Admin</div>
+                  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+                    <span v-if="aboutVersion" class="v3a-pill info">v{{ aboutVersion }}</span>
+                    <span v-if="aboutBuildTime" class="v3a-pill">Build {{ aboutBuildTime }}</span>
+                  </div>
+                </div>
+
                 <div class="v3a-card">
                   <div class="bd">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                      <div class="v3a-muted" style="font-weight: 500;">Vue3Admin</div>
-                      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
-                        <span v-if="aboutVersion" class="v3a-pill info">v{{ aboutVersion }}</span>
-                        <span v-if="aboutBuildTime" class="v3a-pill">Build {{ aboutBuildTime }}</span>
-                      </div>
-                    </div>
                     <div style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">基于现代化风格的 Typecho 后台面板插件</div>
                     <div class="v3a-muted" style="line-height: 1.7;">
                       启用后接管 Typecho 后台路径，并自动部署资源到站点根目录的
@@ -17082,68 +17212,69 @@
                 </div>
 
                 <div class="v3a-grid two" style="margin-top: 16px;">
-                  <div class="v3a-card">
-                    <div class="bd">
-                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                        <div class="v3a-muted" style="font-weight: 500;">更新日志</div>
-                        <div class="v3a-muted" style="font-size: 12px;">简要记录</div>
-                      </div>
-                      <div v-for="v in aboutChangelog" :key="v.version" style="margin-bottom: 14px;">
-                        <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                          <span class="v3a-pill info">v{{ v.version }}</span>
-                          <span v-if="v.date" class="v3a-muted" style="font-size: 12px;">{{ v.date }}</span>
-                        </div>
-                        <ul style="margin: 10px 0 0 18px; padding: 0; line-height: 1.7;">
-                          <li v-for="(it, idx) in v.items" :key="idx">{{ it }}</li>
-                        </ul>
-                      </div>
-                      <div class="v3a-muted" style="line-height: 1.7;">
-                        更完整的提交记录可在 <a :href="aboutRepoUrl + '/releases'" target="_blank" rel="noreferrer">GitHub Release</a> /
-                        <a :href="aboutRepoUrl + '/commits/main'" target="_blank" rel="noreferrer">Commit History</a> 中查看。
-                      </div>
+                  <div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                      <div class="v3a-muted" style="font-weight: 500;">更新日志</div>
+                      <div class="v3a-muted" style="font-size: 12px;">简要记录</div>
                     </div>
-                  </div>
-
-                  <div class="v3a-card">
-                    <div class="bd">
-                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                        <div class="v3a-muted" style="font-weight: 500;">赞助</div>
-                        <div class="v3a-muted" style="font-size: 12px;">感谢支持</div>
+                    <div v-for="v in aboutChangelog" :key="v.version" style="margin-bottom: 14px;">
+                      <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <span class="v3a-pill info">v{{ v.version }}</span>
+                        <span v-if="v.date" class="v3a-muted" style="font-size: 12px;">{{ v.date }}</span>
                       </div>
-                      <div class="v3a-muted" style="margin-bottom: 12px; line-height: 1.7;">如果这个项目对你有帮助，欢迎赞助支持持续更新与维护。</div>
-                      <div style="display:flex; justify-content: center;">
-                        <img :src="aboutSponsorUrl" alt="赞助二维码" style="width: 240px; max-width: 100%; border-radius: 10px; border: 1px solid var(--sidebar-border);" loading="lazy" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="v3a-card">
-                    <div class="bd">
-                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                        <div class="v3a-muted" style="font-weight: 500;">版权与声明</div>
-                        <div class="v3a-muted" style="font-size: 12px;">Copyright</div>
-                      </div>
-                      <div style="line-height: 1.7;">
-                        <div>© HansJack. All rights reserved.</div>
-                        <div class="v3a-muted" style="margin-top: 8px;">源码/资源的许可协议请以 GitHub 仓库中的 LICENSE（如有）为准。</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="v3a-card">
-                    <div class="bd">
-                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                        <div class="v3a-muted" style="font-weight: 500;">致谢</div>
-                        <div class="v3a-muted" style="font-size: 12px;">Thanks</div>
-                      </div>
-                      <div class="v3a-muted" style="margin-bottom: 10px;">本插件在实现过程中参考/使用了以下项目：</div>
-                      <ul style="margin: 0 0 0 18px; padding: 0; line-height: 1.8;">
-                        <li v-for="t in aboutThanks" :key="t.name">
-                          <a :href="t.url" target="_blank" rel="noreferrer">{{ t.name }}</a>
-                        </li>
+                      <ul style="margin: 10px 0 0 18px; padding: 0; line-height: 1.7;">
+                        <li v-for="(it, idx) in v.items" :key="idx">{{ it }}</li>
                       </ul>
                     </div>
+                    <div class="v3a-muted" style="line-height: 1.7;">
+                      更完整的提交记录可在 <a :href="aboutRepoUrl + '/releases'" target="_blank" rel="noreferrer">GitHub Release</a> /
+                      <a :href="aboutRepoUrl + '/commits/main'" target="_blank" rel="noreferrer">Commit History</a> 中查看。
+                    </div>
                   </div>
+
+                  <div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                      <div class="v3a-muted" style="font-weight: 500;">赞助</div>
+                      <div class="v3a-muted" style="font-size: 12px;">感谢支持</div>
+                    </div>
+                    <div class="v3a-card">
+                      <div class="bd">
+                        <div class="v3a-muted" style="margin-bottom: 12px; line-height: 1.7;">如果这个项目对你有帮助，欢迎赞助支持持续更新与维护。</div>
+                        <div style="display:flex; justify-content: center;">
+                          <img :src="aboutSponsorUrl" alt="赞助二维码" style="width: 240px; max-width: 100%; border-radius: 10px; border: 1px solid var(--sidebar-border);" loading="lazy" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                      <div class="v3a-muted" style="font-weight: 500;">致谢</div>
+                      <div class="v3a-muted" style="font-size: 12px;">Thanks</div>
+                    </div>
+                    <div class="v3a-card">
+                      <div class="bd">
+                        <div class="v3a-muted" style="margin-bottom: 10px; line-height: 1.7;">基于 GitHub Commit 记录与当前代码调用点整理（持续补充）：</div>
+                        <ul style="margin: 0 0 0 18px; padding: 0; line-height: 1.8;">
+                          <li v-for="t in aboutThanks" :key="t.name" style="margin-bottom: 10px;">
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                              <a v-if="t.url" :href="t.url" target="_blank" rel="noreferrer">{{ t.name }}</a>
+                              <span v-else>{{ t.name }}</span>
+                              <span v-if="t.scope" class="v3a-pill">{{ t.scope }}</span>
+                            </div>
+                            <div v-if="t.desc" class="v3a-muted" style="font-size: 12px; line-height: 1.7; margin-top: 4px;">{{ t.desc }}</div>
+                            <div v-if="t.adopted" class="v3a-muted" style="font-size: 12px; line-height: 1.7; margin-top: 2px;">采纳内容：{{ t.adopted }}</div>
+                            <div v-if="t.refs" class="v3a-muted" style="font-size: 12px; line-height: 1.7; margin-top: 2px;">调用点：{{ t.refs }}</div>
+                            <div v-if="t.commits" class="v3a-muted" style="font-size: 12px; line-height: 1.7; margin-top: 2px;">相关提交：{{ t.commits }}</div>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="v3a-muted" style="margin-top: 16px; line-height: 1.8; text-align: center;">
+                  © HansJack. All rights reserved. 源码/资源的许可协议请以 GitHub 仓库中的 LICENSE 为准。
                 </div>
               </div>
             </template>

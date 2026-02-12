@@ -24,6 +24,7 @@ require_once __DIR__ . '/Ai.php';
  * @author HansJack
  * @version 1.2.4
  * @link https://www.hansjack.com
+ * @license GPL-3.0-or-later
  */
 class Plugin implements PluginInterface
 {

@@ -137,3 +137,8 @@
 ## 赞助
 
 ![赞助](./sponsor.png)
+
+## 许可证
+
+本项目采用 **GNU General Public License v3.0 (GPL-3.0)** 许可证发布。  
+完整条款见仓库根目录 `LICENSE` 文件。
