@@ -901,7 +901,7 @@ function v3a_host_equals_or_subdomain(string $host, string $siteHost): bool
 }
 
 /**
- * @return array{windowDays:int,referringSites:array<int,array{site:string,views:int,uv:int}>,popularContent:array<int,array{cid:?int,title:string,uri:string,views:int,uv:int}>}
+ * @return array{windowDays:int,trend:array<int,array{ts:int,views:int,uv:int}>,referringSites:array<int,array{site:string,views:int,uv:int}>,popularContent:array<int,array{cid:?int,title:string,uri:string,views:int,uv:int}>}
  */
 function v3a_visit_traffic_summary(\PDO $pdo, $db, $options, int $windowDays = 14, int $siteLimit = 10, int $contentLimit = 10): array
 {
@@ -911,11 +911,61 @@ function v3a_visit_traffic_summary(\PDO $pdo, $db, $options, int $windowDays = 1
 
     $summary = [
         'windowDays' => $windowDays,
+        'trend' => [],
         'referringSites' => [],
         'popularContent' => [],
     ];
 
-    $since = time() - $windowDays * 86400;
+    $tz = 0;
+    try {
+        $tz = (int) ($options->timezone ?? 0);
+    } catch (\Throwable $e) {
+        $tz = 0;
+    }
+
+    $now = time();
+    $todayStart = (int) (floor(($now + $tz) / 86400) * 86400 - $tz);
+    $trendStart = $todayStart - max(0, $windowDays - 1) * 86400;
+    $trendEnd = $todayStart + 86400;
+    $since = $trendStart;
+
+    $bucketStart = (int) floor(($trendStart + $tz) / 86400);
+    $trendByBucket = [];
+    for ($i = 0; $i < $windowDays; $i++) {
+        $bucket = $bucketStart + $i;
+        $trendByBucket[$bucket] = [
+            'ts' => $bucket * 86400 - $tz,
+            'views' => 0,
+            'uv' => 0,
+        ];
+    }
+
+    try {
+        $stmt = $pdo->prepare(
+            'SELECT CAST((created + :tz) / 86400 AS INTEGER) AS bucket, COUNT(*) AS views, COUNT(DISTINCT ip) AS uv
+             FROM v3a_visit_log
+             WHERE created >= :start AND created < :end
+             GROUP BY bucket
+             ORDER BY bucket ASC'
+        );
+        $stmt->bindValue(':tz', (int) $tz, \PDO::PARAM_INT);
+        $stmt->bindValue(':start', (int) $trendStart, \PDO::PARAM_INT);
+        $stmt->bindValue(':end', (int) $trendEnd, \PDO::PARAM_INT);
+        $stmt->execute();
+        foreach ((array) $stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $bucket = (int) ($row['bucket'] ?? 0);
+            if (!isset($trendByBucket[$bucket])) {
+                continue;
+            }
+            $trendByBucket[$bucket]['views'] = (int) ($row['views'] ?? 0);
+            $trendByBucket[$bucket]['uv'] = (int) ($row['uv'] ?? 0);
+        }
+    } catch (\Throwable $e) {
+    }
+    $summary['trend'] = array_values($trendByBucket);
 
     $siteHost = '';
     try {

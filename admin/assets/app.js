@@ -4901,6 +4901,7 @@
       const dataVisitItems = ref([]);
       const dataVisitTraffic = ref({
         windowDays: 14,
+        trend: [],
         referringSites: [],
         popularContent: [],
       });
@@ -4942,6 +4943,7 @@
               : null;
           dataVisitTraffic.value = {
             windowDays: traffic ? Number(traffic.windowDays || 14) || 14 : 14,
+            trend: traffic && Array.isArray(traffic.trend) ? traffic.trend : [],
             referringSites:
               traffic && Array.isArray(traffic.referringSites) ? traffic.referringSites : [],
             popularContent:
@@ -4951,7 +4953,7 @@
           dataVisitPageJump.value = Number(dataVisitPagination.page || 1) || 1;
         } catch (e) {
           dataVisitItems.value = [];
-          dataVisitTraffic.value = { windowDays: 14, referringSites: [], popularContent: [] };
+          dataVisitTraffic.value = { windowDays: 14, trend: [], referringSites: [], popularContent: [] };
           dataVisitError.value = e && e.message ? e.message : "加载失败";
         } finally {
           dataVisitLoading.value = false;
@@ -4972,6 +4974,8 @@
 
       async function refreshData() {
         await fetchDataVisits();
+        await nextTick();
+        renderCharts();
       }
 
       // Backup (maintenance)
@@ -8041,6 +8045,9 @@
       let chartCategory = null;
       let chartComment = null;
       let chartTag = null;
+      let chartDataTrafficTrend = null;
+      let chartDataTrafficReferring = null;
+      let chartDataTrafficPopular = null;
       let resizeBound = false;
       let skipNextWriteLoad = false;
       let skipNextPageLoad = false;
@@ -11734,6 +11741,9 @@
         const categoryEl = document.getElementById("v3a-chart-category");
         const commentEl = document.getElementById("v3a-chart-comment");
         const tagEl = document.getElementById("v3a-chart-tag");
+        const dataTrafficTrendEl = document.getElementById("v3a-chart-data-traffic-trend");
+        const dataTrafficReferringEl = document.getElementById("v3a-chart-data-traffic-referring");
+        const dataTrafficPopularEl = document.getElementById("v3a-chart-data-traffic-popular");
 
         const isDark = document.documentElement.classList.contains("dark");
         const axisLabelColor = isDark ? "#a3a3a3" : "#525252"; // mx-admin chartTheme.textColor
@@ -11826,6 +11836,199 @@
             },
             { notMerge: true }
           );
+        }
+
+        if (dataTrafficTrendEl) {
+          chartDataTrafficTrend =
+            window.echarts.getInstanceByDom(dataTrafficTrendEl) ||
+            window.echarts.init(dataTrafficTrendEl);
+
+          const traffic = dataVisitTraffic.value || {};
+          const trend = Array.isArray(traffic.trend) ? traffic.trend : [];
+          const tz = settingsData && settingsData.site ? settingsData.site.timezone : undefined;
+
+          if (!trend.length) {
+            try {
+              chartDataTrafficTrend.clear();
+            } catch (e) {}
+          } else {
+            const xData = trend.map((i) =>
+              formatTime(Number(i.ts || 0), tz).slice(5, 10).replace("-", "/")
+            );
+            const viewsData = trend.map((i) => Number(i.views || 0));
+            const uvData = trend.map((i) => Number(i.uv || 0));
+
+            chartDataTrafficTrend.setOption(
+              {
+                color: [palette[1], palette[0]],
+                legend: {
+                  left: 0,
+                  top: 0,
+                  itemWidth: 10,
+                  itemHeight: 10,
+                  textStyle: { color: axisLabelColor, fontSize: 12 },
+                  data: ["Views", "UV"],
+                },
+                grid: { left: 36, right: 24, top: 36, bottom: 36 },
+                tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
+                xAxis: {
+                  type: "category",
+                  boundaryGap: false,
+                  data: xData,
+                  axisLabel: {
+                    color: axisLabelColor,
+                    interval: (index) => index % 2 === 0,
+                  },
+                  axisLine: { lineStyle: { color: axisStrokeColor } },
+                  axisTick: {
+                    show: true,
+                    alignWithLabel: true,
+                    lineStyle: { color: axisStrokeColor },
+                    interval: (index) => index % 2 === 0,
+                  },
+                },
+                yAxis: {
+                  type: "value",
+                  axisLabel: { color: axisLabelColor },
+                  axisLine: { show: true, lineStyle: { color: axisStrokeColor } },
+                  axisTick: { show: true, lineStyle: { color: axisStrokeColor } },
+                  splitLine: { lineStyle: { color: gridColor } },
+                },
+                series: [
+                  {
+                    name: "Views",
+                    type: "line",
+                    smooth: true,
+                    showSymbol: true,
+                    symbol: "circle",
+                    symbolSize: 4,
+                    lineStyle: { width: 2 },
+                    data: viewsData,
+                  },
+                  {
+                    name: "UV",
+                    type: "line",
+                    smooth: true,
+                    showSymbol: true,
+                    symbol: "circle",
+                    symbolSize: 4,
+                    lineStyle: { width: 2 },
+                    data: uvData,
+                  },
+                ],
+              },
+              { notMerge: true }
+            );
+          }
+        }
+
+        const shortLabel = (v, max = 18) => {
+          const s = String(v || "");
+          if (!s) return "—";
+          if (s.length <= max) return s;
+          return `${s.slice(0, Math.max(1, max - 3))}...`;
+        };
+
+        if (dataTrafficReferringEl) {
+          chartDataTrafficReferring =
+            window.echarts.getInstanceByDom(dataTrafficReferringEl) ||
+            window.echarts.init(dataTrafficReferringEl);
+
+          const traffic = dataVisitTraffic.value || {};
+          const rows = Array.isArray(traffic.referringSites) ? traffic.referringSites : [];
+          const items = rows.slice(0, 10);
+          if (!items.length) {
+            try {
+              chartDataTrafficReferring.clear();
+            } catch (e) {}
+          } else {
+            const yData = items.map((i) => String(i.site || "—"));
+            const xData = items.map((i) => Number(i.views || 0));
+            chartDataTrafficReferring.setOption(
+              {
+                color: [palette[0]],
+                grid: { left: 90, right: 24, top: 16, bottom: 24 },
+                tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+                xAxis: {
+                  type: "value",
+                  axisLabel: { color: axisLabelColor },
+                  axisLine: { show: true, lineStyle: { color: axisStrokeColor } },
+                  axisTick: { show: true, lineStyle: { color: axisStrokeColor } },
+                  splitLine: { lineStyle: { color: gridColor } },
+                },
+                yAxis: {
+                  type: "category",
+                  data: yData,
+                  axisLabel: {
+                    color: axisLabelColor,
+                    formatter: (v) => shortLabel(v, 16),
+                  },
+                  axisLine: { show: true, lineStyle: { color: axisStrokeColor } },
+                  axisTick: { show: true, lineStyle: { color: axisStrokeColor } },
+                },
+                series: [
+                  {
+                    type: "bar",
+                    data: xData,
+                    barWidth: 12,
+                    itemStyle: { borderRadius: [0, 6, 6, 0] },
+                  },
+                ],
+              },
+              { notMerge: true }
+            );
+          }
+        }
+
+        if (dataTrafficPopularEl) {
+          chartDataTrafficPopular =
+            window.echarts.getInstanceByDom(dataTrafficPopularEl) ||
+            window.echarts.init(dataTrafficPopularEl);
+
+          const traffic = dataVisitTraffic.value || {};
+          const rows = Array.isArray(traffic.popularContent) ? traffic.popularContent : [];
+          const items = rows.slice(0, 10);
+          if (!items.length) {
+            try {
+              chartDataTrafficPopular.clear();
+            } catch (e) {}
+          } else {
+            const yData = items.map((i) => String(i.title || i.uri || "—"));
+            const xData = items.map((i) => Number(i.views || 0));
+            chartDataTrafficPopular.setOption(
+              {
+                color: [palette[1]],
+                grid: { left: 120, right: 24, top: 16, bottom: 24 },
+                tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+                xAxis: {
+                  type: "value",
+                  axisLabel: { color: axisLabelColor },
+                  axisLine: { show: true, lineStyle: { color: axisStrokeColor } },
+                  axisTick: { show: true, lineStyle: { color: axisStrokeColor } },
+                  splitLine: { lineStyle: { color: gridColor } },
+                },
+                yAxis: {
+                  type: "category",
+                  data: yData,
+                  axisLabel: {
+                    color: axisLabelColor,
+                    formatter: (v) => shortLabel(v, 18),
+                  },
+                  axisLine: { show: true, lineStyle: { color: axisStrokeColor } },
+                  axisTick: { show: true, lineStyle: { color: axisStrokeColor } },
+                },
+                series: [
+                  {
+                    type: "bar",
+                    data: xData,
+                    barWidth: 12,
+                    itemStyle: { borderRadius: [0, 6, 6, 0] },
+                  },
+                ],
+              },
+              { notMerge: true }
+            );
+          }
         }
 
         if (publishEl) {
@@ -12165,6 +12368,9 @@
               chartCategory && chartCategory.resize();
               chartComment && chartComment.resize();
               chartTag && chartTag.resize();
+              chartDataTrafficTrend && chartDataTrafficTrend.resize();
+              chartDataTrafficReferring && chartDataTrafficReferring.resize();
+              chartDataTrafficPopular && chartDataTrafficPopular.resize();
             } catch (e) {}
           });
         }
@@ -15617,6 +15823,86 @@
                   </select>
                   <button class="v3a-btn" type="button" @click="applyDataVisitFilters()" :disabled="dataVisitLoading">搜索</button>
                   <div class="v3a-muted">{{ formatNumber(dataVisitPagination.total) }} 条</div>
+                </div>
+
+                <div class="v3a-section">
+                  <div class="v3a-section-hd">
+                    <div class="v3a-section-title">数据图表</div>
+                  </div>
+                  <div class="v3a-section-line"></div>
+
+                  <div class="v3a-chartsgrid">
+                    <div class="v3a-chartcard">
+                      <div class="v3a-charthead">
+                        <div class="v3a-charttitle">发布趋势</div>
+                        <span class="v3a-charticon" v-html="ICONS.trending"></span>
+                      </div>
+                      <div id="v3a-chart-publish" class="v3a-chart"></div>
+                    </div>
+
+                    <div class="v3a-chartcard">
+                      <div class="v3a-charthead">
+                        <div class="v3a-charttitle">分类分布</div>
+                        <span class="v3a-charticon" v-html="ICONS.pie"></span>
+                      </div>
+                      <div id="v3a-chart-category" class="v3a-chart"></div>
+                    </div>
+
+                    <div class="v3a-chartcard">
+                      <div class="v3a-charthead">
+                        <div class="v3a-charttitle">评论活跃度（近30天）</div>
+                        <span class="v3a-charticon" v-html="ICONS.comments"></span>
+                      </div>
+                      <div id="v3a-chart-comment" class="v3a-chart"></div>
+                    </div>
+
+                    <div class="v3a-chartcard">
+                      <div class="v3a-charthead">
+                        <div class="v3a-charttitle">关系图谱</div>
+                        <span class="v3a-charticon" v-html="ICONS.tags"></span>
+                      </div>
+                      <div id="v3a-chart-tag" class="v3a-chart"></div>
+                      <div v-if="!tagGraph.nodes.length" class="v3a-empty">暂无数据</div>
+                    </div>
+
+                    <div class="v3a-chartcard">
+                      <div class="v3a-charthead">
+                        <div class="v3a-charttitle">本周访问趋势</div>
+                        <span class="v3a-muted">PV / IP 对比</span>
+                      </div>
+                      <div id="v3a-chart-visit-week" class="v3a-chart"></div>
+                    </div>
+
+                    <div class="v3a-chartcard">
+                      <div class="v3a-charthead">
+                        <div class="v3a-charttitle">最近 {{ dataVisitTraffic.windowDays || 14 }} 天访问趋势</div>
+                        <span class="v3a-muted">Views / UV 对比</span>
+                      </div>
+                      <div id="v3a-chart-data-traffic-trend" class="v3a-chart"></div>
+                      <div v-if="dataVisitLoading" class="v3a-empty">正在加载…</div>
+                      <div v-else-if="!dataVisitTraffic.trend || !dataVisitTraffic.trend.length" class="v3a-empty">暂无数据</div>
+                    </div>
+
+                    <div class="v3a-chartcard">
+                      <div class="v3a-charthead">
+                        <div class="v3a-charttitle">Referring sites（最近 {{ dataVisitTraffic.windowDays || 14 }} 天）</div>
+                        <span class="v3a-charticon" v-html="ICONS.globe"></span>
+                      </div>
+                      <div id="v3a-chart-data-traffic-referring" class="v3a-chart"></div>
+                      <div v-if="dataVisitLoading" class="v3a-empty">正在加载…</div>
+                      <div v-else-if="!dataVisitTraffic.referringSites || !dataVisitTraffic.referringSites.length" class="v3a-empty">暂无数据</div>
+                    </div>
+
+                    <div class="v3a-chartcard">
+                      <div class="v3a-charthead">
+                        <div class="v3a-charttitle">Popular content（最近 {{ dataVisitTraffic.windowDays || 14 }} 天）</div>
+                        <span class="v3a-charticon" v-html="ICONS.posts"></span>
+                      </div>
+                      <div id="v3a-chart-data-traffic-popular" class="v3a-chart"></div>
+                      <div v-if="dataVisitLoading" class="v3a-empty">正在加载…</div>
+                      <div v-else-if="!dataVisitTraffic.popularContent || !dataVisitTraffic.popularContent.length" class="v3a-empty">暂无数据</div>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="v3a-grid two" style="margin-bottom: 12px;">
