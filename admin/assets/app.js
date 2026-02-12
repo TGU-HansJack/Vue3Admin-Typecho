@@ -17734,7 +17734,7 @@
                                       <div class="v3a-mail-status-title">
                                         发送成功
                                         <span class="v3a-mail-status-kind" v-if="settingsData.notify.lastSuccess.kind">
-                                          · {{ settingsData.notify.lastSuccess.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastSuccess.kind === 'comment_waiting' ? '待审核评论' : (settingsData.notify.lastSuccess.kind === 'comment_reply' ? '评论回复' : (settingsData.notify.lastSuccess.kind === 'friendlink_audit_pass' ? '友链通过' : (settingsData.notify.lastSuccess.kind === 'friendlink_audit_reject' ? '友链拒绝' : (settingsData.notify.lastSuccess.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastSuccess.kind === 'test' ? '测试邮件' : settingsData.notify.lastSuccess.kind))))))) }}
+                                           · {{ settingsData.notify.lastSuccess.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastSuccess.kind === 'comment_waiting' ? '待审核评论' : (settingsData.notify.lastSuccess.kind === 'comment_reply' ? '评论回复' : (settingsData.notify.lastSuccess.kind === 'friendlink_audit_pass' ? '友链通过' : (settingsData.notify.lastSuccess.kind === 'friendlink_audit_reject' ? '友链拒绝' : (settingsData.notify.lastSuccess.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastSuccess.kind === 'test' ? '测试邮件' : settingsData.notify.lastSuccess.kind)))))) }}
                                         </span>
                                       </div>
                                       <div class="v3a-mail-status-time v3a-muted">{{ formatTimeAgo(settingsData.notify.lastSuccess.time) }}</div>
@@ -17753,7 +17753,7 @@
                                       <div class="v3a-mail-status-title">
                                         发送失败
                                         <span class="v3a-mail-status-kind" v-if="settingsData.notify.lastError.kind">
-                                          · {{ settingsData.notify.lastError.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastError.kind === 'comment_waiting' ? '待审核评论' : (settingsData.notify.lastError.kind === 'comment_reply' ? '评论回复' : (settingsData.notify.lastError.kind === 'friendlink_audit_pass' ? '友链通过' : (settingsData.notify.lastError.kind === 'friendlink_audit_reject' ? '友链拒绝' : (settingsData.notify.lastError.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastError.kind === 'test' ? '测试邮件' : settingsData.notify.lastError.kind))))))) }}
+                                           · {{ settingsData.notify.lastError.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastError.kind === 'comment_waiting' ? '待审核评论' : (settingsData.notify.lastError.kind === 'comment_reply' ? '评论回复' : (settingsData.notify.lastError.kind === 'friendlink_audit_pass' ? '友链通过' : (settingsData.notify.lastError.kind === 'friendlink_audit_reject' ? '友链拒绝' : (settingsData.notify.lastError.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastError.kind === 'test' ? '测试邮件' : settingsData.notify.lastError.kind)))))) }}
                                         </span>
                                       </div>
                                       <div class="v3a-mail-status-time v3a-muted">{{ formatTimeAgo(settingsData.notify.lastError.time) }}</div>
