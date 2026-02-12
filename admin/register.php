@@ -58,6 +58,18 @@ $assetCssVer = @filemtime(__DIR__ . '/assets/app.css');
 if ($assetCssVer === false) {
     $assetCssVer = '1.2.4';
 }
+
+$faviconUrl = \Typecho\Common::url('favicon.ico', (string) ($options->siteUrl ?? ''));
+$loginBackground = trim((string) ($options->v3a_login_bg ?? ''));
+if (
+    $loginBackground !== ''
+    && !preg_match('/^(https?:)?\/\//i', $loginBackground)
+    && strpos($loginBackground, 'data:') !== 0
+) {
+    $loginBackground = \Typecho\Common::url(ltrim($loginBackground, '/'), (string) ($options->siteUrl ?? ''));
+}
+$hasLoginBackground = $loginBackground !== '';
+$loginBackgroundCssUrl = json_encode($loginBackground, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
 <!doctype html>
 <html lang="zh-CN" style="--color-primary: <?php echo htmlspecialchars($primaryColor, ENT_QUOTES); ?>; --color-primary-shallow: <?php echo htmlspecialchars($primaryShallow, ENT_QUOTES); ?>; --color-primary-deep: <?php echo htmlspecialchars($primaryDeep, ENT_QUOTES); ?>;">
@@ -65,14 +77,26 @@ if ($assetCssVer === false) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>注册 - Vue3Admin</title>
+    <link rel="icon" href="<?php echo htmlspecialchars($faviconUrl, ENT_QUOTES); ?>" />
     <link rel="stylesheet" href="<?php echo $options->adminUrl('assets/app.css'); ?>?v=<?php echo htmlspecialchars((string) $assetCssVer, ENT_QUOTES); ?>" />
+    <?php if ($hasLoginBackground): ?>
+        <style>
+            .v3a-login-body.has-custom-bg {
+                background:
+                    linear-gradient(rgba(23, 23, 23, 0.36), rgba(23, 23, 23, 0.2)),
+                    url(<?php echo $loginBackgroundCssUrl; ?>) center / cover no-repeat fixed;
+            }
+        </style>
+    <?php endif; ?>
 </head>
-<body class="v3a-login-body">
+<body class="v3a-login-body<?php echo $hasLoginBackground ? ' has-custom-bg' : ''; ?>">
 <div class="v3a-login-card">
     <div class="v3a-login-brand">
-        <div class="v3a-login-logo">V3A</div>
-        <div class="v3a-login-title">Vue3Admin</div>
-        <div class="v3a-login-subtitle"><?php echo htmlspecialchars($options->title ?? 'Typecho', ENT_QUOTES); ?></div>
+        <div class="v3a-login-logo">
+            <img src="<?php echo htmlspecialchars($faviconUrl, ENT_QUOTES); ?>" alt="<?php echo htmlspecialchars($options->title ?? 'Typecho', ENT_QUOTES); ?>" />
+        </div>
+        <div class="v3a-login-title"><?php echo htmlspecialchars($options->title ?? 'Typecho', ENT_QUOTES); ?></div>
+        <div class="v3a-login-subtitle">Vue3Admin</div>
     </div>
 
     <form class="v3a-login-form" action="<?php echo $options->registerAction; ?>" method="post" name="register" role="form">

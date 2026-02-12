@@ -1590,6 +1590,114 @@
         return pushToast(Object.assign({}, opts || {}, { type: "error", title }));
       }
 
+      function v3aParseCookies() {
+        const out = {};
+        const raw = String(document.cookie || "");
+        if (!raw) return out;
+        const pairs = raw.split(";");
+        for (const pair of pairs) {
+          if (!pair) continue;
+          const idx = pair.indexOf("=");
+          if (idx <= 0) continue;
+          const name = pair.slice(0, idx).trim();
+          const value = pair.slice(idx + 1).trim();
+          if (!name) continue;
+          out[name] = value;
+        }
+        return out;
+      }
+
+      function v3aDecodeCookieValue(value) {
+        const raw = String(value || "");
+        if (!raw) return "";
+        try {
+          return decodeURIComponent(raw);
+        } catch (e) {
+          return raw;
+        }
+      }
+
+      function v3aCookieDeletePaths() {
+        const paths = new Set(["/"]);
+        try {
+          const adminPath = String(new URL(String(V3A.adminUrl || "/"), location.href).pathname || "/");
+          if (adminPath) {
+            paths.add(adminPath);
+            paths.add(adminPath.endsWith("/") ? adminPath.slice(0, -1) : adminPath + "/");
+          }
+        } catch (e) {}
+        try {
+          const current = String(location.pathname || "/");
+          if (current) {
+            paths.add(current);
+            const slash = current.lastIndexOf("/");
+            if (slash > 0) {
+              paths.add(current.slice(0, slash + 1));
+            }
+          }
+        } catch (e) {}
+        return Array.from(paths).filter(Boolean);
+      }
+
+      function v3aDeleteCookie(name) {
+        const n = String(name || "").trim();
+        if (!n) return;
+        const expires = "Thu, 01 Jan 1970 00:00:00 GMT";
+        for (const path of v3aCookieDeletePaths()) {
+          document.cookie = `${n}=; expires=${expires}; path=${path}; SameSite=Lax`;
+        }
+      }
+
+      function v3aStripHtml(input) {
+        return String(input || "").replace(/<[^>]*>/g, "");
+      }
+
+      function consumeLegacyNoticeCookies() {
+        const cookies = v3aParseCookies();
+        const entries = Object.entries(cookies);
+        if (!entries.length) return;
+
+        const noticeEntry = entries.find(([name]) => name.endsWith("__typecho_notice"));
+        if (!noticeEntry) return;
+        const typeEntry = entries.find(([name]) => name.endsWith("__typecho_notice_type"));
+
+        const noticeName = noticeEntry[0];
+        const noticeTypeName = typeEntry ? typeEntry[0] : "";
+        const noticeRaw = v3aDecodeCookieValue(noticeEntry[1]);
+        const noticeTypeRaw = v3aDecodeCookieValue(typeEntry ? typeEntry[1] : "").toLowerCase();
+
+        let messages = [];
+        try {
+          const parsed = JSON.parse(noticeRaw);
+          if (Array.isArray(parsed)) {
+            messages = parsed;
+          } else if (parsed !== null && parsed !== undefined) {
+            messages = [parsed];
+          }
+        } catch (e) {
+          if (noticeRaw) messages = [noticeRaw];
+        }
+
+        const normalizedMessages = messages
+          .map((item) => v3aStripHtml(String(item || "")).replace(/\s+/g, " ").trim())
+          .filter(Boolean);
+
+        if (normalizedMessages.length) {
+          const toastType =
+            noticeTypeRaw === "success"
+              ? "success"
+              : noticeTypeRaw === "error"
+              ? "error"
+              : "warn";
+          for (const message of normalizedMessages) {
+            pushToast({ type: toastType, title: message, duration: 9000 });
+          }
+        }
+
+        v3aDeleteCookie(noticeName);
+        if (noticeTypeName) v3aDeleteCookie(noticeTypeName);
+      }
+
       // Persisted UI state (mx-admin like)
       try {
         sidebarCollapsed.value =
@@ -6139,6 +6247,7 @@
           title: "",
           description: "",
           keywords: "",
+          loginBackground: "",
           allowRegister: 0,
           defaultRegisterGroup: "subscriber",
           allowXmlRpc: 0,
@@ -6225,6 +6334,7 @@
         title: "",
         description: "",
         keywords: "",
+        loginBackground: "",
         allowRegister: 0,
         defaultRegisterGroup: "subscriber",
         allowXmlRpc: 0,
@@ -9686,6 +9796,7 @@
           settingsSiteForm.title = String(settingsData.site.title || "");
           settingsSiteForm.description = String(settingsData.site.description || "");
           settingsSiteForm.keywords = String(settingsData.site.keywords || "");
+          settingsSiteForm.loginBackground = String(settingsData.site.loginBackground || "");
           settingsSiteForm.allowRegister = Number(
             settingsData.site.allowRegister || 0
           );
@@ -9959,6 +10070,7 @@
             settingsSiteForm.title = String(settingsData.site.title || "");
             settingsSiteForm.description = String(settingsData.site.description || "");
             settingsSiteForm.keywords = String(settingsData.site.keywords || "");
+            settingsSiteForm.loginBackground = String(settingsData.site.loginBackground || "");
             settingsSiteForm.allowRegister = Number(settingsData.site.allowRegister || 0);
             settingsSiteForm.defaultRegisterGroup = String(
               settingsData.site.defaultRegisterGroup || "subscriber"
@@ -10973,6 +11085,7 @@
           v3aNormStr(settingsSiteForm.title) !== v3aNormStr(site.title || "") ||
           v3aNormStr(settingsSiteForm.description) !== v3aNormStr(site.description || "") ||
           v3aNormStr(settingsSiteForm.keywords) !== v3aNormStr(site.keywords || "") ||
+          v3aNormStr(settingsSiteForm.loginBackground) !== v3aNormStr(site.loginBackground || "") ||
           v3aNormNum(settingsSiteForm.allowRegister) !== v3aNormNum(site.allowRegister) ||
           v3aNormStr(settingsSiteForm.defaultRegisterGroup) !==
             v3aNormStr(site.defaultRegisterGroup || "subscriber") ||
@@ -11928,6 +12041,7 @@
         settingsOpen.value = routePath.value === "/settings";
         ensureExpandedForRoute(routePath.value);
         document.title = `${crumb.value} - Vue3Admin`;
+        consumeLegacyNoticeCookies();
         await fetchDashboard();
         if (routePath.value === "/posts/manage") {
           await fetchPosts();
@@ -17319,6 +17433,16 @@
                               </div>
                               <div class="v3a-settings-row-control">
                                 <input class="v3a-input" v-model="settingsSiteForm.keywords" placeholder="用逗号分隔" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>登录/注册背景</label>
+                                <div class="v3a-settings-row-help">填写图片 URL，留空使用默认背景</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsSiteForm.loginBackground" placeholder="https://example.com/bg.jpg" />
                               </div>
                             </div>
 

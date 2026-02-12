@@ -343,16 +343,22 @@ a {
 }
 
 .v3a-login-logo {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   border-radius: calc(var(--radius-xl) * 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-primary);
-  color: #fff;
-  font-weight: 800;
-  letter-spacing: 0.5px;
+  background: #fff;
+  border: 1px solid var(--sidebar-border);
+  overflow: hidden;
+}
+
+.v3a-login-logo img {
+  width: 30px;
+  height: 30px;
+  display: block;
+  object-fit: contain;
 }
 
 .v3a-login-title {
