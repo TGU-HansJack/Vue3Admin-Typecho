@@ -392,6 +392,7 @@
         { key: "maintenance-upgrade", label: "升级", to: "/maintenance/upgrade", access: "administrator" },
       ],
     },
+    { key: "about", label: "关于", icon: "info", to: "/about", access: "subscriber" },
   ];
 
   function v3aRouteExists(path) {
@@ -7742,6 +7743,116 @@
         return name ? name.slice(0, 1).toUpperCase() : "U";
       });
 
+      const aboutRepoUrl = "https://github.com/TGU-HansJack/Vue3Admin-Typecho";
+      const aboutWebsiteUrl = "https://www.hansjack.com";
+      const aboutQqGroup = "556339740";
+      const aboutVersion = computed(() =>
+        V3A && V3A.version ? String(V3A.version) : ""
+      );
+      const aboutBuildTime = computed(() => {
+        const v = Number(v3aAssetVer || 0);
+        if (!v) return "";
+        try {
+          const d = new Date(v * 1000);
+          if (Number.isNaN(d.getTime())) return "";
+          return d.toLocaleString();
+        } catch (e) {
+          return "";
+        }
+      });
+      const aboutSponsorUrl = computed(() => v3aAssetUrl("sponsor.png"));
+      const aboutBadges = (() => {
+        const repo = "TGU-HansJack/Vue3Admin-Typecho";
+        return [
+          {
+            alt: "Stars",
+            src: `https://img.shields.io/github/stars/${repo}?style=social`,
+            href: `${aboutRepoUrl}/stargazers`,
+          },
+          {
+            alt: "Issues",
+            src: `https://img.shields.io/github/issues/${repo}`,
+            href: `${aboutRepoUrl}/issues`,
+          },
+          {
+            alt: "Latest Release",
+            src: `https://img.shields.io/github/v/release/${repo}`,
+            href: `${aboutRepoUrl}/releases`,
+          },
+          {
+            alt: "License",
+            src: `https://img.shields.io/github/license/${repo}`,
+            href: `${aboutRepoUrl}`,
+          },
+        ];
+      })();
+      const aboutThanks = [
+        { name: "Typecho", url: "https://typecho.org/" },
+        { name: "Vue 3", url: "https://vuejs.org/" },
+        { name: "ECharts", url: "https://echarts.apache.org/" },
+        { name: "Vditor", url: "https://b3log.org/vditor/" },
+        { name: "CodeMirror 6", url: "https://codemirror.net/6/" },
+        { name: "Lucide Icons", url: "https://lucide.dev/" },
+      ];
+      const aboutChangelog = computed(() => {
+        const build = aboutBuildTime.value ? `Build ${aboutBuildTime.value}` : "";
+        return [
+          {
+            version: "本地定制",
+            date: build,
+            items: [
+              "通知设置对齐旧版清单：新评论/待审核/评论回复/友链申请/友链审核结果邮件",
+              "补齐旧版后台的评论设置项（日期格式、分页、反垃圾、HTML 白名单等）",
+              "新增“关于”页面（介绍、更新日志、版权、致谢、赞助）",
+            ],
+          },
+          {
+            version: "1.2.4",
+            date: "2026-02-09",
+            items: [
+              "修复序列化选项数据格式并优化选项处理逻辑",
+              "添加管理员目录重定向与路径处理改进",
+              "发布版本号更新至 1.2.4",
+            ],
+          },
+          {
+            version: "1.2.3",
+            date: "2026-02-07",
+            items: [
+              "实现本地存储替代数据库表，优化遗留数据迁移",
+              "文章永久链接支持，移动端表格显示优化",
+              "浅色主题内容区背景样式优化",
+            ],
+          },
+          {
+            version: "1.2.1",
+            date: "2026-02-06",
+            items: [
+              "升级设置新增网络源选择",
+              "API 代码风格整理（匿名函数改传统函数语法）",
+            ],
+          },
+          {
+            version: "1.2.0",
+            date: "2026-02-06",
+            items: [
+              "移动端侧边栏/滑动交互体验优化",
+              "创意工坊功能支持与 UI/过滤完善",
+              "主题夜间模式与样式变量完善",
+            ],
+          },
+          {
+            version: "1.1.0",
+            date: "2026-02-04",
+            items: [
+              "版本管理与升级功能、确认对话框与错误处理改进",
+              "邮件发送状态记录与测试功能",
+            ],
+          },
+          { version: "1.0.0", date: "2026-02-04", items: ["首个发布版本"] },
+        ];
+      });
+
       function isActive(path) {
         return routePath.value === path;
       }
@@ -12023,6 +12134,15 @@
         crumb,
         crumbPath,
         crumbCurrent,
+        aboutVersion,
+        aboutBuildTime,
+        aboutRepoUrl,
+        aboutWebsiteUrl,
+        aboutQqGroup,
+        aboutSponsorUrl,
+        aboutBadges,
+        aboutChangelog,
+        aboutThanks,
         themeToggleIcon,
         themeToggleTitle,
         cycleThemeMode,
@@ -16526,6 +16646,156 @@
                       <button class="v3a-btn primary" type="button" @click="runV3aLegacyMaintenance()" :disabled="v3aLegacyWorking">
                         {{ v3aLegacyWorking ? "维护中…" : "开始维护" }}
                       </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="routePath === '/about'">
+              <div class="v3a-container">
+                <div class="v3a-pagehead">
+                  <div class="v3a-head-left">
+                    <button class="v3a-iconbtn v3a-collapse-btn" type="button" @click="toggleSidebar()" :title="sidebarToggleTitle">
+                      <span class="v3a-icon" v-html="sidebarToggleIcon"></span>
+                    </button>
+                    <div class="v3a-pagehead-title v3a-pagehead-title--path" :title="crumb">
+                      <span v-if="crumbPath" class="v3a-pagehead-title-path">{{ crumbPath }}</span>
+                      <span v-if="crumbPath" class="v3a-pagehead-title-sep"> / </span>
+                      <span class="v3a-pagehead-title-current">{{ crumbCurrent || crumb }}</span>
+                    </div>
+                  </div>
+                  <div class="v3a-pagehead-actions">
+                    <a class="v3a-actionbtn" :href="aboutRepoUrl" target="_blank" rel="noreferrer" title="GitHub">
+                      <span class="v3a-icon" v-html="ICONS.github"></span>
+                    </a>
+                    <a class="v3a-actionbtn" :href="aboutWebsiteUrl" target="_blank" rel="noreferrer" title="官网">
+                      <span class="v3a-icon" v-html="ICONS.externalLink"></span>
+                    </a>
+                  </div>
+                </div>
+
+                <div class="v3a-card">
+                  <div class="hd">
+                    <div class="title">Vue3Admin</div>
+                    <div style="display:flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                      <span v-if="aboutVersion" class="v3a-pill info">v{{ aboutVersion }}</span>
+                      <span v-if="aboutBuildTime" class="v3a-pill">Build {{ aboutBuildTime }}</span>
+                    </div>
+                  </div>
+                  <div class="bd">
+                    <div style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">基于现代化风格的 Typecho 后台面板插件</div>
+                    <div class="v3a-muted" style="line-height: 1.7;">
+                      启用后接管 Typecho 后台路径，并自动部署资源到站点根目录的
+                      <code style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">/Vue3Admin/</code>。
+                      提供仪表盘数据统计、文章/页面/评论/文件等后台管理体验，并支持可选扩展模块。
+                    </div>
+
+                    <div style="display:flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
+                      <span class="v3a-pill">作者：HansJack</span>
+                      <span class="v3a-pill">QQ群：{{ aboutQqGroup }}</span>
+                    </div>
+
+                    <div style="display:flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px;">
+                      <a v-for="b in aboutBadges" :key="b.alt" :href="b.href" target="_blank" rel="noreferrer" :title="b.alt">
+                        <img :src="b.src" :alt="b.alt" loading="lazy" referrerpolicy="no-referrer" style="height: 20px; display:block;" />
+                      </a>
+                    </div>
+
+                    <div class="v3a-grid two" style="margin-top: 16px;">
+                      <div>
+                        <div style="font-weight: 600; margin-bottom: 6px;">功能概览</div>
+                        <ul style="margin: 0 0 0 18px; padding: 0; line-height: 1.8;">
+                          <li>接管后台路径：<code style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">/Vue3Admin/</code></li>
+                          <li>自动部署后台资源到站点根目录</li>
+                          <li>仪表盘统计：前台访问可上报写入本地</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <div style="font-weight: 600; margin-bottom: 6px;">注意事项</div>
+                        <ul style="margin: 0 0 0 18px; padding: 0; line-height: 1.8;">
+                          <li>首次启用会改写 <code style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">config.inc.php</code> 并自动备份</li>
+                          <li>请确保站点根目录具备写权限，否则部署会失败</li>
+                          <li>建议使用 Release 包安装（开发版接口可能调整）</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <div style="font-weight: 600; margin-bottom: 6px;">数据存储</div>
+                        <div class="v3a-muted" style="line-height: 1.7;">
+                          默认存放于 <code style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">usr/plugins/Vue3Admin/cache/v3a_data.sqlite</code>（需要 <code style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">pdo_sqlite</code>）。
+                        </div>
+                      </div>
+                      <div>
+                        <div style="font-weight: 600; margin-bottom: 6px;">交流与反馈</div>
+                        <div class="v3a-muted" style="line-height: 1.7;">
+                          QQ 群：{{ aboutQqGroup }}；问题反馈：<a :href="aboutRepoUrl + '/issues'" target="_blank" rel="noreferrer">GitHub Issues</a>。
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="v3a-grid two" style="margin-top: 16px;">
+                  <div class="v3a-card">
+                    <div class="hd">
+                      <div class="title">更新日志</div>
+                      <div class="v3a-muted" style="font-size: 12px;">简要记录</div>
+                    </div>
+                    <div class="bd">
+                      <div v-for="v in aboutChangelog" :key="v.version" style="margin-bottom: 14px;">
+                        <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                          <span class="v3a-pill info">v{{ v.version }}</span>
+                          <span v-if="v.date" class="v3a-muted" style="font-size: 12px;">{{ v.date }}</span>
+                        </div>
+                        <ul style="margin: 10px 0 0 18px; padding: 0; line-height: 1.7;">
+                          <li v-for="(it, idx) in v.items" :key="idx">{{ it }}</li>
+                        </ul>
+                      </div>
+                      <div class="v3a-muted" style="line-height: 1.7;">
+                        更完整的提交记录可在 <a :href="aboutRepoUrl + '/releases'" target="_blank" rel="noreferrer">GitHub Release</a> /
+                        <a :href="aboutRepoUrl + '/commits/main'" target="_blank" rel="noreferrer">Commit History</a> 中查看。
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="v3a-card">
+                    <div class="hd">
+                      <div class="title">赞助</div>
+                      <div class="v3a-muted" style="font-size: 12px;">感谢支持</div>
+                    </div>
+                    <div class="bd">
+                      <div class="v3a-muted" style="margin-bottom: 12px; line-height: 1.7;">如果这个项目对你有帮助，欢迎赞助支持持续更新与维护。</div>
+                      <div style="display:flex; justify-content: center;">
+                        <img :src="aboutSponsorUrl" alt="赞助二维码" style="width: 240px; max-width: 100%; border-radius: 10px; border: 1px solid var(--sidebar-border);" loading="lazy" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="v3a-card">
+                    <div class="hd">
+                      <div class="title">版权与声明</div>
+                      <div class="v3a-muted" style="font-size: 12px;">Copyright</div>
+                    </div>
+                    <div class="bd">
+                      <div style="line-height: 1.7;">
+                        <div>© HansJack. All rights reserved.</div>
+                        <div class="v3a-muted" style="margin-top: 8px;">源码/资源的许可协议请以 GitHub 仓库中的 LICENSE（如有）为准。</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="v3a-card">
+                    <div class="hd">
+                      <div class="title">致谢</div>
+                      <div class="v3a-muted" style="font-size: 12px;">Thanks</div>
+                    </div>
+                    <div class="bd">
+                      <div class="v3a-muted" style="margin-bottom: 10px;">本插件在实现过程中参考/使用了以下项目：</div>
+                      <ul style="margin: 0 0 0 18px; padding: 0; line-height: 1.8;">
+                        <li v-for="t in aboutThanks" :key="t.name">
+                          <a :href="t.url" target="_blank" rel="noreferrer">{{ t.name }}</a>
+                        </li>
+                      </ul>
                     </div>
                   </div>
                 </div>
