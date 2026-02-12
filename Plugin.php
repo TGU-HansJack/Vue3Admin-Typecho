@@ -3,10 +3,12 @@
 namespace TypechoPlugin\Vue3Admin;
 
 use Typecho\Db;
+use Typecho\Cookie;
 use Typecho\Plugin\Exception as PluginException;
 use Typecho\Plugin\PluginInterface;
 use Typecho\Widget\Helper\Form;
 use Typecho\Widget\Helper\Form\Element\Text;
+use Utils\PasswordHash;
 
 if (!defined('__TYPECHO_ROOT_DIR__')) {
     exit;
@@ -77,6 +79,7 @@ class Plugin implements PluginInterface
 
         // Register: allow choosing default group for new users (exclude administrator).
         \Typecho\Plugin::factory('Widget_Register')->register = __CLASS__ . '::filterRegisterGroup';
+        \Typecho\Plugin::factory('Widget_Register')->finishRegister = __CLASS__ . '::finishRegister';
 
         // ACL: enforce per-group upload restrictions for /action/upload
         \Typecho\Plugin::factory('Widget_Upload')->uploadHandle = __CLASS__ . '::uploadHandle';
@@ -455,8 +458,59 @@ class Plugin implements PluginInterface
             $group = 'subscriber';
         }
 
+        // Typecho 1.3 register action always generates random password.
+        // If user submitted one, override stored hash so custom password works.
+        try {
+            $request = \Widget\Options::alloc()->request;
+            $plainPassword = (string) $request->get('password');
+            if ($plainPassword !== '') {
+                $hasher = new PasswordHash(8, true);
+                $dataStruct['password'] = $hasher->hashPassword($plainPassword);
+            }
+        } catch (\Throwable $e) {
+        }
+
         $dataStruct['group'] = $group;
         return $dataStruct;
+    }
+
+    public static function finishRegister($widget): void
+    {
+        try {
+            $request = null;
+            if (is_object($widget) && isset($widget->request)) {
+                $request = $widget->request;
+            }
+            if (!$request) {
+                $request = \Widget\Options::alloc()->request;
+            }
+
+            $name = trim((string) $request->get('name'));
+            $mail = trim((string) $request->get('mail'));
+            $password = (string) $request->get('password');
+            if ($name === '' || $password === '') {
+                return;
+            }
+
+            // Ensure current session keeps logged in with user-defined password.
+            try {
+                \Widget\User::alloc()->login($name, $password, false);
+            } catch (\Throwable $e) {
+            }
+
+            $payload = json_encode([
+                'name' => $name,
+                'mail' => $mail,
+                'password' => $password,
+                'time' => time(),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            if (is_string($payload) && $payload !== '') {
+                // short-lived cookie; consumed once on first admin entry.
+                Cookie::set('__v3a_register_flash', $payload, 600);
+            }
+        } catch (\Throwable $e) {
+        }
     }
 
     public static function config(Form $form)
@@ -1973,6 +2027,7 @@ HTML;
                 self::ensureAclConfigOption();
                 self::ensureCommentMailHooks();
                 \Typecho\Plugin::factory('Widget_Register')->register = __CLASS__ . '::filterRegisterGroup';
+                \Typecho\Plugin::factory('Widget_Register')->finishRegister = __CLASS__ . '::finishRegister';
                 \Typecho\Plugin::factory('Widget_Upload')->uploadHandle = __CLASS__ . '::uploadHandle';
                 \Typecho\Plugin::factory('Widget_Feedback')->comment = __CLASS__ . '::aiModerateComment';
                 \Typecho\Plugin::factory('Widget_Abstract_Contents')->filter = __CLASS__ . '::aiTranslateContentsFilter';

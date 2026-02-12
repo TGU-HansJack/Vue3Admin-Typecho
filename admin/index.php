@@ -173,6 +173,32 @@ try {
 } catch (\Throwable $e) {
     $aiConfig = [];
 }
+
+$registerFlash = null;
+try {
+    $flashRaw = (string) \Typecho\Cookie::get('__v3a_register_flash', '');
+    if ($flashRaw !== '') {
+        $decoded = json_decode($flashRaw, true);
+        if (is_array($decoded)) {
+            $name = trim((string) ($decoded['name'] ?? ''));
+            $mail = trim((string) ($decoded['mail'] ?? ''));
+            $password = (string) ($decoded['password'] ?? '');
+            $time = (int) ($decoded['time'] ?? 0);
+            $currentName = trim((string) ($user->name ?? ''));
+
+            if ($name !== '' && $password !== '' && strcasecmp($name, $currentName) === 0) {
+                $registerFlash = [
+                    'name' => $name,
+                    'mail' => $mail,
+                    'password' => $password,
+                    'time' => $time,
+                ];
+            }
+        }
+    }
+    \Typecho\Cookie::delete('__v3a_register_flash');
+} catch (\Throwable $e) {
+}
 ?>
 <!doctype html>
 <html lang="zh-CN" style="--color-primary: <?php echo htmlspecialchars($primaryColor, ENT_QUOTES); ?>; --color-primary-shallow: <?php echo htmlspecialchars($primaryShallow, ENT_QUOTES); ?>; --color-primary-deep: <?php echo htmlspecialchars($primaryDeep, ENT_QUOTES); ?>;">
@@ -209,6 +235,7 @@ try {
                 ai: <?php echo json_encode($aiConfig, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
                 shouTuTaEnabled: <?php echo $shouTuTaEnabled ? 'true' : 'false'; ?>
             },
+            registerFlash: <?php echo json_encode($registerFlash, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
             user: {
                 uid: <?php echo (int) ($user->uid ?? 0); ?>,
                 name: <?php echo json_encode($user->screenName ?? ''); ?>,

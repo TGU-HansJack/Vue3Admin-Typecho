@@ -1652,6 +1652,11 @@
         return String(input || "").replace(/<[^>]*>/g, "");
       }
 
+      function v3aIsRegisterNoticeMessage(message) {
+        const s = String(message || "");
+        return /成功注册/.test(s) && /密码/.test(s);
+      }
+
       function consumeLegacyNoticeCookies() {
         const cookies = v3aParseCookies();
         const entries = Object.entries(cookies);
@@ -1690,12 +1695,33 @@
               ? "error"
               : "warn";
           for (const message of normalizedMessages) {
+            if (v3aIsRegisterNoticeMessage(message)) continue;
             pushToast({ type: toastType, title: message, duration: 9000 });
           }
         }
 
         v3aDeleteCookie(noticeName);
         if (noticeTypeName) v3aDeleteCookie(noticeTypeName);
+      }
+
+      const registerFlash = ref(null);
+      const registerFlashOpen = ref(false);
+      try {
+        const raw = V3A && V3A.registerFlash && typeof V3A.registerFlash === "object"
+          ? V3A.registerFlash
+          : null;
+        const name = raw ? String(raw.name || "").trim() : "";
+        const mail = raw ? String(raw.mail || "").trim() : "";
+        const password = raw ? String(raw.password || "") : "";
+        const time = raw ? Number(raw.time || 0) || 0 : 0;
+        if (name && password) {
+          registerFlash.value = { name, mail, password, time };
+          registerFlashOpen.value = true;
+        }
+      } catch (e) {}
+
+      function closeRegisterFlash() {
+        registerFlashOpen.value = false;
       }
 
       // Persisted UI state (mx-admin like)
@@ -12242,6 +12268,9 @@
         toastIcon,
         dismissToast,
         runToastAction,
+        registerFlash,
+        registerFlashOpen,
+        closeRegisterFlash,
         route,
         routePath,
         routeQuery,
@@ -19514,6 +19543,37 @@
               <div class="v3a-modal-actions">
                 <button class="v3a-btn v3a-modal-btn" type="button" @click="closePluginConfig()">关闭</button>
                 <button class="v3a-btn primary v3a-modal-btn" type="button" @click="savePluginConfig()" :disabled="pluginConfigLoading || pluginConfigSaving || !pluginConfigExists">{{ pluginConfigSaving ? "保存中…" : "保存设置" }}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="registerFlashOpen && registerFlash" class="v3a-modal-mask" @click.self="closeRegisterFlash()">
+          <div class="v3a-modal-card" role="dialog" aria-modal="true" style="max-width: 560px;">
+            <button class="v3a-modal-close" type="button" aria-label="关闭" @click="closeRegisterFlash()">
+              <span class="v3a-icon" v-html="ICONS.closeSmall"></span>
+            </button>
+            <div class="v3a-modal-head">
+              <div class="v3a-modal-title">注册成功</div>
+              <div class="v3a-modal-subtitle">请保存以下信息，关闭后不再显示</div>
+            </div>
+            <div class="v3a-modal-body">
+              <div class="v3a-modal-form">
+                <div class="v3a-modal-item">
+                  <label class="v3a-modal-label">用户名</label>
+                  <input class="v3a-input v3a-modal-input" :value="registerFlash.name || ''" readonly />
+                </div>
+                <div class="v3a-modal-item">
+                  <label class="v3a-modal-label">邮箱</label>
+                  <input class="v3a-input v3a-modal-input" :value="registerFlash.mail || ''" readonly />
+                </div>
+                <div class="v3a-modal-item">
+                  <label class="v3a-modal-label">密码</label>
+                  <input class="v3a-input v3a-modal-input" :value="registerFlash.password || ''" readonly />
+                </div>
+              </div>
+              <div class="v3a-modal-actions">
+                <button class="v3a-btn primary v3a-modal-btn" type="button" @click="closeRegisterFlash()">我已保存，关闭</button>
               </div>
             </div>
           </div>

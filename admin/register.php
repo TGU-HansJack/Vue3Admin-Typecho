@@ -108,6 +108,14 @@ $loginBackgroundCssUrl = json_encode($loginBackground, JSON_UNESCAPED_UNICODE | 
             <span>Email</span>
             <input type="email" name="mail" value="<?php echo $rememberMail; ?>" placeholder="Email" required />
         </label>
+        <label class="v3a-field">
+            <span>密码</span>
+            <input type="password" name="password" placeholder="至少 6 位" minlength="6" autocomplete="new-password" required />
+        </label>
+        <label class="v3a-field">
+            <span>确认密码</span>
+            <input type="password" name="confirm" placeholder="再次输入密码" minlength="6" autocomplete="new-password" required />
+        </label>
         <button class="v3a-login-btn" type="submit">注册</button>
     </form>
 
