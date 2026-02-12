@@ -6313,6 +6313,234 @@
   </div>
 </div>
 `.trim();
+
+      const DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE = `
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">收到一条待审核评论</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 8px;"><strong>文章：</strong><a href="{{postUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{postTitle}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>作者：</strong>{{commentAuthor}}</div>
+      <div style="margin-bottom: 8px;"><strong>状态：</strong>{{commentStatus}}</div>
+      <div style="margin-bottom: 12px;"><strong>时间：</strong>{{commentTime}}</div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{commentText}}</div>
+    </div>
+    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      <a href="{{reviewUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">前往审核</a>
+    </div>
+  </div>
+</div>
+`.trim();
+
+      const DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE = `
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">你的评论有了新的回复</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 8px;"><strong>文章：</strong><a href="{{postUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{postTitle}}</a></div>
+      <div style="margin-bottom: 12px; font-size: 12px; color: #666;">
+        <div><strong>你的昵称：</strong>{{parentAuthor}}</div>
+        <div><strong>你的评论时间：</strong>{{parentTime}}</div>
+        <div><strong>回复时间：</strong>{{replyTime}}</div>
+      </div>
+      <div style="margin-bottom: 8px;"><strong>你的评论：</strong></div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px; margin-bottom: 12px;">{{parentText}}</div>
+      <div style="margin-bottom: 8px;"><strong>{{replyAuthor}}</strong> 回复说：</div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{replyText}}</div>
+    </div>
+    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      <a href="{{postUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">查看完整内容</a>
+    </div>
+  </div>
+</div>
+`.trim();
+
+      // Presets (borrowed from CommentNotifier templates, with Vue3Admin placeholder syntax).
+      const CN_DEFAULT_NOTIFY_COMMENT_TEMPLATE = `
+<style type="text/css">.qmbox style, .qmbox script, .qmbox head, .qmbox link, .qmbox meta {display: none !important;}.emailz{background-color:white;border-top:2px solid #12ADDB;box-shadow:0 1px 3px #AAAAAA;line-height:180%;padding:0 15px 12px;width:500px;margin:35px auto;color:#555555;font-family:'Century Gothic','Trebuchet MS','Hiragino Sans GB',微软雅黑,'Microsoft Yahei',Tahoma,Helvetica,Arial,'SimSun',sans-serif;font-size:14px;}@media(max-width:767px){.emailz{width: 88%;}}</style>
+<div class="emailz">
+  <h2 style="border-bottom:1px solid #DDD;font-size:14px;font-weight:normal;padding:13px 0 10px 8px;">
+    <span style="color: #12ADDB;font-weight: bold;">&gt; </span>
+    您的<a style="text-decoration:none;color: #12ADDB;" href="{{postUrl}}" target="_blank" rel="noopener">[{{postTitle}}]</a>的文章中有了新的评论~
+  </h2>
+  <div style="padding:0 12px 0 12px;margin-top:18px">
+    <p>时间：<span style="border-bottom:1px dashed #ccc;">{{commentTime}}</span></p>
+    <div style="background-color: #f5f5f5;border: 0px solid #DDD;padding: 10px 15px;margin:18px 0">{{commentText}}</div>
+    <p>评论者:<span style="color: #12ADDB;">{{commentAuthor}}</span></p>
+    <p style="background-color: #f5f5f5;border: 0px solid #DDD;padding: 10px 15px;margin:18px 0">{{commentMail}}</p>
+    <p>您可以点击 <a style="text-decoration:none; color:#12addb" href="{{postUrl}}" target="_blank" rel="noopener">查看回复的完整內容</a>，欢迎再次光临 <a style="text-decoration:none; color:#12addb" href="{{siteUrl}}" target="_blank" rel="noopener">{{siteTitle}}</a>。</p>
+  </div>
+</div>
+`.trim();
+
+      const CN_DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE = `
+<style type="text/css">.qmbox style, .qmbox script, .qmbox head, .qmbox link, .qmbox meta {display: none !important;}.emailz{background-color:white;border-top:2px solid #12ADDB;box-shadow:0 1px 3px #AAAAAA;line-height:180%;padding:0 15px 12px;width:500px;margin:35px auto;color:#555555;font-family:'Century Gothic','Trebuchet MS','Hiragino Sans GB',微软雅黑,'Microsoft Yahei',Tahoma,Helvetica,Arial,'SimSun',sans-serif;font-size:14px;}@media(max-width:767px){.emailz{width: 88%;}}</style>
+<div class="emailz">
+  <h2 style="border-bottom:1px solid #DDD;font-size:14px;font-weight:normal;padding:13px 0 10px 8px;">
+    <span style="color: #12ADDB;font-weight: bold;">&gt; </span>
+    在<a style="text-decoration:none;color: #12ADDB;" href="{{postUrl}}" target="_blank" rel="noopener">[{{postTitle}}]</a>文章中待审核评论如下
+  </h2>
+  <div style="padding:0 12px 0 12px;margin-top:18px">
+    <p>时间：<span style="border-bottom:1px dashed #ccc;">{{commentTime}}</span></p>
+    <div style="background-color: #f5f5f5;border: 0px solid #DDD;padding: 10px 15px;margin:18px 0">{{commentText}}</div>
+    <p>评论者:<span style="color: #12ADDB;">{{commentAuthor}}</span></p>
+    <p style="background-color: #f5f5f5;border: 0px solid #DDD;padding: 10px 15px;margin:18px 0">{{commentMail}}</p>
+    <p>您可以点击 <a style="text-decoration:none; color:#12addb" href="{{reviewUrl}}" target="_blank" rel="noopener">前往审核</a>，欢迎再次光临 <a style="text-decoration:none; color:#12addb" href="{{siteUrl}}" target="_blank" rel="noopener">{{siteTitle}}</a>。</p>
+  </div>
+</div>
+`.trim();
+
+      const CN_DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE = `
+<style type="text/css">.qmbox style, .qmbox script, .qmbox head, .qmbox link, .qmbox meta {display: none !important;}.emailz{background-color:white;border-top:2px solid #12ADDB;box-shadow:0 1px 3px #AAAAAA;line-height:180%;padding:0 15px 12px;width:500px;margin:35px auto;color:#555555;font-family:'Century Gothic','Trebuchet MS','Hiragino Sans GB',微软雅黑,'Microsoft Yahei',Tahoma,Helvetica,Arial,'SimSun',sans-serif;font-size:14px;}@media(max-width:767px){.emailz{width: 88%;}}</style>
+<div class="emailz">
+  <h2 style="border-bottom:1px solid #DDD;font-size:14px;font-weight:normal;padding:13px 0 10px 8px;">
+    <span style="color: #12ADDB;font-weight: bold;">&gt; </span>
+    您({{parentAuthor}})在<a style="text-decoration:none;color: #12ADDB;" href="{{postUrl}}" target="_blank" rel="noopener">[{{postTitle}}]</a>的评论有了新的回复
+  </h2>
+  <div style="padding:0 12px 0 12px;margin-top:18px">
+    <p>时间：<span style="border-bottom:1px dashed #ccc;">{{replyTime}}</span></p>
+    <p>你的评论:</p>
+    <div style="background-color: #f5f5f5;border: 0px solid #DDD;padding: 10px 15px;margin:18px 0">{{parentText}}</div>
+    <p><strong>{{replyAuthor}}</strong>&nbsp;回复说：</p>
+    <div style="background-color: #f5f5f5;border: 0px solid #DDD;padding: 10px 15px;margin:18px 0">{{replyText}}</div>
+    <p>您可以点击 <a style="text-decoration:none; color:#12addb" href="{{postUrl}}" target="_blank" rel="noopener">查看回复的完整內容</a>，欢迎再次光临 <a style="text-decoration:none; color:#12addb" href="{{siteUrl}}" target="_blank" rel="noopener">{{siteTitle}}</a>。</p>
+  </div>
+</div>
+`.trim();
+
+      const CN_PURE_NOTIFY_COMMENT_TEMPLATE = `
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f6f6f6">
+  <tr>
+    <td align="center" style="padding:48px 0;">
+      <table width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;">
+        <tr>
+          <td style="padding:40px 40px 36px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',Arial,sans-serif;color:#333333;font-size:15px;line-height:28px;">
+            <div style="color:#aaaaaa;font-size:12px;letter-spacing:1px;margin-bottom:18px;">Owner · 评论回复</div>
+            <div style="font-size:26px;line-height:36px;margin-bottom:10px;">您的文章有了新的评论</div>
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;"><tr><td width="96" height="8" bgcolor="#ea868f" style="border-radius:6px;font-size:0;"></td></tr></table>
+            <div style="margin:0 0 18px 0;">
+              <a href="{{postUrl}}" style="color:#ea868f;text-decoration:none;">《{{postTitle}}》</a>
+            </div>
+            <div style="color:#666666;font-size:13px;margin-bottom:14px;">
+              <strong style="color:#333333;">{{commentAuthor}}</strong> · {{commentTime}} · {{commentMail}}
+            </div>
+            <div style="background:#f6f6f6;border-radius:12px;padding:14px 16px;color:#333333;margin-bottom:18px;">{{commentText}}</div>
+            <div style="margin-top:22px;">
+              <a href="{{postUrl}}" style="display:inline-block;background:#ea868f;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:10px;font-size:14px;">查看详情</a>
+            </div>
+            <div style="margin-top:26px;color:#999999;font-size:12px;line-height:20px;">
+              {{siteTitle}}<br>
+              <a href="{{siteUrl}}" style="color:#999999;text-decoration:none;">{{siteUrl}}</a>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+`.trim();
+
+      const CN_PURE_NOTIFY_COMMENT_WAITING_TEMPLATE = `
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f6f6f6">
+  <tr>
+    <td align="center" style="padding:48px 0;">
+      <table width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;">
+        <tr>
+          <td style="padding:40px 40px 36px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',Arial,sans-serif;color:#333333;font-size:15px;line-height:28px;">
+            <div style="color:#aaaaaa;font-size:12px;letter-spacing:1px;margin-bottom:18px;">Notice · 待审核评论</div>
+            <div style="font-size:26px;line-height:36px;margin-bottom:10px;">有一条评论待审核</div>
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;"><tr><td width="96" height="8" bgcolor="#ea868f" style="border-radius:6px;font-size:0;"></td></tr></table>
+            <div style="margin:0 0 18px 0;">
+              <a href="{{postUrl}}" style="color:#ea868f;text-decoration:none;">《{{postTitle}}》</a>
+            </div>
+            <div style="color:#666666;font-size:13px;margin-bottom:14px;">
+              <strong style="color:#333333;">{{commentAuthor}}</strong> · {{commentTime}} · {{commentMail}}
+            </div>
+            <div style="background:#f6f6f6;border-radius:12px;padding:14px 16px;color:#333333;margin-bottom:18px;">{{commentText}}</div>
+            <div style="margin-top:22px;">
+              <a href="{{reviewUrl}}" style="display:inline-block;background:#ea868f;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:10px;font-size:14px;">前往审核</a>
+            </div>
+            <div style="margin-top:26px;color:#999999;font-size:12px;line-height:20px;">
+              {{siteTitle}}<br>
+              <a href="{{siteUrl}}" style="color:#999999;text-decoration:none;">{{siteUrl}}</a>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+`.trim();
+
+      const CN_PURE_NOTIFY_COMMENT_REPLY_TEMPLATE = `
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f6f6f6">
+  <tr>
+    <td align="center" style="padding:48px 0;">
+      <table width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;">
+        <tr>
+          <td style="padding:40px 40px 36px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',Arial,sans-serif;color:#333333;font-size:15px;line-height:28px;">
+            <div style="color:#aaaaaa;font-size:12px;letter-spacing:1px;margin-bottom:18px;">Guest · 评论回复</div>
+            <div style="font-size:26px;line-height:36px;margin-bottom:10px;">你的评论有了新的回复</div>
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;"><tr><td width="96" height="8" bgcolor="#ea868f" style="border-radius:6px;font-size:0;"></td></tr></table>
+            <div style="margin:0 0 18px 0;">
+              <a href="{{postUrl}}" style="color:#ea868f;text-decoration:none;">《{{postTitle}}》</a>
+            </div>
+            <div style="color:#666666;font-size:13px;margin-bottom:14px;">
+              <strong style="color:#333333;">{{replyAuthor}}</strong> · {{replyTime}}
+            </div>
+            <div style="background:#f6f6f6;border-radius:12px;padding:14px 16px;color:#333333;margin-bottom:12px;">{{replyText}}</div>
+            <div style="color:#999999;font-size:12px;margin-bottom:10px;">回复给 <strong>{{parentAuthor}}</strong>（你）</div>
+            <div style="background:#f6f6f6;border-radius:12px;padding:14px 16px;color:#333333;margin-bottom:18px;">{{parentText}}</div>
+            <div style="margin-top:22px;">
+              <a href="{{postUrl}}" style="display:inline-block;background:#ea868f;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:10px;font-size:14px;">查看详情</a>
+            </div>
+            <div style="margin-top:26px;color:#999999;font-size:12px;line-height:20px;">
+              {{siteTitle}}<br>
+              <a href="{{siteUrl}}" style="color:#999999;text-decoration:none;">{{siteUrl}}</a>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+`.trim();
+
+      const NOTIFY_TEMPLATE_STYLES = [
+        {
+          value: "v3a",
+          label: "简约卡片（Vue3Admin）",
+          templates: {
+            comment: DEFAULT_NOTIFY_COMMENT_TEMPLATE,
+            commentWaiting: DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE,
+            commentReply: DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE,
+          },
+        },
+        {
+          value: "cn_default",
+          label: "默认（CommentNotifier）",
+          templates: {
+            comment: CN_DEFAULT_NOTIFY_COMMENT_TEMPLATE,
+            commentWaiting: CN_DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE,
+            commentReply: CN_DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE,
+          },
+        },
+        {
+          value: "cn_pure",
+          label: "PureMail（CommentNotifier）",
+          templates: {
+            comment: CN_PURE_NOTIFY_COMMENT_TEMPLATE,
+            commentWaiting: CN_PURE_NOTIFY_COMMENT_WAITING_TEMPLATE,
+            commentReply: CN_PURE_NOTIFY_COMMENT_REPLY_TEMPLATE,
+          },
+        },
+      ];
       const settingsDiscussionForm = reactive({
         commentDateFormat: "",
         commentsListSize: 20,
@@ -6343,7 +6571,10 @@
       const settingsNotifyForm = reactive({
         mailEnabled: 0,
         commentNotifyEnabled: 0,
+        commentWaitingNotifyEnabled: 0,
+        commentReplyNotifyEnabled: 0,
         friendLinkNotifyEnabled: 0,
+        templateStyle: "v3a",
         smtpFrom: "",
         smtpHost: "",
         smtpPort: 465,
@@ -6351,11 +6582,13 @@
         smtpPass: "",
         smtpSecure: 1,
         commentTemplate: DEFAULT_NOTIFY_COMMENT_TEMPLATE,
+        commentWaitingTemplate: DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE,
+        commentReplyTemplate: DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE,
         friendLinkTemplate: DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE,
       });
       const settingsNotifyTesting = ref(false);
       const settingsNotifyTemplateEditorOpen = ref(false);
-      const settingsNotifyTemplateKind = ref("comment"); // comment|friendLink
+      const settingsNotifyTemplateKind = ref("comment"); // comment|commentWaiting|commentReply|friendLink
       const settingsNotifyTemplateDraft = ref("");
       const settingsNotifyTemplatePreviewHtml = computed(() => {
         const tpl = String(
@@ -6367,15 +6600,78 @@
         const now = new Date();
         const sample = {
           siteTitle,
+          siteUrl,
           postTitle: "示例文章标题",
           postUrl: siteUrl ? siteUrl + "/archives/1/" : "https://example.com/archives/1/",
           commentAuthor: "访客",
+          commentMail: "guest@example.com",
           commentStatus: "approved",
           commentTime: now.toLocaleString(),
           commentText: escapeHtml("这是一条示例评论内容。\\n支持换行。").replace(
             /\\n/g,
             "<br />"
           ),
+          reviewUrl: siteUrl ? siteUrl + "/Vue3Admin/#/comments" : "https://example.com/Vue3Admin/#/comments",
+        };
+        return renderMailTemplate(tpl, sample);
+      });
+      const settingsNotifyCommentWaitingTemplatePreviewHtml = computed(() => {
+        const tpl = String(
+          settingsNotifyForm.commentWaitingTemplate ||
+            DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE
+        );
+        const siteTitle = String(settingsData.site.title || "我的站点");
+        const siteUrlRaw = String(settingsData.site.siteUrl || "https://example.com");
+        const siteUrl = siteUrlRaw.replace(/\/+$/, "");
+        const now = new Date();
+        const sample = {
+          siteTitle,
+          siteUrl,
+          postTitle: "示例文章标题",
+          postUrl: siteUrl ? siteUrl + "/archives/1/" : "https://example.com/archives/1/",
+          commentAuthor: "访客",
+          commentMail: "guest@example.com",
+          commentStatus: "waiting",
+          commentTime: now.toLocaleString(),
+          commentText: escapeHtml("这是一条示例待审核评论内容。\\n支持换行。").replace(
+            /\\n/g,
+            "<br />"
+          ),
+          reviewUrl: siteUrl
+            ? siteUrl + "/Vue3Admin/#/comments"
+            : "https://example.com/Vue3Admin/#/comments",
+        };
+        return renderMailTemplate(tpl, sample);
+      });
+      const settingsNotifyCommentReplyTemplatePreviewHtml = computed(() => {
+        const tpl = String(
+          settingsNotifyForm.commentReplyTemplate ||
+            DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE
+        );
+        const siteTitle = String(settingsData.site.title || "我的站点");
+        const siteUrlRaw = String(settingsData.site.siteUrl || "https://example.com");
+        const siteUrl = siteUrlRaw.replace(/\/+$/, "");
+        const now = new Date();
+        const sample = {
+          siteTitle,
+          siteUrl,
+          postTitle: "示例文章标题",
+          postUrl: siteUrl ? siteUrl + "/archives/1/" : "https://example.com/archives/1/",
+          parentAuthor: "访客A",
+          parentTime: now.toLocaleString(),
+          parentText: escapeHtml("这是你之前发表的评论。\\n支持换行。").replace(
+            /\\n/g,
+            "<br />"
+          ),
+          replyAuthor: "访客B",
+          replyTime: now.toLocaleString(),
+          replyText: escapeHtml("这是对你评论的回复。\\n支持换行。").replace(
+            /\\n/g,
+            "<br />"
+          ),
+          reviewUrl: siteUrl
+            ? siteUrl + "/Vue3Admin/#/comments"
+            : "https://example.com/Vue3Admin/#/comments",
         };
         return renderMailTemplate(tpl, sample);
       });
@@ -6407,13 +6703,47 @@
         return renderMailTemplate(tpl, sample);
       });
 
+      const notifyTemplateStyles = NOTIFY_TEMPLATE_STYLES;
+      function applySettingsNotifyTemplateStyle() {
+        const value = String(settingsNotifyForm.templateStyle || "v3a");
+        const found = notifyTemplateStyles.find((s) => String(s.value) === value);
+        if (!found) return;
+        if (!confirm("应用该样式将覆盖当前评论相关模板内容，是否继续？")) return;
+        const templates = found.templates || {};
+        settingsNotifyForm.commentTemplate = String(
+          templates.comment || DEFAULT_NOTIFY_COMMENT_TEMPLATE
+        );
+        settingsNotifyForm.commentWaitingTemplate = String(
+          templates.commentWaiting || DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE
+        );
+        settingsNotifyForm.commentReplyTemplate = String(
+          templates.commentReply || DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE
+        );
+      }
+
       function openSettingsNotifyTemplateEditor(kind = "comment") {
-        settingsNotifyTemplateKind.value = kind === "friendLink" ? "friendLink" : "comment";
+        const k = String(kind || "comment");
+        settingsNotifyTemplateKind.value =
+          k === "friendLink"
+            ? "friendLink"
+            : k === "commentWaiting"
+              ? "commentWaiting"
+              : k === "commentReply"
+                ? "commentReply"
+                : "comment";
+
         const tpl =
           settingsNotifyTemplateKind.value === "friendLink"
             ? settingsNotifyForm.friendLinkTemplate ||
               DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
-            : settingsNotifyForm.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE;
+            : settingsNotifyTemplateKind.value === "commentWaiting"
+              ? settingsNotifyForm.commentWaitingTemplate ||
+                DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE
+              : settingsNotifyTemplateKind.value === "commentReply"
+                ? settingsNotifyForm.commentReplyTemplate ||
+                  DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE
+                : settingsNotifyForm.commentTemplate ||
+                  DEFAULT_NOTIFY_COMMENT_TEMPLATE;
         settingsNotifyTemplateDraft.value = String(tpl);
         settingsNotifyTemplateEditorOpen.value = true;
       }
@@ -6424,6 +6754,12 @@
         const next = String(settingsNotifyTemplateDraft.value || "").trim();
         if (settingsNotifyTemplateKind.value === "friendLink") {
           settingsNotifyForm.friendLinkTemplate = next || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE;
+        } else if (settingsNotifyTemplateKind.value === "commentWaiting") {
+          settingsNotifyForm.commentWaitingTemplate =
+            next || DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE;
+        } else if (settingsNotifyTemplateKind.value === "commentReply") {
+          settingsNotifyForm.commentReplyTemplate =
+            next || DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE;
         } else {
           settingsNotifyForm.commentTemplate = next || DEFAULT_NOTIFY_COMMENT_TEMPLATE;
         }
@@ -8987,8 +9323,19 @@
           settingsNotifyForm.commentNotifyEnabled = Number(
             settingsData.notify.commentNotifyEnabled || 0
           );
+          settingsNotifyForm.commentWaitingNotifyEnabled = Number(
+            settingsData.notify.commentWaitingNotifyEnabled ??
+              settingsData.notify.commentNotifyEnabled ??
+              0
+          );
+          settingsNotifyForm.commentReplyNotifyEnabled = Number(
+            settingsData.notify.commentReplyNotifyEnabled || 0
+          );
           settingsNotifyForm.friendLinkNotifyEnabled = Number(
             settingsData.notify.friendLinkNotifyEnabled || 0
+          );
+          settingsNotifyForm.templateStyle = String(
+            settingsData.notify.templateStyle || "v3a"
           );
           settingsNotifyForm.smtpFrom = String(settingsData.notify.smtpFrom || "");
           settingsNotifyForm.smtpHost = String(settingsData.notify.smtpHost || "");
@@ -8999,6 +9346,14 @@
             Number(settingsData.notify.smtpSecure ?? 1) ? 1 : 0;
           settingsNotifyForm.commentTemplate = String(
             settingsData.notify.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE
+          );
+          settingsNotifyForm.commentWaitingTemplate = String(
+            settingsData.notify.commentWaitingTemplate ||
+              DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE
+          );
+          settingsNotifyForm.commentReplyTemplate = String(
+            settingsData.notify.commentReplyTemplate ||
+              DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE
           );
           settingsNotifyForm.friendLinkTemplate = String(
             settingsData.notify.friendLinkTemplate || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
@@ -9374,8 +9729,17 @@
             settingsNotifyForm.commentNotifyEnabled = Number(
               data.notify.commentNotifyEnabled || 0
             );
+            settingsNotifyForm.commentWaitingNotifyEnabled = Number(
+              data.notify.commentWaitingNotifyEnabled ?? data.notify.commentNotifyEnabled ?? 0
+            );
+            settingsNotifyForm.commentReplyNotifyEnabled = Number(
+              data.notify.commentReplyNotifyEnabled || 0
+            );
             settingsNotifyForm.friendLinkNotifyEnabled = Number(
               data.notify.friendLinkNotifyEnabled || 0
+            );
+            settingsNotifyForm.templateStyle = String(
+              data.notify.templateStyle || "v3a"
             );
             settingsNotifyForm.smtpFrom = String(data.notify.smtpFrom || "");
             settingsNotifyForm.smtpHost = String(data.notify.smtpHost || "");
@@ -9386,6 +9750,13 @@
               Number(data.notify.smtpSecure ?? 1) ? 1 : 0;
             settingsNotifyForm.commentTemplate = String(
               data.notify.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE
+            );
+            settingsNotifyForm.commentWaitingTemplate = String(
+              data.notify.commentWaitingTemplate ||
+                DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE
+            );
+            settingsNotifyForm.commentReplyTemplate = String(
+              data.notify.commentReplyTemplate || DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE
             );
             settingsNotifyForm.friendLinkTemplate = String(
               data.notify.friendLinkTemplate || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
@@ -10290,8 +10661,13 @@
           v3aNormNum(settingsNotifyForm.mailEnabled) !== v3aNormNum(notify.mailEnabled) ||
           v3aNormNum(settingsNotifyForm.commentNotifyEnabled) !==
             v3aNormNum(notify.commentNotifyEnabled) ||
+          v3aNormNum(settingsNotifyForm.commentWaitingNotifyEnabled) !==
+            v3aNormNum(notify.commentWaitingNotifyEnabled ?? notify.commentNotifyEnabled) ||
+          v3aNormNum(settingsNotifyForm.commentReplyNotifyEnabled) !==
+            v3aNormNum(notify.commentReplyNotifyEnabled) ||
           v3aNormNum(settingsNotifyForm.friendLinkNotifyEnabled) !==
             v3aNormNum(notify.friendLinkNotifyEnabled) ||
+          v3aNormStr(settingsNotifyForm.templateStyle) !== v3aNormStr(notify.templateStyle || "v3a") ||
           v3aNormStr(settingsNotifyForm.smtpFrom) !== v3aNormStr(notify.smtpFrom) ||
           v3aNormStr(settingsNotifyForm.smtpHost) !== v3aNormStr(notify.smtpHost) ||
           v3aNormNum(settingsNotifyForm.smtpPort, 465) !== v3aNormNum(notify.smtpPort, 465) ||
@@ -10300,6 +10676,14 @@
             (v3aNormNum(notify.smtpSecure ?? 1) ? 1 : 0) ||
           v3aNormStr(settingsNotifyForm.commentTemplate) !==
             v3aNormStr(notify.commentTemplate || DEFAULT_NOTIFY_COMMENT_TEMPLATE) ||
+          v3aNormStr(settingsNotifyForm.commentWaitingTemplate) !==
+            v3aNormStr(
+              notify.commentWaitingTemplate || DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE
+            ) ||
+          v3aNormStr(settingsNotifyForm.commentReplyTemplate) !==
+            v3aNormStr(
+              notify.commentReplyTemplate || DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE
+            ) ||
           v3aNormStr(settingsNotifyForm.friendLinkTemplate) !==
             v3aNormStr(
               notify.friendLinkTemplate || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
@@ -11731,6 +12115,8 @@
         settingsNotifyTemplateKind,
         settingsNotifyTemplateDraft,
         settingsNotifyTemplatePreviewHtml,
+        settingsNotifyCommentWaitingTemplatePreviewHtml,
+        settingsNotifyCommentReplyTemplatePreviewHtml,
         settingsNotifyFriendLinkTemplatePreviewHtml,
         settingsPermalinkForm,
         settingsPermalinkRewriteError,
@@ -11755,6 +12141,8 @@
         openSettingsNotifyTemplateEditor,
         closeSettingsNotifyTemplateEditor,
         applySettingsNotifyTemplateDraft,
+        notifyTemplateStyles,
+        applySettingsNotifyTemplateStyle,
         saveSettingsPermalink,
         saveSettingsAcl,
         saveSettingsAll,
@@ -16853,7 +17241,7 @@
                                       <div class="v3a-mail-status-title">
                                         发送成功
                                         <span class="v3a-mail-status-kind" v-if="settingsData.notify.lastSuccess.kind">
-                                          · {{ settingsData.notify.lastSuccess.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastSuccess.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastSuccess.kind === 'test' ? '测试邮件' : settingsData.notify.lastSuccess.kind)) }}
+                                          · {{ settingsData.notify.lastSuccess.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastSuccess.kind === 'comment_waiting' ? '待审核评论' : (settingsData.notify.lastSuccess.kind === 'comment_reply' ? '评论回复' : (settingsData.notify.lastSuccess.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastSuccess.kind === 'test' ? '测试邮件' : settingsData.notify.lastSuccess.kind)))) }}
                                         </span>
                                       </div>
                                       <div class="v3a-mail-status-time v3a-muted">{{ formatTimeAgo(settingsData.notify.lastSuccess.time) }}</div>
@@ -16872,7 +17260,7 @@
                                       <div class="v3a-mail-status-title">
                                         发送失败
                                         <span class="v3a-mail-status-kind" v-if="settingsData.notify.lastError.kind">
-                                          · {{ settingsData.notify.lastError.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastError.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastError.kind === 'test' ? '测试邮件' : settingsData.notify.lastError.kind)) }}
+                                          · {{ settingsData.notify.lastError.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastError.kind === 'comment_waiting' ? '待审核评论' : (settingsData.notify.lastError.kind === 'comment_reply' ? '评论回复' : (settingsData.notify.lastError.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastError.kind === 'test' ? '测试邮件' : settingsData.notify.lastError.kind)))) }}
                                         </span>
                                       </div>
                                       <div class="v3a-mail-status-time v3a-muted">{{ formatTimeAgo(settingsData.notify.lastError.time) }}</div>
@@ -16888,11 +17276,37 @@
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>评论提醒</label>
-                                <div class="v3a-settings-row-help">发送至管理员邮箱，用于提醒有新评论</div>
+                                <div class="v3a-settings-row-help">发送至管理员邮箱，用于提醒有新评论（通过审核）</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <label class="v3a-switch">
                                   <input type="checkbox" v-model="settingsNotifyForm.commentNotifyEnabled" :true-value="1" :false-value="0" :disabled="!settingsNotifyForm.mailEnabled" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>待审核评论提醒</label>
+                                <div class="v3a-settings-row-help">发送至管理员邮箱，用于提醒有待审核评论</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsNotifyForm.commentWaitingNotifyEnabled" :true-value="1" :false-value="0" :disabled="!settingsNotifyForm.mailEnabled" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>评论回复提醒</label>
+                                <div class="v3a-settings-row-help">发送给被回复的评论者（评论通过审核后）</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsNotifyForm.commentReplyNotifyEnabled" :true-value="1" :false-value="0" :disabled="!settingsNotifyForm.mailEnabled" />
                                   <span class="v3a-switch-ui"></span>
                                 </label>
                               </div>
@@ -16984,14 +17398,53 @@
                               </div>
                             </div>
 
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>模板样式</label>
+                                <div class="v3a-settings-row-help">选择后点击“应用样式”，会覆盖当前评论相关模板</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                  <select class="v3a-select" v-model="settingsNotifyForm.templateStyle" style="width: 220px;">
+                                    <option v-for="s in notifyTemplateStyles" :key="s.value" :value="s.value">{{ s.label }}</option>
+                                  </select>
+                                  <button class="v3a-btn" type="button" @click="applySettingsNotifyTemplateStyle()">应用样式</button>
+                                </div>
+                              </div>
+                            </div>
+
                             <div class="v3a-settings-row v3a-settings-row-stack">
                               <div class="v3a-settings-row-label v3a-settings-row-label-actions">
-                                <label>评论提醒模板</label>
+                                <label>新评论提醒模板</label>
                                 <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor()">编辑</button>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <div class="v3a-mailtpl-card">
                                   <div class="v3a-mailtpl-preview" v-html="settingsNotifyTemplatePreviewHtml"></div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row v3a-settings-row-stack">
+                              <div class="v3a-settings-row-label v3a-settings-row-label-actions">
+                                <label>待审核评论模板</label>
+                                <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor('commentWaiting')">编辑</button>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-mailtpl-card">
+                                  <div class="v3a-mailtpl-preview" v-html="settingsNotifyCommentWaitingTemplatePreviewHtml"></div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row v3a-settings-row-stack">
+                              <div class="v3a-settings-row-label v3a-settings-row-label-actions">
+                                <label>评论回复模板</label>
+                                <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor('commentReply')">编辑</button>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-mailtpl-card">
+                                  <div class="v3a-mailtpl-preview" v-html="settingsNotifyCommentReplyTemplatePreviewHtml"></div>
                                 </div>
                               </div>
                             </div>
@@ -17019,7 +17472,7 @@
                           <span class="v3a-icon" v-html="ICONS.close"></span>
                         </button>
                         <div class="v3a-modal-head">
-                          <div class="v3a-modal-title">编辑邮件模板（HTML） · {{ settingsNotifyTemplateKind === 'friendLink' ? '友链申请' : '评论' }}</div>
+                          <div class="v3a-modal-title">编辑邮件模板（HTML） · {{ settingsNotifyTemplateKind === 'friendLink' ? '友链申请' : (settingsNotifyTemplateKind === 'commentWaiting' ? '待审核评论' : (settingsNotifyTemplateKind === 'commentReply' ? '评论回复' : '新评论')) }}</div>
                         </div>
                         <div class="v3a-modal-body">
                           <div class="v3a-modal-form">
@@ -17040,11 +17493,37 @@
                                   <code v-pre>{{applyTime}}</code>
                                   <code v-pre>{{reviewUrl}}</code>
                                 </template>
-                                <template v-else>
+                                <template v-else-if="settingsNotifyTemplateKind === 'commentReply'">
                                   <code v-pre>{{siteTitle}}</code>
+                                  <code v-pre>{{siteUrl}}</code>
+                                  <code v-pre>{{postTitle}}</code>
+                                  <code v-pre>{{postUrl}}</code>
+                                  <code v-pre>{{parentAuthor}}</code>
+                                  <code v-pre>{{parentTime}}</code>
+                                  <code v-pre>{{parentText}}</code>
+                                  <code v-pre>{{replyAuthor}}</code>
+                                  <code v-pre>{{replyTime}}</code>
+                                  <code v-pre>{{replyText}}</code>
+                                </template>
+                                <template v-else-if="settingsNotifyTemplateKind === 'commentWaiting'">
+                                  <code v-pre>{{siteTitle}}</code>
+                                  <code v-pre>{{siteUrl}}</code>
                                   <code v-pre>{{postTitle}}</code>
                                   <code v-pre>{{postUrl}}</code>
                                   <code v-pre>{{commentAuthor}}</code>
+                                  <code v-pre>{{commentMail}}</code>
+                                  <code v-pre>{{commentTime}}</code>
+                                  <code v-pre>{{commentStatus}}</code>
+                                  <code v-pre>{{commentText}}</code>
+                                  <code v-pre>{{reviewUrl}}</code>
+                                </template>
+                                <template v-else>
+                                  <code v-pre>{{siteTitle}}</code>
+                                  <code v-pre>{{siteUrl}}</code>
+                                  <code v-pre>{{postTitle}}</code>
+                                  <code v-pre>{{postUrl}}</code>
+                                  <code v-pre>{{commentAuthor}}</code>
+                                  <code v-pre>{{commentMail}}</code>
                                   <code v-pre>{{commentTime}}</code>
                                   <code v-pre>{{commentStatus}}</code>
                                   <code v-pre>{{commentText}}</code>

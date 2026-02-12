@@ -9391,7 +9391,11 @@ try {
             'notify' => [
                 'mailEnabled' => (int) ($options->v3a_mail_enabled ?? 0),
                 'commentNotifyEnabled' => (int) ($options->v3a_mail_comment_enabled ?? 0),
+                // backward-compatible: default to commentNotifyEnabled if option not set yet
+                'commentWaitingNotifyEnabled' => (int) ($options->v3a_mail_comment_waiting_enabled ?? ($options->v3a_mail_comment_enabled ?? 0)),
+                'commentReplyNotifyEnabled' => (int) ($options->v3a_mail_comment_reply_enabled ?? 0),
                 'friendLinkNotifyEnabled' => (int) ($options->v3a_mail_friendlink_enabled ?? 0),
+                'templateStyle' => (string) ($options->v3a_mail_template_style ?? 'v3a'),
                 'smtpFrom' => (string) ($options->v3a_mail_smtp_from ?? ''),
                 'smtpHost' => (string) ($options->v3a_mail_smtp_host ?? ''),
                 'smtpPort' => (int) ($options->v3a_mail_smtp_port ?? 465),
@@ -9399,6 +9403,8 @@ try {
                 'smtpPass' => '',
                 'smtpSecure' => (int) ($options->v3a_mail_smtp_secure ?? 1),
                 'commentTemplate' => (string) ($options->v3a_mail_comment_template ?? ''),
+                'commentWaitingTemplate' => (string) ($options->v3a_mail_comment_waiting_template ?? ''),
+                'commentReplyTemplate' => (string) ($options->v3a_mail_comment_reply_template ?? ''),
                 'friendLinkTemplate' => (string) ($options->v3a_mail_friendlink_template ?? ''),
                 'hasSmtpPass' => (string) ($options->v3a_mail_smtp_pass ?? '') === '' ? 0 : 1,
                 'lastError' => v3a_json_assoc($options->v3a_mail_last_error ?? ''),
@@ -9870,7 +9876,11 @@ try {
 
         $mailEnabled = v3a_bool_int($payload['mailEnabled'] ?? 0);
         $commentNotifyEnabled = v3a_bool_int($payload['commentNotifyEnabled'] ?? 0);
+        // backward-compatible: if not provided, follow commentNotifyEnabled
+        $commentWaitingNotifyEnabled = v3a_bool_int($payload['commentWaitingNotifyEnabled'] ?? $commentNotifyEnabled);
+        $commentReplyNotifyEnabled = v3a_bool_int($payload['commentReplyNotifyEnabled'] ?? 0);
         $friendLinkNotifyEnabled = v3a_bool_int($payload['friendLinkNotifyEnabled'] ?? 0);
+        $templateStyle = v3a_string($payload['templateStyle'] ?? 'v3a', 'v3a');
         $smtpFrom = v3a_string($payload['smtpFrom'] ?? '', '');
         $smtpHost = v3a_string($payload['smtpHost'] ?? '', '');
         $smtpPort = v3a_int($payload['smtpPort'] ?? 465, 465);
@@ -9878,7 +9888,13 @@ try {
         $smtpPass = v3a_string($payload['smtpPass'] ?? '', '');
         $smtpSecure = v3a_bool_int($payload['smtpSecure'] ?? 1);
         $commentTemplate = v3a_string($payload['commentTemplate'] ?? '', '');
+        $commentWaitingTemplate = v3a_string($payload['commentWaitingTemplate'] ?? '', '');
+        $commentReplyTemplate = v3a_string($payload['commentReplyTemplate'] ?? '', '');
         $friendLinkTemplate = v3a_string($payload['friendLinkTemplate'] ?? '', '');
+
+        if (!in_array($templateStyle, ['v3a', 'cn_default', 'cn_pure'], true)) {
+            $templateStyle = 'v3a';
+        }
 
         if ($smtpFrom !== '' && !filter_var($smtpFrom, FILTER_VALIDATE_EMAIL)) {
             v3a_exit_json(400, null, '发件邮箱地址格式错误');
@@ -9888,7 +9904,10 @@ try {
         }
 
         $hasExistingPass = (string) ($options->v3a_mail_smtp_pass ?? '') !== '';
-        if ($mailEnabled && ($commentNotifyEnabled || $friendLinkNotifyEnabled)) {
+        if (
+            $mailEnabled
+            && ($commentNotifyEnabled || $commentWaitingNotifyEnabled || $commentReplyNotifyEnabled || $friendLinkNotifyEnabled)
+        ) {
             if ($smtpFrom === '' || !filter_var($smtpFrom, FILTER_VALIDATE_EMAIL)) {
                 v3a_exit_json(400, null, '发件邮箱地址不能为空');
             }
@@ -9905,13 +9924,18 @@ try {
 
         v3a_upsert_option($db, 'v3a_mail_enabled', $mailEnabled, 0);
         v3a_upsert_option($db, 'v3a_mail_comment_enabled', $commentNotifyEnabled, 0);
+        v3a_upsert_option($db, 'v3a_mail_comment_waiting_enabled', $commentWaitingNotifyEnabled, 0);
+        v3a_upsert_option($db, 'v3a_mail_comment_reply_enabled', $commentReplyNotifyEnabled, 0);
         v3a_upsert_option($db, 'v3a_mail_friendlink_enabled', $friendLinkNotifyEnabled, 0);
+        v3a_upsert_option($db, 'v3a_mail_template_style', $templateStyle, 0);
         v3a_upsert_option($db, 'v3a_mail_smtp_from', $smtpFrom, 0);
         v3a_upsert_option($db, 'v3a_mail_smtp_host', $smtpHost, 0);
         v3a_upsert_option($db, 'v3a_mail_smtp_port', $smtpPort, 0);
         v3a_upsert_option($db, 'v3a_mail_smtp_user', $smtpUser, 0);
         v3a_upsert_option($db, 'v3a_mail_smtp_secure', $smtpSecure, 0);
         v3a_upsert_option($db, 'v3a_mail_comment_template', $commentTemplate, 0);
+        v3a_upsert_option($db, 'v3a_mail_comment_waiting_template', $commentWaitingTemplate, 0);
+        v3a_upsert_option($db, 'v3a_mail_comment_reply_template', $commentReplyTemplate, 0);
         v3a_upsert_option($db, 'v3a_mail_friendlink_template', $friendLinkTemplate, 0);
         if (trim($smtpPass) !== '') {
             v3a_upsert_option($db, 'v3a_mail_smtp_pass', $smtpPass, 0);
@@ -9920,7 +9944,10 @@ try {
         $notify = [
             'mailEnabled' => $mailEnabled,
             'commentNotifyEnabled' => $commentNotifyEnabled,
+            'commentWaitingNotifyEnabled' => $commentWaitingNotifyEnabled,
+            'commentReplyNotifyEnabled' => $commentReplyNotifyEnabled,
             'friendLinkNotifyEnabled' => $friendLinkNotifyEnabled,
+            'templateStyle' => $templateStyle,
             'smtpFrom' => $smtpFrom,
             'smtpHost' => $smtpHost,
             'smtpPort' => $smtpPort,
@@ -9928,6 +9955,8 @@ try {
             'smtpPass' => '',
             'smtpSecure' => $smtpSecure,
             'commentTemplate' => $commentTemplate,
+            'commentWaitingTemplate' => $commentWaitingTemplate,
+            'commentReplyTemplate' => $commentReplyTemplate,
             'friendLinkTemplate' => $friendLinkTemplate,
             'hasSmtpPass' => (trim($smtpPass) !== '' || $hasExistingPass) ? 1 : 0,
             'lastError' => v3a_json_assoc($options->v3a_mail_last_error ?? ''),

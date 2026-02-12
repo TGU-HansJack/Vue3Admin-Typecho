@@ -84,8 +84,14 @@ class Plugin implements PluginInterface
         // 访问统计（前台）：用于仪表盘“访问量/今日 IP”等数据
         \Typecho\Plugin::factory('Widget_Archive')->afterRender = __CLASS__ . '::trackVisit';
 
-        // 评论邮件提醒（仅用于新评论提交）
+        // 评论邮件提醒（新评论提交 & 后台回复评论）
         \Typecho\Plugin::factory('Widget_Feedback')->finishComment = __CLASS__ . '::notifyComment';
+        try {
+            if (class_exists('\\Widget\\Comments\\Edit')) {
+                \Widget\Comments\Edit::pluginHandle()->finishComment = __CLASS__ . '::notifyComment';
+            }
+        } catch (\Throwable $e) {
+        }
 
         // AI：评论审核（新评论提交前）
         \Typecho\Plugin::factory('Widget_Feedback')->comment = __CLASS__ . '::aiModerateComment';
@@ -638,8 +644,72 @@ class Plugin implements PluginInterface
     }
 
     /**
-     * 评论邮件提醒（管理员收件）
-     * 触发时机：新评论提交（Widget_Feedback::finishComment）
+     * @param array{host:string,port:int,user:string,pass:string,from:string,secure:int} $smtp
+     * @param array<int,array{mail:string,name:string}> $recipients
+     */
+    private static function sendMailBySmtp(
+        string $kind,
+        array $smtp,
+        string $fromName,
+        array $recipients,
+        string $subject,
+        string $bodyHtml,
+        string $successMessage
+    ): void {
+        try {
+            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+            $mail->CharSet = 'UTF-8';
+            $mail->isSMTP();
+            $mail->Host = $smtp['host'];
+            $mail->SMTPAuth = true;
+            $mail->Username = $smtp['user'];
+            $mail->Password = $smtp['pass'];
+            $mail->Port = (int) $smtp['port'];
+
+            if (!empty($smtp['secure'])) {
+                $mail->SMTPSecure = ((int) $smtp['port'] === 465) ? 'ssl' : 'tls';
+            }
+
+            $mail->setFrom($smtp['from'], $fromName);
+            foreach ($recipients as $to) {
+                $mail->addAddress((string) $to['mail'], (string) $to['name']);
+            }
+
+            $mail->isHTML(true);
+            $mail->Subject = $subject;
+            $mail->Body = $bodyHtml;
+            $mail->AltBody = strip_tags(
+                str_replace(["<br />", "<br/>", "<br>"], "\n", $bodyHtml)
+            );
+
+            $mail->send();
+
+            self::recordMailSuccess($kind, $successMessage);
+        } catch (\Throwable $e) {
+            $extra = '';
+            try {
+                if (isset($mail) && $mail instanceof \PHPMailer\PHPMailer\PHPMailer) {
+                    $extra = trim((string) ($mail->ErrorInfo ?? ''));
+                }
+            } catch (\Throwable $e2) {
+            }
+
+            $msg = trim((string) $e->getMessage());
+            if ($extra !== '' && stripos($msg, $extra) === false) {
+                $msg = $msg !== '' ? ($msg . ' / ' . $extra) : $extra;
+            }
+            self::recordMailError($kind, $msg);
+        }
+    }
+
+    /**
+     * 评论邮件提醒
+     * - 管理员：新评论 / 待审核评论
+     * - 访客：评论回复提醒（回复其评论）
+     *
+     * 触发时机：
+     * - 新评论提交（Widget_Feedback::finishComment）
+     * - 后台回复评论（Widget\Comments\Edit::finishComment）
      */
     public static function notifyComment($feedback): void
     {
@@ -649,7 +719,16 @@ class Plugin implements PluginInterface
             if (!((int) ($options->v3a_mail_enabled ?? 0))) {
                 return;
             }
-            if (!((int) ($options->v3a_mail_comment_enabled ?? 0))) {
+
+            $commentNotifyEnabled = (int) ($options->v3a_mail_comment_enabled ?? 0);
+
+            // backward-compatible: if option not set yet, follow commentNotifyEnabled
+            $waitingEnabledRaw = $options->v3a_mail_comment_waiting_enabled ?? null;
+            $commentWaitingNotifyEnabled = (int) ($waitingEnabledRaw === null ? $commentNotifyEnabled : $waitingEnabledRaw);
+
+            $commentReplyNotifyEnabled = (int) ($options->v3a_mail_comment_reply_enabled ?? 0);
+
+            if (!$commentNotifyEnabled && !$commentWaitingNotifyEnabled && !$commentReplyNotifyEnabled) {
                 return;
             }
 
@@ -664,22 +743,28 @@ class Plugin implements PluginInterface
                 $smtpFrom = $smtpUser;
             }
 
+            $smtpKind = $commentNotifyEnabled ? 'comment' : ($commentWaitingNotifyEnabled ? 'comment_waiting' : 'comment_reply');
             if ($smtpHost === '' || $smtpPort <= 0 || $smtpUser === '' || $smtpPass === '' || $smtpFrom === '') {
-                self::recordMailError('comment', 'SMTP 配置不完整或未保存密码，请在「设定 → 邮件通知设置」完善后重试。');
+                self::recordMailError($smtpKind, 'SMTP 配置不完整或未保存密码，请在「设定 → 邮件通知设置」完善后重试。');
                 return;
             }
 
             $status = '';
             $commentAuthor = '';
+            $commentMail = '';
             $commentText = '';
             $commentTime = '';
             $postTitle = '';
             $postUrl = '';
+            $parentId = 0;
 
             try {
                 $status = (string) ($feedback->status ?? '');
                 $commentAuthor = (string) ($feedback->author ?? '');
+                $commentMail = trim((string) ($feedback->mail ?? ''));
                 $commentText = (string) ($feedback->text ?? '');
+                $parentId = (int) ($feedback->parent ?? 0);
+
                 $created = (int) ($feedback->created ?? 0);
                 if ($created > 0) {
                     $commentTime = date('Y-m-d H:i:s', $created);
@@ -707,104 +792,209 @@ class Plugin implements PluginInterface
                 $status = 'unknown';
             }
 
-            // 收件人：所有管理员
-            try {
-                $db = Db::get();
-            } catch (\Throwable $e) {
-                return;
-            }
-
-            $admins = [];
-            try {
-                $rows = $db->fetchAll(
-                    $db->select('mail', 'screenName', 'name')
-                        ->from('table.users')
-                        ->where('group = ?', 'administrator')
-                );
-                foreach ((array) $rows as $r) {
-                    $mail = trim((string) ($r['mail'] ?? ''));
-                    if ($mail !== '' && filter_var($mail, FILTER_VALIDATE_EMAIL)) {
-                        $name = (string) ($r['screenName'] ?? $r['name'] ?? '');
-                        $admins[] = ['mail' => $mail, 'name' => $name];
-                    }
-                }
-            } catch (\Throwable $e) {
-                return;
-            }
-
-            if (empty($admins)) {
-                self::recordMailError('comment', '未找到有效的管理员邮箱地址（请在用户资料中设置邮箱）。');
-                return;
-            }
+            $siteTitle = (string) ($options->title ?? 'Typecho');
+            $siteUrl = rtrim((string) ($options->siteUrl ?? ''), "/");
+            $reviewUrl = $siteUrl !== '' ? ($siteUrl . '/' . self::ADMIN_DIR . '/#/comments') : '';
 
             if (!self::loadPHPMailer()) {
-                self::recordMailError('comment', '未找到 PHPMailer，无法发送邮件（请检查 Vue3Admin 插件目录 lib/PHPMailer 是否完整）。');
+                self::recordMailError($smtpKind, '未找到 PHPMailer，无法发送邮件（请检查 Vue3Admin 插件目录 lib/PHPMailer 是否完整）。');
                 return;
             }
 
-            $template = trim((string) ($options->v3a_mail_comment_template ?? ''));
-            if ($template === '') {
-                $template = self::defaultCommentMailTemplate();
-            }
-
-            $siteTitle = (string) ($options->title ?? 'Typecho');
-            $vars = [
-                'siteTitle' => $siteTitle,
-                'postTitle' => $postTitle !== '' ? $postTitle : '（未知文章）',
-                'postUrl' => $postUrl !== '' ? $postUrl : (string) ($options->siteUrl ?? ''),
-                'commentAuthor' => $commentAuthor !== '' ? $commentAuthor : '（匿名）',
-                'commentStatus' => $status,
-                'commentTime' => $commentTime,
-                'commentText' => nl2br(htmlspecialchars($commentText, ENT_QUOTES, 'UTF-8')),
+            $smtp = [
+                'host' => $smtpHost,
+                'port' => $smtpPort,
+                'user' => $smtpUser,
+                'pass' => $smtpPass,
+                'from' => $smtpFrom,
+                'secure' => $smtpSecure,
             ];
 
-            $bodyHtml = self::renderMailTemplate($template, $vars);
-            $subject = '新评论提醒：' . ($postTitle !== '' ? $postTitle : $siteTitle);
-
-            try {
-                $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
-                $mail->CharSet = 'UTF-8';
-                $mail->isSMTP();
-                $mail->Host = $smtpHost;
-                $mail->SMTPAuth = true;
-                $mail->Username = $smtpUser;
-                $mail->Password = $smtpPass;
-                $mail->Port = $smtpPort;
-
-                if ($smtpSecure) {
-                    $mail->SMTPSecure = $smtpPort === 465 ? 'ssl' : 'tls';
-                }
-
-                $mail->setFrom($smtpFrom, $siteTitle);
-                foreach ($admins as $to) {
-                    $mail->addAddress((string) $to['mail'], (string) $to['name']);
-                }
-
-                $mail->isHTML(true);
-                $mail->Subject = $subject;
-                $mail->Body = $bodyHtml;
-                $mail->AltBody = strip_tags(
-                    str_replace(["<br />", "<br/>", "<br>"], "\n", $bodyHtml)
-                );
-
-                $mail->send();
-
-                self::recordMailSuccess('comment', '已发送至 ' . count($admins) . ' 位管理员邮箱。');
-            } catch (\Throwable $e) {
-                $extra = '';
+            // 收件人：所有管理员（用于 comment / comment_waiting）
+            $admins = [];
+            $needAdmins = ($status === 'approved' && $commentNotifyEnabled) || ($status !== 'approved' && $commentWaitingNotifyEnabled);
+            if ($needAdmins) {
                 try {
-                    if (isset($mail) && $mail instanceof \PHPMailer\PHPMailer\PHPMailer) {
-                        $extra = trim((string) ($mail->ErrorInfo ?? ''));
-                    }
-                } catch (\Throwable $e2) {
+                    $db = Db::get();
+                } catch (\Throwable $e) {
+                    $db = null;
                 }
 
-                $msg = trim((string) $e->getMessage());
-                if ($extra !== '' && stripos($msg, $extra) === false) {
-                    $msg = $msg !== '' ? ($msg . ' / ' . $extra) : $extra;
+                if (!$db) {
+                    return;
                 }
-                self::recordMailError('comment', $msg);
-                // 不影响评论正常提交
+
+                try {
+                    $rows = $db->fetchAll(
+                        $db->select('mail', 'screenName', 'name')
+                            ->from('table.users')
+                            ->where('group = ?', 'administrator')
+                    );
+                    foreach ((array) $rows as $r) {
+                        $mail = trim((string) ($r['mail'] ?? ''));
+                        if ($mail !== '' && filter_var($mail, FILTER_VALIDATE_EMAIL)) {
+                            $name = (string) ($r['screenName'] ?? $r['name'] ?? '');
+                            $admins[] = ['mail' => $mail, 'name' => $name];
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    $admins = [];
+                }
+            }
+
+            // 1) 管理员：新评论提醒（approved）
+            if ($status === 'approved' && $commentNotifyEnabled) {
+                if (empty($admins)) {
+                    self::recordMailError('comment', '未找到有效的管理员邮箱地址（请在用户资料中设置邮箱）。');
+                } else {
+                    $template = trim((string) ($options->v3a_mail_comment_template ?? ''));
+                    if ($template === '') {
+                        $template = self::defaultCommentMailTemplate();
+                    }
+
+                    $vars = [
+                        'siteTitle' => $siteTitle,
+                        'siteUrl' => htmlspecialchars($siteUrl, ENT_QUOTES, 'UTF-8'),
+                        'postTitle' => $postTitle !== '' ? $postTitle : '（未知文章）',
+                        'postUrl' => $postUrl !== '' ? $postUrl : (string) ($options->siteUrl ?? ''),
+                        'commentAuthor' => $commentAuthor !== '' ? $commentAuthor : '（匿名）',
+                        'commentMail' => htmlspecialchars($commentMail !== '' ? $commentMail : '（未填写）', ENT_QUOTES, 'UTF-8'),
+                        'commentStatus' => $status,
+                        'commentTime' => $commentTime,
+                        'commentText' => nl2br(htmlspecialchars($commentText, ENT_QUOTES, 'UTF-8')),
+                    ];
+
+                    $bodyHtml = self::renderMailTemplate($template, $vars);
+                    $subject = '新评论提醒：' . ($postTitle !== '' ? $postTitle : $siteTitle);
+
+                    self::sendMailBySmtp(
+                        'comment',
+                        $smtp,
+                        $siteTitle,
+                        $admins,
+                        $subject,
+                        $bodyHtml,
+                        '已发送至 ' . count($admins) . ' 位管理员邮箱。'
+                    );
+                }
+            }
+
+            // 2) 管理员：待审核评论提醒（waiting/unknown/…）
+            if ($status !== 'approved' && $commentWaitingNotifyEnabled) {
+                if (empty($admins)) {
+                    self::recordMailError('comment_waiting', '未找到有效的管理员邮箱地址（请在用户资料中设置邮箱）。');
+                } else {
+                    $template = trim((string) ($options->v3a_mail_comment_waiting_template ?? ''));
+                    if ($template === '') {
+                        $template = self::defaultCommentWaitingMailTemplate();
+                    }
+
+                    $vars = [
+                        'siteTitle' => $siteTitle,
+                        'siteUrl' => htmlspecialchars($siteUrl, ENT_QUOTES, 'UTF-8'),
+                        'postTitle' => $postTitle !== '' ? $postTitle : '（未知文章）',
+                        'postUrl' => $postUrl !== '' ? $postUrl : (string) ($options->siteUrl ?? ''),
+                        'commentAuthor' => $commentAuthor !== '' ? $commentAuthor : '（匿名）',
+                        'commentMail' => htmlspecialchars($commentMail !== '' ? $commentMail : '（未填写）', ENT_QUOTES, 'UTF-8'),
+                        'commentStatus' => $status,
+                        'commentTime' => $commentTime,
+                        'commentText' => nl2br(htmlspecialchars($commentText, ENT_QUOTES, 'UTF-8')),
+                        'reviewUrl' => htmlspecialchars($reviewUrl, ENT_QUOTES, 'UTF-8'),
+                    ];
+
+                    $bodyHtml = self::renderMailTemplate($template, $vars);
+                    $subject = '待审核评论：' . ($postTitle !== '' ? $postTitle : $siteTitle);
+
+                    self::sendMailBySmtp(
+                        'comment_waiting',
+                        $smtp,
+                        $siteTitle,
+                        $admins,
+                        $subject,
+                        $bodyHtml,
+                        '已发送至 ' . count($admins) . ' 位管理员邮箱。'
+                    );
+                }
+            }
+
+            // 3) 访客：评论回复提醒（parent）
+            if (
+                $status === 'approved'
+                && $commentReplyNotifyEnabled
+                && $parentId > 0
+            ) {
+                try {
+                    $db = Db::get();
+                } catch (\Throwable $e) {
+                    $db = null;
+                }
+                if (!$db) {
+                    return;
+                }
+
+                $parent = [];
+                try {
+                    $parent = (array) $db->fetchRow(
+                        $db->select('author', 'mail', 'text', 'created')
+                            ->from('table.comments')
+                            ->where('coid = ?', $parentId)
+                            ->limit(1)
+                    );
+                } catch (\Throwable $e) {
+                    $parent = [];
+                }
+
+                $parentMail = trim((string) ($parent['mail'] ?? ''));
+                if ($parentMail === '' || filter_var($parentMail, FILTER_VALIDATE_EMAIL) === false) {
+                    return;
+                }
+
+                // 避免自己回复自己 / 回复到发件邮箱
+                if ($commentMail !== '' && strcasecmp($parentMail, $commentMail) === 0) {
+                    return;
+                }
+                if ($smtpFrom !== '' && strcasecmp($parentMail, $smtpFrom) === 0) {
+                    return;
+                }
+
+                $parentAuthor = (string) ($parent['author'] ?? '');
+                $parentText = (string) ($parent['text'] ?? '');
+                $parentCreated = (int) ($parent['created'] ?? 0);
+                $parentTime = $parentCreated > 0 ? date('Y-m-d H:i:s', $parentCreated) : '';
+                if ($parentTime === '') {
+                    $parentTime = $commentTime;
+                }
+
+                $template = trim((string) ($options->v3a_mail_comment_reply_template ?? ''));
+                if ($template === '') {
+                    $template = self::defaultCommentReplyMailTemplate();
+                }
+
+                $vars = [
+                    'siteTitle' => $siteTitle,
+                    'siteUrl' => htmlspecialchars($siteUrl, ENT_QUOTES, 'UTF-8'),
+                    'postTitle' => $postTitle !== '' ? $postTitle : '（未知文章）',
+                    'postUrl' => $postUrl !== '' ? $postUrl : (string) ($options->siteUrl ?? ''),
+                    'parentAuthor' => htmlspecialchars($parentAuthor !== '' ? $parentAuthor : '（匿名）', ENT_QUOTES, 'UTF-8'),
+                    'parentTime' => htmlspecialchars($parentTime, ENT_QUOTES, 'UTF-8'),
+                    'parentText' => nl2br(htmlspecialchars($parentText, ENT_QUOTES, 'UTF-8')),
+                    'replyAuthor' => htmlspecialchars($commentAuthor !== '' ? $commentAuthor : '（匿名）', ENT_QUOTES, 'UTF-8'),
+                    'replyTime' => htmlspecialchars($commentTime, ENT_QUOTES, 'UTF-8'),
+                    'replyText' => nl2br(htmlspecialchars($commentText, ENT_QUOTES, 'UTF-8')),
+                ];
+
+                $bodyHtml = self::renderMailTemplate($template, $vars);
+                $subject = '评论回复提醒：' . ($postTitle !== '' ? $postTitle : $siteTitle);
+
+                self::sendMailBySmtp(
+                    'comment_reply',
+                    $smtp,
+                    $siteTitle,
+                    [['mail' => $parentMail, 'name' => $parentAuthor]],
+                    $subject,
+                    $bodyHtml,
+                    '已发送至：' . $parentMail
+                );
             }
         } catch (\Throwable $e) {
         }
@@ -1160,6 +1350,63 @@ HTML,
     </div>
     <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
       请登录后台查看并处理。
+    </div>
+  </div>
+</div>
+HTML;
+
+        return trim($tpl);
+    }
+
+    private static function defaultCommentWaitingMailTemplate(): string
+    {
+        $tpl = <<<'HTML'
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">收到一条待审核评论</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 8px;"><strong>文章：</strong><a href="{{postUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{postTitle}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>作者：</strong>{{commentAuthor}}</div>
+      <div style="margin-bottom: 8px;"><strong>状态：</strong>{{commentStatus}}</div>
+      <div style="margin-bottom: 12px;"><strong>时间：</strong>{{commentTime}}</div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{commentText}}</div>
+    </div>
+    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      <a href="{{reviewUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">前往审核</a>
+    </div>
+  </div>
+</div>
+HTML;
+
+        return trim($tpl);
+    }
+
+    private static function defaultCommentReplyMailTemplate(): string
+    {
+        $tpl = <<<'HTML'
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">你的评论有了新的回复</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 8px;"><strong>文章：</strong><a href="{{postUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{postTitle}}</a></div>
+      <div style="margin-bottom: 12px; font-size: 12px; color: #666;">
+        <div><strong>你的昵称：</strong>{{parentAuthor}}</div>
+        <div><strong>你的评论时间：</strong>{{parentTime}}</div>
+        <div><strong>回复时间：</strong>{{replyTime}}</div>
+      </div>
+      <div style="margin-bottom: 8px;"><strong>你的评论：</strong></div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px; margin-bottom: 12px;">{{parentText}}</div>
+      <div style="margin-bottom: 8px;"><strong>{{replyAuthor}}</strong> 回复说：</div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{replyText}}</div>
+    </div>
+    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      <a href="{{postUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">查看完整内容</a>
     </div>
   </div>
 </div>
