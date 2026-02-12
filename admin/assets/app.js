@@ -14385,7 +14385,10 @@
                 <div class="v3a-drafts-split">
                   <div class="v3a-drafts-left">
                     <div class="v3a-drafts-left-head">
-                      <div class="v3a-drafts-left-title">全部草稿</div>
+                      <select v-if="V3A.canPublish && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))" class="v3a-select" v-model="draftsScope" @change="applyDraftsFilters()" style="width: 128px;">
+                        <option value="mine">我的</option>
+                        <option value="all">全部</option>
+                      </select>
                       <span class="v3a-muted">{{ draftsCountText }}</span>
                     </div>
 
@@ -14394,10 +14397,6 @@
                         <span class="v3a-searchbox-icon" v-html="ICONS.search"></span>
                         <input class="v3a-input" v-model="draftsKeywords" @keyup.enter="applyDraftsFilters()" placeholder="搜索标题..." />
                       </div>
-                      <select v-if="V3A.canPublish && (!V3A.acl || !V3A.acl.posts || Number(V3A.acl.posts.scopeAll))" class="v3a-select" v-model="draftsScope" @change="applyDraftsFilters()" style="width: 128px;">
-                        <option value="mine">我的</option>
-                        <option value="all">全部</option>
-                      </select>
                       <button class="v3a-btn" type="button" @click="applyDraftsFilters()" :disabled="draftsPostsLoading || draftsPagesLoading">搜索</button>
                     </div>
 

@@ -5443,11 +5443,22 @@ html:not(.dark) .v3a-content {
 }
 
 @media (min-width: 64rem) {
+  .v3a-container.v3a-container-comments {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .v3a-container.v3a-container-comments > .v3a-comments-split {
+    height: 100%;
+    overflow: hidden;
+  }
+
   .v3a-comments-split {
     /* Keep the resizer as an overlay so it doesn't consume layout width */
     grid-template-columns: var(--v3a-comments-left, 360px) 0 minmax(0, 1fr);
     gap: 0;
-    height: auto;
+    height: 100%;
     border-radius: 0;
     border: 0;
     box-shadow: none;
@@ -5573,6 +5584,7 @@ html:not(.dark) .v3a-content {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 0;
 }
 
@@ -5780,6 +5792,7 @@ html:not(.dark) .v3a-content {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .v3a-comments-detail-inner {
@@ -5960,7 +5973,11 @@ a.v3a-comments-source:hover {
 
 .v3a-comments-replybar {
   flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
   background: var(--content-bg);
+  border-top: 1px solid var(--v3a-divider);
   padding: 16px;
 }
 
