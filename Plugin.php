@@ -884,7 +884,11 @@ class Plugin implements PluginInterface
                 if (empty($admins)) {
                     self::recordMailError('comment_waiting', '未找到有效的管理员邮箱地址（请在用户资料中设置邮箱）。');
                 } else {
-                    $template = trim((string) ($options->v3a_mail_comment_waiting_template ?? ''));
+                    // NOTE: typecho_options.name is often VARCHAR(32); keep option keys <= 32 chars.
+                    $template = trim((string) (
+                        $options->v3a_mail_comment_wait_tpl
+                        ?? ($options->v3a_mail_comment_waiting_template ?? '')
+                    ));
                     if ($template === '') {
                         $template = self::defaultCommentWaitingMailTemplate();
                     }

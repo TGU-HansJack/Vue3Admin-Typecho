@@ -9403,7 +9403,12 @@ try {
                 'smtpPass' => '',
                 'smtpSecure' => (int) ($options->v3a_mail_smtp_secure ?? 1),
                 'commentTemplate' => (string) ($options->v3a_mail_comment_template ?? ''),
-                'commentWaitingTemplate' => (string) ($options->v3a_mail_comment_waiting_template ?? ''),
+                // NOTE: typecho_options.name is often VARCHAR(32); keep option keys <= 32 chars.
+                // backward-compatible: fall back to legacy key if it exists (e.g. customized schema).
+                'commentWaitingTemplate' => (string) (
+                    $options->v3a_mail_comment_wait_tpl
+                    ?? ($options->v3a_mail_comment_waiting_template ?? '')
+                ),
                 'commentReplyTemplate' => (string) ($options->v3a_mail_comment_reply_template ?? ''),
                 'friendLinkTemplate' => (string) ($options->v3a_mail_friendlink_template ?? ''),
                 'hasSmtpPass' => (string) ($options->v3a_mail_smtp_pass ?? '') === '' ? 0 : 1,
@@ -9934,7 +9939,7 @@ try {
         v3a_upsert_option($db, 'v3a_mail_smtp_user', $smtpUser, 0);
         v3a_upsert_option($db, 'v3a_mail_smtp_secure', $smtpSecure, 0);
         v3a_upsert_option($db, 'v3a_mail_comment_template', $commentTemplate, 0);
-        v3a_upsert_option($db, 'v3a_mail_comment_waiting_template', $commentWaitingTemplate, 0);
+        v3a_upsert_option($db, 'v3a_mail_comment_wait_tpl', $commentWaitingTemplate, 0);
         v3a_upsert_option($db, 'v3a_mail_comment_reply_template', $commentReplyTemplate, 0);
         v3a_upsert_option($db, 'v3a_mail_friendlink_template', $friendLinkTemplate, 0);
         if (trim($smtpPass) !== '') {
