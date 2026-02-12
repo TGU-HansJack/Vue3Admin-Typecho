@@ -6314,6 +6314,58 @@
 </div>
 `.trim();
 
+      const DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE = `
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">你的友链申请已通过</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 8px;"><strong>结果：</strong>{{auditResult}}</div>
+      <div style="margin-bottom: 12px;"><strong>审核时间：</strong>{{auditTime}}</div>
+      <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
+      <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
+      <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
+      <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>
+      <div style="margin-bottom: 8px;"><strong>描述：</strong>{{linkDescription}}</div>
+      <div style="margin-bottom: 12px;"><strong>申请时间：</strong>{{applyTime}}</div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{linkMessage}}</div>
+    </div>
+    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      感谢你的申请！
+    </div>
+  </div>
+</div>
+`.trim();
+
+      const DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE = `
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">你的友链申请未通过</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 8px;"><strong>结果：</strong>{{auditResult}}</div>
+      <div style="margin-bottom: 12px;"><strong>审核时间：</strong>{{auditTime}}</div>
+      <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
+      <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
+      <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
+      <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>
+      <div style="margin-bottom: 8px;"><strong>描述：</strong>{{linkDescription}}</div>
+      <div style="margin-bottom: 12px;"><strong>申请时间：</strong>{{applyTime}}</div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{linkMessage}}</div>
+    </div>
+    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      如需修改信息后重新申请，请回复本邮件或通过网站提交。
+    </div>
+  </div>
+</div>
+`.trim();
+
       const DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE = `
 <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
   <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
@@ -6410,6 +6462,65 @@
     <p><strong>{{replyAuthor}}</strong>&nbsp;回复说：</p>
     <div style="background-color: #f5f5f5;border: 0px solid #DDD;padding: 10px 15px;margin:18px 0">{{replyText}}</div>
     <p>您可以点击 <a style="text-decoration:none; color:#12addb" href="{{postUrl}}" target="_blank" rel="noopener">查看回复的完整內容</a>，欢迎再次光临 <a style="text-decoration:none; color:#12addb" href="{{siteUrl}}" target="_blank" rel="noopener">{{siteTitle}}</a>。</p>
+  </div>
+</div>
+`.trim();
+
+      const CN_DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE = `
+<style type="text/css">.qmbox style, .qmbox script, .qmbox head, .qmbox link, .qmbox meta {display: none !important;}.emailz{background-color:white;border-top:2px solid #12ADDB;box-shadow:0 1px 3px #AAAAAA;line-height:180%;padding:0 15px 12px;width:500px;margin:35px auto;color:#555555;font-family:'Century Gothic','Trebuchet MS','Hiragino Sans GB',微软雅黑,'Microsoft Yahei',Tahoma,Helvetica,Arial,'SimSun',sans-serif;font-size:14px;}@media(max-width:767px){.emailz{width: 88%;}}</style>
+<div class="emailz">
+  <h2 style="border-bottom:1px solid #DDD;font-size:14px;font-weight:normal;padding:13px 0 10px 8px;">
+    <span style="color: #12ADDB;font-weight: bold;">&gt; </span>
+    收到一条新的友链申请
+  </h2>
+  <div style="padding:0 12px 0 12px;margin-top:18px">
+    <p>名称：<span style="color:#12ADDB;">{{linkName}}</span></p>
+    <p>网址：<a style="text-decoration:none;color:#12ADDB;" href="{{linkUrl}}" target="_blank" rel="noopener">{{linkUrl}}</a></p>
+    <p>类型：{{linkType}}</p>
+    <p>邮箱：{{linkEmail}}</p>
+    <p>时间：{{applyTime}}</p>
+    <div style="background-color:#f5f5f5;border:0px solid #DDD;padding:10px 15px;margin:18px 0">{{linkMessage}}</div>
+    <p>您可以点击 <a style="text-decoration:none; color:#12addb" href="{{reviewUrl}}" target="_blank" rel="noopener">前往审核</a>，欢迎再次光临 <a style="text-decoration:none; color:#12addb" href="{{siteUrl}}" target="_blank" rel="noopener">{{siteTitle}}</a>。</p>
+  </div>
+</div>
+`.trim();
+
+      const CN_DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE = `
+<style type="text/css">.qmbox style, .qmbox script, .qmbox head, .qmbox link, .qmbox meta {display: none !important;}.emailz{background-color:white;border-top:2px solid #12ADDB;box-shadow:0 1px 3px #AAAAAA;line-height:180%;padding:0 15px 12px;width:500px;margin:35px auto;color:#555555;font-family:'Century Gothic','Trebuchet MS','Hiragino Sans GB',微软雅黑,'Microsoft Yahei',Tahoma,Helvetica,Arial,'SimSun',sans-serif;font-size:14px;}@media(max-width:767px){.emailz{width: 88%;}}</style>
+<div class="emailz">
+  <h2 style="border-bottom:1px solid #DDD;font-size:14px;font-weight:normal;padding:13px 0 10px 8px;">
+    <span style="color: #12ADDB;font-weight: bold;">&gt; </span>
+    你的友链申请已通过
+  </h2>
+  <div style="padding:0 12px 0 12px;margin-top:18px">
+    <p>结果：{{auditResult}}</p>
+    <p>审核时间：{{auditTime}}</p>
+    <p>名称：<span style="color:#12ADDB;">{{linkName}}</span></p>
+    <p>网址：<a style="text-decoration:none;color:#12ADDB;" href="{{linkUrl}}" target="_blank" rel="noopener">{{linkUrl}}</a></p>
+    <p>类型：{{linkType}}</p>
+    <p>申请时间：{{applyTime}}</p>
+    <div style="background-color:#f5f5f5;border:0px solid #DDD;padding:10px 15px;margin:18px 0">{{linkMessage}}</div>
+    <p>感谢你的申请！欢迎再次光临 <a style="text-decoration:none; color:#12addb" href="{{siteUrl}}" target="_blank" rel="noopener">{{siteTitle}}</a>。</p>
+  </div>
+</div>
+`.trim();
+
+      const CN_DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE = `
+<style type="text/css">.qmbox style, .qmbox script, .qmbox head, .qmbox link, .qmbox meta {display: none !important;}.emailz{background-color:white;border-top:2px solid #12ADDB;box-shadow:0 1px 3px #AAAAAA;line-height:180%;padding:0 15px 12px;width:500px;margin:35px auto;color:#555555;font-family:'Century Gothic','Trebuchet MS','Hiragino Sans GB',微软雅黑,'Microsoft Yahei',Tahoma,Helvetica,Arial,'SimSun',sans-serif;font-size:14px;}@media(max-width:767px){.emailz{width: 88%;}}</style>
+<div class="emailz">
+  <h2 style="border-bottom:1px solid #DDD;font-size:14px;font-weight:normal;padding:13px 0 10px 8px;">
+    <span style="color: #12ADDB;font-weight: bold;">&gt; </span>
+    你的友链申请未通过
+  </h2>
+  <div style="padding:0 12px 0 12px;margin-top:18px">
+    <p>结果：{{auditResult}}</p>
+    <p>审核时间：{{auditTime}}</p>
+    <p>名称：<span style="color:#12ADDB;">{{linkName}}</span></p>
+    <p>网址：<a style="text-decoration:none;color:#12ADDB;" href="{{linkUrl}}" target="_blank" rel="noopener">{{linkUrl}}</a></p>
+    <p>类型：{{linkType}}</p>
+    <p>申请时间：{{applyTime}}</p>
+    <div style="background-color:#f5f5f5;border:0px solid #DDD;padding:10px 15px;margin:18px 0">{{linkMessage}}</div>
+    <p>如需修改信息后重新申请，请回复本邮件或通过网站提交。欢迎再次光临 <a style="text-decoration:none; color:#12addb" href="{{siteUrl}}" target="_blank" rel="noopener">{{siteTitle}}</a>。</p>
   </div>
 </div>
 `.trim();
@@ -6512,6 +6623,102 @@
 </table>
 `.trim();
 
+      const CN_PURE_NOTIFY_FRIENDLINK_TEMPLATE = `
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f6f6f6">
+  <tr>
+    <td align="center" style="padding:48px 0;">
+      <table width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;">
+        <tr>
+          <td style="padding:40px 40px 36px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',Arial,sans-serif;color:#333333;font-size:15px;line-height:28px;">
+            <div style="color:#aaaaaa;font-size:12px;letter-spacing:1px;margin-bottom:18px;">Notice · 友链申请</div>
+            <div style="font-size:26px;line-height:36px;margin-bottom:10px;">有一条友链申请待审核</div>
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;"><tr><td width="96" height="8" bgcolor="#ea868f" style="border-radius:6px;font-size:0;"></td></tr></table>
+            <div style="margin:0 0 18px 0;">
+              <strong style="color:#333333;">{{linkName}}</strong> · <a href="{{linkUrl}}" style="color:#ea868f;text-decoration:none;">{{linkUrl}}</a>
+            </div>
+            <div style="color:#666666;font-size:13px;margin-bottom:14px;">
+              {{linkType}} · {{linkEmail}} · {{applyTime}}
+            </div>
+            <div style="background:#f6f6f6;border-radius:12px;padding:14px 16px;color:#333333;margin-bottom:18px;">{{linkMessage}}</div>
+            <div style="margin-top:22px;">
+              <a href="{{reviewUrl}}" style="display:inline-block;background:#ea868f;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:10px;font-size:14px;">前往审核</a>
+            </div>
+            <div style="margin-top:26px;color:#999999;font-size:12px;line-height:20px;">
+              {{siteTitle}}<br>
+              <a href="{{siteUrl}}" style="color:#999999;text-decoration:none;">{{siteUrl}}</a>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+`.trim();
+
+      const CN_PURE_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE = `
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f6f6f6">
+  <tr>
+    <td align="center" style="padding:48px 0;">
+      <table width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;">
+        <tr>
+          <td style="padding:40px 40px 36px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',Arial,sans-serif;color:#333333;font-size:15px;line-height:28px;">
+            <div style="color:#aaaaaa;font-size:12px;letter-spacing:1px;margin-bottom:18px;">Notice · 友链审核</div>
+            <div style="font-size:26px;line-height:36px;margin-bottom:10px;">你的友链申请已通过</div>
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;"><tr><td width="96" height="8" bgcolor="#ea868f" style="border-radius:6px;font-size:0;"></td></tr></table>
+            <div style="color:#666666;font-size:13px;margin-bottom:14px;">
+              {{auditResult}} · {{auditTime}}
+            </div>
+            <div style="margin:0 0 18px 0;">
+              <strong style="color:#333333;">{{linkName}}</strong> · <a href="{{linkUrl}}" style="color:#ea868f;text-decoration:none;">{{linkUrl}}</a>
+            </div>
+            <div style="color:#666666;font-size:13px;margin-bottom:14px;">
+              {{linkType}} · {{applyTime}}
+            </div>
+            <div style="background:#f6f6f6;border-radius:12px;padding:14px 16px;color:#333333;margin-bottom:18px;">{{linkMessage}}</div>
+            <div style="margin-top:26px;color:#999999;font-size:12px;line-height:20px;">
+              {{siteTitle}}<br>
+              <a href="{{siteUrl}}" style="color:#999999;text-decoration:none;">{{siteUrl}}</a>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+`.trim();
+
+      const CN_PURE_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE = `
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f6f6f6">
+  <tr>
+    <td align="center" style="padding:48px 0;">
+      <table width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;">
+        <tr>
+          <td style="padding:40px 40px 36px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',Arial,sans-serif;color:#333333;font-size:15px;line-height:28px;">
+            <div style="color:#aaaaaa;font-size:12px;letter-spacing:1px;margin-bottom:18px;">Notice · 友链审核</div>
+            <div style="font-size:26px;line-height:36px;margin-bottom:10px;">你的友链申请未通过</div>
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;"><tr><td width="96" height="8" bgcolor="#ea868f" style="border-radius:6px;font-size:0;"></td></tr></table>
+            <div style="color:#666666;font-size:13px;margin-bottom:14px;">
+              {{auditResult}} · {{auditTime}}
+            </div>
+            <div style="margin:0 0 18px 0;">
+              <strong style="color:#333333;">{{linkName}}</strong> · <a href="{{linkUrl}}" style="color:#ea868f;text-decoration:none;">{{linkUrl}}</a>
+            </div>
+            <div style="color:#666666;font-size:13px;margin-bottom:14px;">
+              {{linkType}} · {{applyTime}}
+            </div>
+            <div style="background:#f6f6f6;border-radius:12px;padding:14px 16px;color:#333333;margin-bottom:18px;">{{linkMessage}}</div>
+            <div style="margin-top:26px;color:#999999;font-size:12px;line-height:20px;">
+              {{siteTitle}}<br>
+              <a href="{{siteUrl}}" style="color:#999999;text-decoration:none;">{{siteUrl}}</a>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+`.trim();
+
       const NOTIFY_TEMPLATE_STYLES = [
         {
           value: "v3a",
@@ -6520,6 +6727,9 @@
             comment: DEFAULT_NOTIFY_COMMENT_TEMPLATE,
             commentWaiting: DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE,
             commentReply: DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE,
+            friendLink: DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE,
+            friendLinkAuditPass: DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE,
+            friendLinkAuditReject: DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE,
           },
         },
         {
@@ -6529,6 +6739,9 @@
             comment: CN_DEFAULT_NOTIFY_COMMENT_TEMPLATE,
             commentWaiting: CN_DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE,
             commentReply: CN_DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE,
+            friendLink: CN_DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE,
+            friendLinkAuditPass: CN_DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE,
+            friendLinkAuditReject: CN_DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE,
           },
         },
         {
@@ -6538,6 +6751,9 @@
             comment: CN_PURE_NOTIFY_COMMENT_TEMPLATE,
             commentWaiting: CN_PURE_NOTIFY_COMMENT_WAITING_TEMPLATE,
             commentReply: CN_PURE_NOTIFY_COMMENT_REPLY_TEMPLATE,
+            friendLink: CN_PURE_NOTIFY_FRIENDLINK_TEMPLATE,
+            friendLinkAuditPass: CN_PURE_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE,
+            friendLinkAuditReject: CN_PURE_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE,
           },
         },
       ];
@@ -6574,7 +6790,9 @@
         commentWaitingNotifyEnabled: 0,
         commentReplyNotifyEnabled: 0,
         friendLinkNotifyEnabled: 0,
+        friendLinkAuditNotifyEnabled: 0,
         templateStyle: "v3a",
+        adminTo: "",
         smtpFrom: "",
         smtpHost: "",
         smtpPort: 465,
@@ -6585,10 +6803,12 @@
         commentWaitingTemplate: DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE,
         commentReplyTemplate: DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE,
         friendLinkTemplate: DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE,
+        friendLinkAuditPassTemplate: DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE,
+        friendLinkAuditRejectTemplate: DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE,
       });
       const settingsNotifyTesting = ref(false);
       const settingsNotifyTemplateEditorOpen = ref(false);
-      const settingsNotifyTemplateKind = ref("comment"); // comment|commentWaiting|commentReply|friendLink
+      const settingsNotifyTemplateKind = ref("comment"); // comment|commentWaiting|commentReply|friendLink|friendLinkAuditPass|friendLinkAuditReject
       const settingsNotifyTemplateDraft = ref("");
       const settingsNotifyTemplatePreviewHtml = computed(() => {
         const tpl = String(
@@ -6685,6 +6905,7 @@
         const now = new Date();
         const sample = {
           siteTitle,
+          siteUrl,
           linkName: "示例友链名称",
           linkUrl: "https://example.com",
           linkType: "朋友",
@@ -6703,12 +6924,70 @@
         return renderMailTemplate(tpl, sample);
       });
 
+      const settingsNotifyFriendLinkAuditPassTemplatePreviewHtml = computed(() => {
+        const tpl = String(
+          settingsNotifyForm.friendLinkAuditPassTemplate ||
+            DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE
+        );
+        const siteTitle = String(settingsData.site.title || "我的站点");
+        const siteUrlRaw = String(settingsData.site.siteUrl || "https://example.com");
+        const siteUrl = siteUrlRaw.replace(/\/+$/, "");
+        const now = new Date();
+        const sample = {
+          siteTitle,
+          siteUrl,
+          auditResult: "通过",
+          auditTime: now.toLocaleString(),
+          linkName: "示例友链名称",
+          linkUrl: "https://example.com",
+          linkType: "朋友",
+          linkEmail: "friend@example.com",
+          linkAvatar: "https://example.com/avatar.png",
+          linkDescription: "这是一个示例友链描述。",
+          applyTime: now.toLocaleString(),
+          linkMessage: escapeHtml("这是一条示例申请留言。\\n支持换行。").replace(
+            /\\n/g,
+            "<br />"
+          ),
+        };
+        return renderMailTemplate(tpl, sample);
+      });
+
+      const settingsNotifyFriendLinkAuditRejectTemplatePreviewHtml = computed(() => {
+        const tpl = String(
+          settingsNotifyForm.friendLinkAuditRejectTemplate ||
+            DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE
+        );
+        const siteTitle = String(settingsData.site.title || "我的站点");
+        const siteUrlRaw = String(settingsData.site.siteUrl || "https://example.com");
+        const siteUrl = siteUrlRaw.replace(/\/+$/, "");
+        const now = new Date();
+        const sample = {
+          siteTitle,
+          siteUrl,
+          auditResult: "拒绝",
+          auditTime: now.toLocaleString(),
+          linkName: "示例友链名称",
+          linkUrl: "https://example.com",
+          linkType: "朋友",
+          linkEmail: "friend@example.com",
+          linkAvatar: "https://example.com/avatar.png",
+          linkDescription: "这是一个示例友链描述。",
+          applyTime: now.toLocaleString(),
+          linkMessage: escapeHtml("这是一条示例申请留言。\\n支持换行。").replace(
+            /\\n/g,
+            "<br />"
+          ),
+        };
+        return renderMailTemplate(tpl, sample);
+      });
+
       const notifyTemplateStyles = NOTIFY_TEMPLATE_STYLES;
       function applySettingsNotifyTemplateStyle() {
         const value = String(settingsNotifyForm.templateStyle || "v3a");
         const found = notifyTemplateStyles.find((s) => String(s.value) === value);
         if (!found) return;
-        if (!confirm("应用该样式将覆盖当前评论相关模板内容，是否继续？")) return;
+        if (!confirm("应用该样式将覆盖当前模板内容（评论/友链），是否继续？")) return;
         const templates = found.templates || {};
         settingsNotifyForm.commentTemplate = String(
           templates.comment || DEFAULT_NOTIFY_COMMENT_TEMPLATE
@@ -6719,31 +6998,50 @@
         settingsNotifyForm.commentReplyTemplate = String(
           templates.commentReply || DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE
         );
+        settingsNotifyForm.friendLinkTemplate = String(
+          templates.friendLink || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
+        );
+        settingsNotifyForm.friendLinkAuditPassTemplate = String(
+          templates.friendLinkAuditPass || DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE
+        );
+        settingsNotifyForm.friendLinkAuditRejectTemplate = String(
+          templates.friendLinkAuditReject || DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE
+        );
       }
 
       function openSettingsNotifyTemplateEditor(kind = "comment") {
         const k = String(kind || "comment");
         settingsNotifyTemplateKind.value =
-          k === "friendLink"
-            ? "friendLink"
-            : k === "commentWaiting"
-              ? "commentWaiting"
-              : k === "commentReply"
-                ? "commentReply"
-                : "comment";
+          k === "friendLinkAuditPass"
+            ? "friendLinkAuditPass"
+            : k === "friendLinkAuditReject"
+              ? "friendLinkAuditReject"
+              : k === "friendLink"
+                ? "friendLink"
+                : k === "commentWaiting"
+                  ? "commentWaiting"
+                  : k === "commentReply"
+                    ? "commentReply"
+                    : "comment";
 
         const tpl =
-          settingsNotifyTemplateKind.value === "friendLink"
-            ? settingsNotifyForm.friendLinkTemplate ||
-              DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
-            : settingsNotifyTemplateKind.value === "commentWaiting"
-              ? settingsNotifyForm.commentWaitingTemplate ||
-                DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE
-              : settingsNotifyTemplateKind.value === "commentReply"
-                ? settingsNotifyForm.commentReplyTemplate ||
-                  DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE
-                : settingsNotifyForm.commentTemplate ||
-                  DEFAULT_NOTIFY_COMMENT_TEMPLATE;
+          settingsNotifyTemplateKind.value === "friendLinkAuditPass"
+            ? settingsNotifyForm.friendLinkAuditPassTemplate ||
+              DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE
+            : settingsNotifyTemplateKind.value === "friendLinkAuditReject"
+              ? settingsNotifyForm.friendLinkAuditRejectTemplate ||
+                DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE
+              : settingsNotifyTemplateKind.value === "friendLink"
+                ? settingsNotifyForm.friendLinkTemplate ||
+                  DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
+                : settingsNotifyTemplateKind.value === "commentWaiting"
+                  ? settingsNotifyForm.commentWaitingTemplate ||
+                    DEFAULT_NOTIFY_COMMENT_WAITING_TEMPLATE
+                  : settingsNotifyTemplateKind.value === "commentReply"
+                    ? settingsNotifyForm.commentReplyTemplate ||
+                      DEFAULT_NOTIFY_COMMENT_REPLY_TEMPLATE
+                    : settingsNotifyForm.commentTemplate ||
+                      DEFAULT_NOTIFY_COMMENT_TEMPLATE;
         settingsNotifyTemplateDraft.value = String(tpl);
         settingsNotifyTemplateEditorOpen.value = true;
       }
@@ -6752,7 +7050,13 @@
       }
       function applySettingsNotifyTemplateDraft() {
         const next = String(settingsNotifyTemplateDraft.value || "").trim();
-        if (settingsNotifyTemplateKind.value === "friendLink") {
+        if (settingsNotifyTemplateKind.value === "friendLinkAuditPass") {
+          settingsNotifyForm.friendLinkAuditPassTemplate =
+            next || DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE;
+        } else if (settingsNotifyTemplateKind.value === "friendLinkAuditReject") {
+          settingsNotifyForm.friendLinkAuditRejectTemplate =
+            next || DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE;
+        } else if (settingsNotifyTemplateKind.value === "friendLink") {
           settingsNotifyForm.friendLinkTemplate = next || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE;
         } else if (settingsNotifyTemplateKind.value === "commentWaiting") {
           settingsNotifyForm.commentWaitingTemplate =
@@ -9334,9 +9638,13 @@
           settingsNotifyForm.friendLinkNotifyEnabled = Number(
             settingsData.notify.friendLinkNotifyEnabled || 0
           );
+          settingsNotifyForm.friendLinkAuditNotifyEnabled = Number(
+            settingsData.notify.friendLinkAuditNotifyEnabled || 0
+          );
           settingsNotifyForm.templateStyle = String(
             settingsData.notify.templateStyle || "v3a"
           );
+          settingsNotifyForm.adminTo = String(settingsData.notify.adminTo || "");
           settingsNotifyForm.smtpFrom = String(settingsData.notify.smtpFrom || "");
           settingsNotifyForm.smtpHost = String(settingsData.notify.smtpHost || "");
           settingsNotifyForm.smtpPort = Number(settingsData.notify.smtpPort || 465);
@@ -9357,6 +9665,14 @@
           );
           settingsNotifyForm.friendLinkTemplate = String(
             settingsData.notify.friendLinkTemplate || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
+          );
+          settingsNotifyForm.friendLinkAuditPassTemplate = String(
+            settingsData.notify.friendLinkAuditPassTemplate ||
+              DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE
+          );
+          settingsNotifyForm.friendLinkAuditRejectTemplate = String(
+            settingsData.notify.friendLinkAuditRejectTemplate ||
+              DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE
           );
 
           settingsAiForm.enabled = Number(settingsData.ai.enabled || 0);
@@ -9648,6 +9964,10 @@
         settingsMessage.value = "";
         try {
           const payload = Object.assign({}, settingsDiscussionForm);
+          if (!Number(payload.commentsShowUrl || 0)) payload.commentsUrlNofollow = 0;
+          if (!Number(payload.commentsAutoClose || 0)) payload.commentsPostTimeoutDays = 0;
+          if (!Number(payload.commentsPostIntervalEnable || 0))
+            payload.commentsPostIntervalMins = 0;
           const data = await apiPost("settings.discussion.save", payload);
           if (data && data.discussion) {
             const d = Object.assign({}, data.discussion);
@@ -9664,49 +9984,7 @@
               ),
             });
             settingsData.discussion = next;
-
-            settingsDiscussionForm.commentDateFormat = String(
-              settingsData.discussion.commentDateFormat || ""
-            );
-            settingsDiscussionForm.commentsListSize = Number(
-              settingsData.discussion.commentsListSize || 20
-            );
-            settingsDiscussionForm.commentsMarkdown = Number(
-              settingsData.discussion.commentsMarkdown || 0
-            );
-            settingsDiscussionForm.commentsPageBreak = Number(
-              settingsData.discussion.commentsPageBreak || 0
-            );
-            settingsDiscussionForm.commentsPageSize = Number(
-              settingsData.discussion.commentsPageSize || 10
-            );
-            settingsDiscussionForm.commentsOrder = String(
-              settingsData.discussion.commentsOrder || "DESC"
-            );
-            settingsDiscussionForm.commentsRequireModeration = Number(
-              settingsData.discussion.commentsRequireModeration || 0
-            );
-            settingsDiscussionForm.commentsRequireMail = Number(
-              settingsData.discussion.commentsRequireMail || 0
-            );
-            settingsDiscussionForm.commentsRequireUrl = Number(
-              settingsData.discussion.commentsRequireUrl || 0
-            );
-            settingsDiscussionForm.commentsAntiSpam = Number(
-              settingsData.discussion.commentsAntiSpam || 0
-            );
-            settingsDiscussionForm.commentsPostTimeoutDays = Number(
-              settingsData.discussion.commentsPostTimeoutDays || 0
-            );
-            settingsDiscussionForm.commentsPostIntervalEnable = Number(
-              settingsData.discussion.commentsPostIntervalEnable || 0
-            );
-            settingsDiscussionForm.commentsPostIntervalMins = Number(
-              settingsData.discussion.commentsPostIntervalMins || 0
-            );
-            settingsDiscussionForm.commentsHTMLTagAllowed = String(
-              settingsData.discussion.commentsHTMLTagAllowed || ""
-            );
+            Object.assign(settingsDiscussionForm, settingsData.discussion || {});
           }
           if (!settingsBatchSaving.value) settingsMessage.value = "已保存";
         } catch (e) {
@@ -9738,9 +10016,13 @@
             settingsNotifyForm.friendLinkNotifyEnabled = Number(
               data.notify.friendLinkNotifyEnabled || 0
             );
+            settingsNotifyForm.friendLinkAuditNotifyEnabled = Number(
+              data.notify.friendLinkAuditNotifyEnabled || 0
+            );
             settingsNotifyForm.templateStyle = String(
               data.notify.templateStyle || "v3a"
             );
+            settingsNotifyForm.adminTo = String(data.notify.adminTo || "");
             settingsNotifyForm.smtpFrom = String(data.notify.smtpFrom || "");
             settingsNotifyForm.smtpHost = String(data.notify.smtpHost || "");
             settingsNotifyForm.smtpPort = Number(data.notify.smtpPort || 465);
@@ -9760,6 +10042,14 @@
             );
             settingsNotifyForm.friendLinkTemplate = String(
               data.notify.friendLinkTemplate || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
+            );
+            settingsNotifyForm.friendLinkAuditPassTemplate = String(
+              data.notify.friendLinkAuditPassTemplate ||
+                DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE
+            );
+            settingsNotifyForm.friendLinkAuditRejectTemplate = String(
+              data.notify.friendLinkAuditRejectTemplate ||
+                DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE
             );
           } else {
             settingsNotifyForm.smtpPass = "";
@@ -10620,6 +10910,16 @@
         const discussionPageBreakEnabled = v3aNormNum(
           settingsDiscussionForm.commentsPageBreak
         );
+        const discussionThreadedEnabled = v3aNormNum(
+          settingsDiscussionForm.commentsThreaded
+        );
+        const discussionShowUrlEnabled = v3aNormNum(
+          settingsDiscussionForm.commentsShowUrl
+        );
+        const discussionAvatarEnabled = v3aNormNum(settingsDiscussionForm.commentsAvatar);
+        const discussionAutoCloseEnabled = v3aNormNum(
+          settingsDiscussionForm.commentsAutoClose
+        );
         const discussionIntervalEnabled = v3aNormNum(
           settingsDiscussionForm.commentsPostIntervalEnable
         );
@@ -10628,25 +10928,55 @@
             v3aNormStr(discussion.commentDateFormat) ||
           v3aNormNum(settingsDiscussionForm.commentsListSize) !==
             v3aNormNum(discussion.commentsListSize) ||
+          v3aNormNum(settingsDiscussionForm.commentsShowCommentOnly) !==
+            v3aNormNum(discussion.commentsShowCommentOnly) ||
           v3aNormNum(settingsDiscussionForm.commentsMarkdown) !==
             v3aNormNum(discussion.commentsMarkdown) ||
+          v3aNormNum(settingsDiscussionForm.commentsShowUrl) !==
+            v3aNormNum(discussion.commentsShowUrl) ||
+          (discussionShowUrlEnabled
+            ? v3aNormNum(settingsDiscussionForm.commentsUrlNofollow) !==
+              v3aNormNum(discussion.commentsUrlNofollow)
+            : false) ||
+          v3aNormNum(settingsDiscussionForm.commentsAvatar) !==
+            v3aNormNum(discussion.commentsAvatar) ||
+          (discussionAvatarEnabled
+            ? v3aNormStr(settingsDiscussionForm.commentsAvatarRating) !==
+              v3aNormStr(discussion.commentsAvatarRating || "G")
+            : false) ||
           v3aNormNum(settingsDiscussionForm.commentsPageBreak) !==
             v3aNormNum(discussion.commentsPageBreak) ||
           (discussionPageBreakEnabled
             ? v3aNormNum(settingsDiscussionForm.commentsPageSize) !==
-              v3aNormNum(discussion.commentsPageSize)
+                v3aNormNum(discussion.commentsPageSize) ||
+                v3aNormStr(settingsDiscussionForm.commentsPageDisplay) !==
+                  v3aNormStr(discussion.commentsPageDisplay || "last")
+            : false) ||
+          v3aNormNum(settingsDiscussionForm.commentsThreaded) !==
+            v3aNormNum(discussion.commentsThreaded) ||
+          (discussionThreadedEnabled
+            ? v3aNormNum(settingsDiscussionForm.commentsMaxNestingLevels) !==
+              v3aNormNum(discussion.commentsMaxNestingLevels, 3)
             : false) ||
           v3aNormStr(settingsDiscussionForm.commentsOrder) !== v3aNormStr(discussion.commentsOrder) ||
           v3aNormNum(settingsDiscussionForm.commentsRequireModeration) !==
             v3aNormNum(discussion.commentsRequireModeration) ||
+          v3aNormNum(settingsDiscussionForm.commentsWhitelist) !==
+            v3aNormNum(discussion.commentsWhitelist) ||
           v3aNormNum(settingsDiscussionForm.commentsRequireMail) !==
             v3aNormNum(discussion.commentsRequireMail) ||
           v3aNormNum(settingsDiscussionForm.commentsRequireUrl) !==
             v3aNormNum(discussion.commentsRequireUrl) ||
+          v3aNormNum(settingsDiscussionForm.commentsCheckReferer) !==
+            v3aNormNum(discussion.commentsCheckReferer) ||
           v3aNormNum(settingsDiscussionForm.commentsAntiSpam) !==
             v3aNormNum(discussion.commentsAntiSpam) ||
-          v3aNormNum(settingsDiscussionForm.commentsPostTimeoutDays) !==
-            v3aNormNum(discussion.commentsPostTimeoutDays) ||
+          v3aNormNum(settingsDiscussionForm.commentsAutoClose) !==
+            v3aNormNum(discussion.commentsAutoClose) ||
+          (discussionAutoCloseEnabled
+            ? v3aNormNum(settingsDiscussionForm.commentsPostTimeoutDays) !==
+              v3aNormNum(discussion.commentsPostTimeoutDays)
+            : false) ||
           v3aNormNum(settingsDiscussionForm.commentsPostIntervalEnable) !==
             v3aNormNum(discussion.commentsPostIntervalEnable) ||
           (discussionIntervalEnabled
@@ -10667,7 +10997,10 @@
             v3aNormNum(notify.commentReplyNotifyEnabled) ||
           v3aNormNum(settingsNotifyForm.friendLinkNotifyEnabled) !==
             v3aNormNum(notify.friendLinkNotifyEnabled) ||
+          v3aNormNum(settingsNotifyForm.friendLinkAuditNotifyEnabled) !==
+            v3aNormNum(notify.friendLinkAuditNotifyEnabled) ||
           v3aNormStr(settingsNotifyForm.templateStyle) !== v3aNormStr(notify.templateStyle || "v3a") ||
+          v3aNormStr(settingsNotifyForm.adminTo) !== v3aNormStr(notify.adminTo) ||
           v3aNormStr(settingsNotifyForm.smtpFrom) !== v3aNormStr(notify.smtpFrom) ||
           v3aNormStr(settingsNotifyForm.smtpHost) !== v3aNormStr(notify.smtpHost) ||
           v3aNormNum(settingsNotifyForm.smtpPort, 465) !== v3aNormNum(notify.smtpPort, 465) ||
@@ -10687,6 +11020,16 @@
           v3aNormStr(settingsNotifyForm.friendLinkTemplate) !==
             v3aNormStr(
               notify.friendLinkTemplate || DEFAULT_NOTIFY_FRIENDLINK_TEMPLATE
+            ) ||
+          v3aNormStr(settingsNotifyForm.friendLinkAuditPassTemplate) !==
+            v3aNormStr(
+              notify.friendLinkAuditPassTemplate ||
+                DEFAULT_NOTIFY_FRIENDLINK_AUDIT_PASS_TEMPLATE
+            ) ||
+          v3aNormStr(settingsNotifyForm.friendLinkAuditRejectTemplate) !==
+            v3aNormStr(
+              notify.friendLinkAuditRejectTemplate ||
+                DEFAULT_NOTIFY_FRIENDLINK_AUDIT_REJECT_TEMPLATE
             ) ||
           v3aNormStr(settingsNotifyForm.smtpPass) !== "";
 
@@ -12118,6 +12461,8 @@
         settingsNotifyCommentWaitingTemplatePreviewHtml,
         settingsNotifyCommentReplyTemplatePreviewHtml,
         settingsNotifyFriendLinkTemplatePreviewHtml,
+        settingsNotifyFriendLinkAuditPassTemplatePreviewHtml,
+        settingsNotifyFriendLinkAuditRejectTemplatePreviewHtml,
         settingsPermalinkForm,
         settingsPermalinkRewriteError,
         settingsPermalinkEnableRewriteAnyway,
@@ -17025,6 +17370,7 @@
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>评论日期格式</label>
+                                <div class="v3a-settings-row-help">模板未指定格式时使用（PHP date() 格式）</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <input class="v3a-input" v-model="settingsDiscussionForm.commentDateFormat" placeholder="Y-m-d H:i" />
@@ -17034,9 +17380,23 @@
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>侧边栏评论列表数</label>
+                                <div class="v3a-settings-row-help">用于侧边栏/小工具的最新评论列表</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <input class="v3a-input" type="number" v-model.number="settingsDiscussionForm.commentsListSize" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>仅显示评论</label>
+                                <div class="v3a-settings-row-help">不显示 Pingback / Trackback</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsShowCommentOnly" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
                               </div>
                             </div>
 
@@ -17054,7 +17414,65 @@
 
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
+                                <label>评论者名称链接到主页</label>
+                                <div class="v3a-settings-row-help">评论者名称显示时自动加上其个人主页链接</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsShowUrl" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <template v-if="settingsDiscussionForm.commentsShowUrl">
+                              <div class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>评论者主页链接 nofollow</label>
+                                  <div class="v3a-settings-row-help">对评论者个人主页链接使用 nofollow 属性</div>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <label class="v3a-switch">
+                                    <input type="checkbox" v-model="settingsDiscussionForm.commentsUrlNofollow" :true-value="1" :false-value="0" />
+                                    <span class="v3a-switch-ui"></span>
+                                  </label>
+                                </div>
+                              </div>
+                            </template>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>启用 Gravatar 头像</label>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsAvatar" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <template v-if="settingsDiscussionForm.commentsAvatar">
+                              <div class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>头像最高评级</label>
+                                  <div class="v3a-settings-row-help">G / PG / R / X</div>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <select class="v3a-select" v-model="settingsDiscussionForm.commentsAvatarRating">
+                                    <option value="G">G</option>
+                                    <option value="PG">PG</option>
+                                    <option value="R">R</option>
+                                    <option value="X">X</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </template>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
                                 <label>评论分页</label>
+                                <div class="v3a-settings-row-help">启用分页并设置每页评论数</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <label class="v3a-switch">
@@ -17071,6 +17489,43 @@
                                 </div>
                                 <div class="v3a-settings-row-control">
                                   <input class="v3a-input" type="number" v-model.number="settingsDiscussionForm.commentsPageSize" />
+                                </div>
+                              </div>
+
+                              <div class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>默认显示</label>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <select class="v3a-select" v-model="settingsDiscussionForm.commentsPageDisplay">
+                                    <option value="last">最后一页</option>
+                                    <option value="first">第一页</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </template>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>启用评论回复</label>
+                                <div class="v3a-settings-row-help">启用嵌套回复</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsThreaded" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <template v-if="settingsDiscussionForm.commentsThreaded">
+                              <div class="v3a-settings-row">
+                                <div class="v3a-settings-row-label">
+                                  <label>最多回复层数</label>
+                                  <div class="v3a-settings-row-help">建议 2–7 层</div>
+                                </div>
+                                <div class="v3a-settings-row-control">
+                                  <input class="v3a-input" type="number" v-model.number="settingsDiscussionForm.commentsMaxNestingLevels" />
                                 </div>
                               </div>
                             </template>
@@ -17094,6 +17549,19 @@
                               <div class="v3a-settings-row-control">
                                 <label class="v3a-switch">
                                   <input type="checkbox" v-model="settingsDiscussionForm.commentsRequireModeration" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>评论者之前须有评论通过审核</label>
+                                <div class="v3a-settings-row-help">开启后，曾通过审核的评论者后续评论可免审</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsWhitelist" :true-value="1" :false-value="0" />
                                   <span class="v3a-switch-ui"></span>
                                 </label>
                               </div>
@@ -17125,6 +17593,19 @@
 
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
+                                <label>检查评论来源页</label>
+                                <div class="v3a-settings-row-help">检查来源页 URL 是否与文章链接一致</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsDiscussionForm.commentsCheckReferer" :true-value="1" :false-value="0" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
                                 <label>反垃圾保护</label>
                               </div>
                               <div class="v3a-settings-row-control">
@@ -17137,16 +17618,27 @@
 
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
-                                <label>发布后自动关闭评论（天）</label>
+                                <label>自动关闭评论</label>
+                                <div class="v3a-settings-row-help">在文章发布指定天数后关闭评论</div>
                               </div>
                               <div class="v3a-settings-row-control">
-                                <input class="v3a-input" type="number" v-model.number="settingsDiscussionForm.commentsPostTimeoutDays" />
+                                <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                  <label class="v3a-switch" style="margin:0;">
+                                    <input type="checkbox" v-model="settingsDiscussionForm.commentsAutoClose" :true-value="1" :false-value="0" />
+                                    <span class="v3a-switch-ui"></span>
+                                  </label>
+                                  <template v-if="settingsDiscussionForm.commentsAutoClose">
+                                    <input class="v3a-input" type="number" style="width: 140px;" v-model.number="settingsDiscussionForm.commentsPostTimeoutDays" />
+                                    <div class="v3a-muted" style="font-size: 12px;">天</div>
+                                  </template>
+                                </div>
                               </div>
                             </div>
 
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>同 IP 评论间隔限制</label>
+                                <div class="v3a-settings-row-help">限制同一 IP 发布评论的最小时间间隔</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <label class="v3a-switch">
@@ -17170,6 +17662,7 @@
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>允许 HTML 标签</label>
+                                <div class="v3a-settings-row-help">默认用户评论不允许任何 HTML，可在此填写允许的标签与属性</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <textarea class="v3a-textarea" v-model="settingsDiscussionForm.commentsHTMLTagAllowed" placeholder="<a href> <img src>"></textarea>
@@ -17241,7 +17734,7 @@
                                       <div class="v3a-mail-status-title">
                                         发送成功
                                         <span class="v3a-mail-status-kind" v-if="settingsData.notify.lastSuccess.kind">
-                                          · {{ settingsData.notify.lastSuccess.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastSuccess.kind === 'comment_waiting' ? '待审核评论' : (settingsData.notify.lastSuccess.kind === 'comment_reply' ? '评论回复' : (settingsData.notify.lastSuccess.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastSuccess.kind === 'test' ? '测试邮件' : settingsData.notify.lastSuccess.kind)))) }}
+                                          · {{ settingsData.notify.lastSuccess.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastSuccess.kind === 'comment_waiting' ? '待审核评论' : (settingsData.notify.lastSuccess.kind === 'comment_reply' ? '评论回复' : (settingsData.notify.lastSuccess.kind === 'friendlink_audit_pass' ? '友链通过' : (settingsData.notify.lastSuccess.kind === 'friendlink_audit_reject' ? '友链拒绝' : (settingsData.notify.lastSuccess.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastSuccess.kind === 'test' ? '测试邮件' : settingsData.notify.lastSuccess.kind))))))) }}
                                         </span>
                                       </div>
                                       <div class="v3a-mail-status-time v3a-muted">{{ formatTimeAgo(settingsData.notify.lastSuccess.time) }}</div>
@@ -17260,7 +17753,7 @@
                                       <div class="v3a-mail-status-title">
                                         发送失败
                                         <span class="v3a-mail-status-kind" v-if="settingsData.notify.lastError.kind">
-                                          · {{ settingsData.notify.lastError.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastError.kind === 'comment_waiting' ? '待审核评论' : (settingsData.notify.lastError.kind === 'comment_reply' ? '评论回复' : (settingsData.notify.lastError.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastError.kind === 'test' ? '测试邮件' : settingsData.notify.lastError.kind)))) }}
+                                          · {{ settingsData.notify.lastError.kind === 'comment' ? '评论提醒' : (settingsData.notify.lastError.kind === 'comment_waiting' ? '待审核评论' : (settingsData.notify.lastError.kind === 'comment_reply' ? '评论回复' : (settingsData.notify.lastError.kind === 'friendlink_audit_pass' ? '友链通过' : (settingsData.notify.lastError.kind === 'friendlink_audit_reject' ? '友链拒绝' : (settingsData.notify.lastError.kind === 'friendlink' ? '友链申请' : (settingsData.notify.lastError.kind === 'test' ? '测试邮件' : settingsData.notify.lastError.kind))))))) }}
                                         </span>
                                       </div>
                                       <div class="v3a-mail-status-time v3a-muted">{{ formatTimeAgo(settingsData.notify.lastError.time) }}</div>
@@ -17275,8 +17768,8 @@
 
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
-                                <label>评论提醒</label>
-                                <div class="v3a-settings-row-help">发送至管理员邮箱，用于提醒有新评论（通过审核）</div>
+                                <label>新评论提醒</label>
+                                <div class="v3a-settings-row-help">发送给文章作者；若文章作者邮箱为空，则发送至站长收件邮箱（未设置则发送给所有管理员）</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <label class="v3a-switch">
@@ -17289,7 +17782,7 @@
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>待审核评论提醒</label>
-                                <div class="v3a-settings-row-help">发送至管理员邮箱，用于提醒有待审核评论</div>
+                                <div class="v3a-settings-row-help">发送至站长收件邮箱（未设置则发送给所有管理员），用于提醒有待审核评论</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <label class="v3a-switch">
@@ -17315,13 +17808,36 @@
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>友链申请提醒</label>
-                                <div class="v3a-settings-row-help">发送至管理员邮箱，用于提醒有新的友链申请</div>
+                                <div class="v3a-settings-row-help">发送至站长收件邮箱（未设置则发送给所有管理员），用于提醒有新的友链申请</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <label class="v3a-switch">
                                   <input type="checkbox" v-model="settingsNotifyForm.friendLinkNotifyEnabled" :true-value="1" :false-value="0" :disabled="!settingsNotifyForm.mailEnabled" />
                                   <span class="v3a-switch-ui"></span>
                                 </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>友链审核结果通知</label>
+                                <div class="v3a-settings-row-help">友链申请通过/拒绝后，发送邮件给提交者</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <label class="v3a-switch">
+                                  <input type="checkbox" v-model="settingsNotifyForm.friendLinkAuditNotifyEnabled" :true-value="1" :false-value="0" :disabled="!settingsNotifyForm.mailEnabled" />
+                                  <span class="v3a-switch-ui"></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>站长收件邮箱</label>
+                                <div class="v3a-settings-row-help">留空则发送至所有管理员；多个邮箱用逗号分隔</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <input class="v3a-input" v-model="settingsNotifyForm.adminTo" placeholder="admin@example.com, other@example.com" />
                               </div>
                             </div>
 
@@ -17401,7 +17917,7 @@
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>模板样式</label>
-                                <div class="v3a-settings-row-help">选择后点击“应用样式”，会覆盖当前评论相关模板</div>
+                                <div class="v3a-settings-row-help">选择后点击“应用样式”，会覆盖当前模板内容（评论/友链）</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -17460,6 +17976,30 @@
                                 </div>
                               </div>
                             </div>
+
+                            <div class="v3a-settings-row v3a-settings-row-stack">
+                              <div class="v3a-settings-row-label v3a-settings-row-label-actions">
+                                <label>友链审核通过模板</label>
+                                <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor('friendLinkAuditPass')">编辑</button>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-mailtpl-card">
+                                  <div class="v3a-mailtpl-preview" v-html="settingsNotifyFriendLinkAuditPassTemplatePreviewHtml"></div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row v3a-settings-row-stack">
+                              <div class="v3a-settings-row-label v3a-settings-row-label-actions">
+                                <label>友链审核拒绝模板</label>
+                                <button class="v3a-btn" type="button" @click="openSettingsNotifyTemplateEditor('friendLinkAuditReject')">编辑</button>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <div class="v3a-mailtpl-card">
+                                  <div class="v3a-mailtpl-preview" v-html="settingsNotifyFriendLinkAuditRejectTemplatePreviewHtml"></div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
                         </template>
@@ -17472,7 +18012,7 @@
                           <span class="v3a-icon" v-html="ICONS.close"></span>
                         </button>
                         <div class="v3a-modal-head">
-                          <div class="v3a-modal-title">编辑邮件模板（HTML） · {{ settingsNotifyTemplateKind === 'friendLink' ? '友链申请' : (settingsNotifyTemplateKind === 'commentWaiting' ? '待审核评论' : (settingsNotifyTemplateKind === 'commentReply' ? '评论回复' : '新评论')) }}</div>
+                          <div class="v3a-modal-title">编辑邮件模板（HTML） · {{ settingsNotifyTemplateKind === 'friendLinkAuditPass' ? '友链通过' : (settingsNotifyTemplateKind === 'friendLinkAuditReject' ? '友链拒绝' : (settingsNotifyTemplateKind === 'friendLink' ? '友链申请' : (settingsNotifyTemplateKind === 'commentWaiting' ? '待审核评论' : (settingsNotifyTemplateKind === 'commentReply' ? '评论回复' : '新评论')))) }}</div>
                         </div>
                         <div class="v3a-modal-body">
                           <div class="v3a-modal-form">
@@ -17481,8 +18021,23 @@
                               <textarea class="v3a-textarea v3a-modal-textarea v3a-code-editor" v-model="settingsNotifyTemplateDraft" placeholder="<div>...</div>"></textarea>
                               <div class="v3a-muted" style="margin-top: 10px; font-size: 12px; line-height: 1.6;">
                                 可用变量：
-                                <template v-if="settingsNotifyTemplateKind === 'friendLink'">
+                                <template v-if="settingsNotifyTemplateKind === 'friendLinkAuditPass' || settingsNotifyTemplateKind === 'friendLinkAuditReject'">
                                   <code v-pre>{{siteTitle}}</code>
+                                  <code v-pre>{{siteUrl}}</code>
+                                  <code v-pre>{{auditResult}}</code>
+                                  <code v-pre>{{auditTime}}</code>
+                                  <code v-pre>{{linkName}}</code>
+                                  <code v-pre>{{linkUrl}}</code>
+                                  <code v-pre>{{linkType}}</code>
+                                  <code v-pre>{{linkEmail}}</code>
+                                  <code v-pre>{{linkAvatar}}</code>
+                                  <code v-pre>{{linkDescription}}</code>
+                                  <code v-pre>{{linkMessage}}</code>
+                                  <code v-pre>{{applyTime}}</code>
+                                </template>
+                                <template v-else-if="settingsNotifyTemplateKind === 'friendLink'">
+                                  <code v-pre>{{siteTitle}}</code>
+                                  <code v-pre>{{siteUrl}}</code>
                                   <code v-pre>{{linkName}}</code>
                                   <code v-pre>{{linkUrl}}</code>
                                   <code v-pre>{{linkType}}</code>

@@ -89,6 +89,8 @@ class Plugin implements PluginInterface
         try {
             if (class_exists('\\Widget\\Comments\\Edit')) {
                 \Widget\Comments\Edit::pluginHandle()->finishComment = __CLASS__ . '::notifyComment';
+                // 评论审核通过（后台标记）后发送通知（用于“需要审核”的场景）
+                \Widget\Comments\Edit::pluginHandle()->mark = __CLASS__ . '::notifyCommentMark';
             }
         } catch (\Throwable $e) {
         }
@@ -711,7 +713,7 @@ class Plugin implements PluginInterface
      * - 新评论提交（Widget_Feedback::finishComment）
      * - 后台回复评论（Widget\Comments\Edit::finishComment）
      */
-    public static function notifyComment($feedback): void
+    public static function notifyComment($feedback, bool $includeAdmins = true): void
     {
         try {
             $options = \Utils\Helper::options();
@@ -720,13 +722,15 @@ class Plugin implements PluginInterface
                 return;
             }
 
+            $commentReplyNotifyEnabled = (int) ($options->v3a_mail_comment_reply_enabled ?? 0);
+
             $commentNotifyEnabled = (int) ($options->v3a_mail_comment_enabled ?? 0);
 
             // backward-compatible: if option not set yet, follow commentNotifyEnabled
-            $waitingEnabledRaw = $options->v3a_mail_comment_waiting_enabled ?? null;
-            $commentWaitingNotifyEnabled = (int) ($waitingEnabledRaw === null ? $commentNotifyEnabled : $waitingEnabledRaw);
-
-            $commentReplyNotifyEnabled = (int) ($options->v3a_mail_comment_reply_enabled ?? 0);
+            $waitingEnabledRaw = $includeAdmins ? ($options->v3a_mail_comment_waiting_enabled ?? null) : null;
+            $commentWaitingNotifyEnabled = $includeAdmins
+                ? (int) ($waitingEnabledRaw === null ? $commentNotifyEnabled : $waitingEnabledRaw)
+                : 0;
 
             if (!$commentNotifyEnabled && !$commentWaitingNotifyEnabled && !$commentReplyNotifyEnabled) {
                 return;
@@ -757,6 +761,9 @@ class Plugin implements PluginInterface
             $postTitle = '';
             $postUrl = '';
             $parentId = 0;
+            $cid = 0;
+            $ownerId = 0;
+            $authorId = 0;
 
             try {
                 $status = (string) ($feedback->status ?? '');
@@ -764,6 +771,9 @@ class Plugin implements PluginInterface
                 $commentMail = trim((string) ($feedback->mail ?? ''));
                 $commentText = (string) ($feedback->text ?? '');
                 $parentId = (int) ($feedback->parent ?? 0);
+                $cid = (int) ($feedback->cid ?? 0);
+                $ownerId = (int) ($feedback->ownerId ?? 0);
+                $authorId = (int) ($feedback->authorId ?? 0);
 
                 $created = (int) ($feedback->created ?? 0);
                 if ($created > 0) {
@@ -773,10 +783,42 @@ class Plugin implements PluginInterface
                 // 优先使用 Typecho 生成好的跳转地址（通常包含评论锚点）
                 $postUrl = (string) ($feedback->permalink ?? '');
 
-                if (isset($feedback->content)) {
-                    $postTitle = (string) ($feedback->content->title ?? '');
-                    if ($postUrl === '') {
-                        $postUrl = (string) ($feedback->content->permalink ?? '');
+                // Widget_Feedback exposes $feedback->content as Archive object, while Widget\Base\Comments
+                // uses magic property "content" as rendered comment HTML string.
+                // Type-check to avoid "Attempt to read property on string" warnings.
+                try {
+                    $maybeContent = $feedback->content ?? null;
+                    if (is_object($maybeContent)) {
+                        $postTitle = (string) ($maybeContent->title ?? $postTitle);
+                        if ($postUrl === '') {
+                            $postUrl = (string) ($maybeContent->permalink ?? $postUrl);
+                        }
+                    }
+                } catch (\Throwable $e2) {
+                }
+
+                // Widget\Base\Comments provides joined content fields via magic properties.
+                if ($postTitle === '') {
+                    try {
+                        $t = trim((string) ($feedback->title ?? ''));
+                        if ($t !== '') {
+                            $postTitle = $t;
+                        }
+                    } catch (\Throwable $e2) {
+                    }
+                }
+
+                // Fallback: fetch content by cid (reliable for both front/back hooks).
+                if ($postTitle === '' && $cid > 0) {
+                    try {
+                        $content = \Utils\Helper::widgetById('Contents', $cid);
+                        if ($content) {
+                            $postTitle = (string) ($content->title ?? $postTitle);
+                            if ($postUrl === '') {
+                                $postUrl = (string) ($content->permalink ?? $postUrl);
+                            }
+                        }
+                    } catch (\Throwable $e2) {
                     }
                 }
             } catch (\Throwable $e) {
@@ -790,6 +832,14 @@ class Plugin implements PluginInterface
             }
             if ($status === '') {
                 $status = 'unknown';
+            }
+            $statusLabel = $status;
+            if ($status === 'approved') {
+                $statusLabel = '通过';
+            } elseif ($status === 'waiting') {
+                $statusLabel = '待审';
+            } elseif ($status === 'spam') {
+                $statusLabel = '垃圾';
             }
 
             $siteTitle = (string) ($options->title ?? 'Typecho');
@@ -810,79 +860,164 @@ class Plugin implements PluginInterface
                 'secure' => $smtpSecure,
             ];
 
-            // 收件人：所有管理员（用于 comment / comment_waiting）
-            $admins = [];
-            $needAdmins = ($status === 'approved' && $commentNotifyEnabled) || ($status !== 'approved' && $commentWaitingNotifyEnabled);
-            if ($needAdmins) {
-                try {
-                    $db = Db::get();
-                } catch (\Throwable $e) {
-                    $db = null;
-                }
-
-                if (!$db) {
-                    return;
-                }
-
-                try {
-                    $rows = $db->fetchAll(
-                        $db->select('mail', 'screenName', 'name')
-                            ->from('table.users')
-                            ->where('group = ?', 'administrator')
-                    );
-                    foreach ((array) $rows as $r) {
-                        $mail = trim((string) ($r['mail'] ?? ''));
-                        if ($mail !== '' && filter_var($mail, FILTER_VALIDATE_EMAIL)) {
-                            $name = (string) ($r['screenName'] ?? $r['name'] ?? '');
-                            $admins[] = ['mail' => $mail, 'name' => $name];
-                        }
-                    }
-                } catch (\Throwable $e) {
-                    $admins = [];
+            $adminRecipients = self::parseMailRecipients((string) ($options->v3a_mail_admin_to ?? ''), $siteTitle);
+            $adminToMails = [];
+            foreach ((array) $adminRecipients as $r) {
+                $m = strtolower(trim((string) ($r['mail'] ?? '')));
+                if ($m !== '') {
+                    $adminToMails[$m] = 1;
                 }
             }
+            $db = null;
 
-            // 1) 管理员：新评论提醒（approved）
+            // 1) 文章作者：新评论提醒（approved）
             if ($status === 'approved' && $commentNotifyEnabled) {
-                if (empty($admins)) {
-                    self::recordMailError('comment', '未找到有效的管理员邮箱地址（请在用户资料中设置邮箱）。');
-                } else {
+                $recipients = [];
+                $ownerMail = '';
+                $ownerName = '';
+                if ($ownerId > 0) {
+                    if (!$db) {
+                        try {
+                            $db = Db::get();
+                        } catch (\Throwable $e) {
+                            $db = null;
+                        }
+                    }
+
+                    if ($db) {
+                        try {
+                            $u = (array) $db->fetchRow(
+                                $db->select('mail', 'screenName', 'name')
+                                    ->from('table.users')
+                                    ->where('uid = ?', $ownerId)
+                                    ->limit(1)
+                            );
+                            $ownerMail = trim((string) ($u['mail'] ?? ''));
+                            $ownerName = (string) ($u['screenName'] ?? $u['name'] ?? '');
+                        } catch (\Throwable $e) {
+                            $ownerMail = '';
+                            $ownerName = '';
+                        }
+                    }
+                }
+
+                // CommentNotifier: 不需要发信给自己（作者自己评论自己的文章）
+                $skip = false;
+                if ($authorId > 0 && $ownerId > 0 && $authorId === $ownerId) {
+                    $skip = true;
+                }
+                if (!$skip && $ownerMail !== '' && filter_var($ownerMail, FILTER_VALIDATE_EMAIL) !== false) {
+                    if ($commentMail !== '' && strcasecmp($commentMail, $ownerMail) === 0) {
+                        $skip = true;
+                    }
+                }
+
+                if (!$skip && $ownerMail !== '' && filter_var($ownerMail, FILTER_VALIDATE_EMAIL) !== false) {
+                    $recipients = [[
+                        'mail' => $ownerMail,
+                        'name' => $ownerName !== '' ? $ownerName : $ownerMail,
+                    ]];
+                }
+
+                // 文章作者邮箱为空时：发送至站长收件邮箱（如未配置则降级为管理员邮箱，且仅在 includeAdmins=true 时启用）
+                if (!$skip && empty($recipients)) {
+                    if (empty($adminRecipients) && $includeAdmins) {
+                        if (!$db) {
+                            try {
+                                $db = Db::get();
+                            } catch (\Throwable $e) {
+                                $db = null;
+                            }
+                        }
+                        if ($db) {
+                            try {
+                                $rows = $db->fetchAll(
+                                    $db->select('mail', 'screenName', 'name')
+                                        ->from('table.users')
+                                        ->where('group = ?', 'administrator')
+                                );
+                                foreach ((array) $rows as $r) {
+                                    $mail = trim((string) ($r['mail'] ?? ''));
+                                    if ($mail !== '' && filter_var($mail, FILTER_VALIDATE_EMAIL)) {
+                                        $name = (string) ($r['screenName'] ?? $r['name'] ?? '');
+                                        $adminRecipients[] = ['mail' => $mail, 'name' => $name];
+                                    }
+                                }
+                            } catch (\Throwable $e) {
+                            }
+                        }
+                    }
+                    $recipients = $adminRecipients;
+                }
+
+                if (!$skip && empty($recipients)) {
+                    self::recordMailError('comment', '未找到有效的文章作者邮箱地址，且未配置站长收件邮箱/管理员邮箱。');
+                } elseif (!$skip) {
                     $template = trim((string) ($options->v3a_mail_comment_template ?? ''));
                     if ($template === '') {
                         $template = self::defaultCommentMailTemplate();
                     }
 
                     $vars = [
-                        'siteTitle' => $siteTitle,
+                        'siteTitle' => htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8'),
                         'siteUrl' => htmlspecialchars($siteUrl, ENT_QUOTES, 'UTF-8'),
-                        'postTitle' => $postTitle !== '' ? $postTitle : '（未知文章）',
-                        'postUrl' => $postUrl !== '' ? $postUrl : (string) ($options->siteUrl ?? ''),
-                        'commentAuthor' => $commentAuthor !== '' ? $commentAuthor : '（匿名）',
+                        'postTitle' => htmlspecialchars($postTitle !== '' ? $postTitle : '（未知文章）', ENT_QUOTES, 'UTF-8'),
+                        'postUrl' => htmlspecialchars($postUrl !== '' ? $postUrl : (string) ($options->siteUrl ?? ''), ENT_QUOTES, 'UTF-8'),
+                        'commentAuthor' => htmlspecialchars($commentAuthor !== '' ? $commentAuthor : '（匿名）', ENT_QUOTES, 'UTF-8'),
                         'commentMail' => htmlspecialchars($commentMail !== '' ? $commentMail : '（未填写）', ENT_QUOTES, 'UTF-8'),
-                        'commentStatus' => $status,
-                        'commentTime' => $commentTime,
+                        'commentStatus' => htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8'),
+                        'commentTime' => htmlspecialchars($commentTime, ENT_QUOTES, 'UTF-8'),
                         'commentText' => nl2br(htmlspecialchars($commentText, ENT_QUOTES, 'UTF-8')),
                     ];
 
                     $bodyHtml = self::renderMailTemplate($template, $vars);
-                    $subject = '新评论提醒：' . ($postTitle !== '' ? $postTitle : $siteTitle);
+                    $subject = '你的《' . ($postTitle !== '' ? $postTitle : $siteTitle) . '》文章有了新的评论';
 
                     self::sendMailBySmtp(
                         'comment',
                         $smtp,
                         $siteTitle,
-                        $admins,
+                        $recipients,
                         $subject,
                         $bodyHtml,
-                        '已发送至 ' . count($admins) . ' 位管理员邮箱。'
+                        '已发送至 ' . count($recipients) . ' 位收件人。'
                     );
                 }
             }
 
             // 2) 管理员：待审核评论提醒（waiting/unknown/…）
-            if ($status !== 'approved' && $commentWaitingNotifyEnabled) {
-                if (empty($admins)) {
-                    self::recordMailError('comment_waiting', '未找到有效的管理员邮箱地址（请在用户资料中设置邮箱）。');
+            if ($includeAdmins && $status !== 'approved' && $commentWaitingNotifyEnabled) {
+                $recipients = $adminRecipients;
+                if (empty($recipients)) {
+                    if (!$db) {
+                        try {
+                            $db = Db::get();
+                        } catch (\Throwable $e) {
+                            $db = null;
+                        }
+                    }
+
+                    if ($db) {
+                        try {
+                            $rows = $db->fetchAll(
+                                $db->select('mail', 'screenName', 'name')
+                                    ->from('table.users')
+                                    ->where('group = ?', 'administrator')
+                            );
+                            foreach ((array) $rows as $r) {
+                                $mail = trim((string) ($r['mail'] ?? ''));
+                                if ($mail !== '' && filter_var($mail, FILTER_VALIDATE_EMAIL)) {
+                                    $name = (string) ($r['screenName'] ?? $r['name'] ?? '');
+                                    $recipients[] = ['mail' => $mail, 'name' => $name];
+                                }
+                            }
+                        } catch (\Throwable $e) {
+                        }
+                    }
+                }
+
+                if (empty($recipients)) {
+                    self::recordMailError('comment_waiting', '未找到有效的管理员邮箱地址（请在用户资料中设置邮箱，或配置站长收件邮箱）。');
                 } else {
                     // NOTE: typecho_options.name is often VARCHAR(32); keep option keys <= 32 chars.
                     $template = trim((string) (
@@ -894,29 +1029,29 @@ class Plugin implements PluginInterface
                     }
 
                     $vars = [
-                        'siteTitle' => $siteTitle,
+                        'siteTitle' => htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8'),
                         'siteUrl' => htmlspecialchars($siteUrl, ENT_QUOTES, 'UTF-8'),
-                        'postTitle' => $postTitle !== '' ? $postTitle : '（未知文章）',
-                        'postUrl' => $postUrl !== '' ? $postUrl : (string) ($options->siteUrl ?? ''),
-                        'commentAuthor' => $commentAuthor !== '' ? $commentAuthor : '（匿名）',
+                        'postTitle' => htmlspecialchars($postTitle !== '' ? $postTitle : '（未知文章）', ENT_QUOTES, 'UTF-8'),
+                        'postUrl' => htmlspecialchars($postUrl !== '' ? $postUrl : (string) ($options->siteUrl ?? ''), ENT_QUOTES, 'UTF-8'),
+                        'commentAuthor' => htmlspecialchars($commentAuthor !== '' ? $commentAuthor : '（匿名）', ENT_QUOTES, 'UTF-8'),
                         'commentMail' => htmlspecialchars($commentMail !== '' ? $commentMail : '（未填写）', ENT_QUOTES, 'UTF-8'),
-                        'commentStatus' => $status,
-                        'commentTime' => $commentTime,
+                        'commentStatus' => htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8'),
+                        'commentTime' => htmlspecialchars($commentTime, ENT_QUOTES, 'UTF-8'),
                         'commentText' => nl2br(htmlspecialchars($commentText, ENT_QUOTES, 'UTF-8')),
                         'reviewUrl' => htmlspecialchars($reviewUrl, ENT_QUOTES, 'UTF-8'),
                     ];
 
                     $bodyHtml = self::renderMailTemplate($template, $vars);
-                    $subject = '待审核评论：' . ($postTitle !== '' ? $postTitle : $siteTitle);
+                    $subject = '文章《' . ($postTitle !== '' ? $postTitle : $siteTitle) . '》有条待审评论';
 
                     self::sendMailBySmtp(
                         'comment_waiting',
                         $smtp,
                         $siteTitle,
-                        $admins,
+                        $recipients,
                         $subject,
                         $bodyHtml,
-                        '已发送至 ' . count($admins) . ' 位管理员邮箱。'
+                        '已发送至 ' . count($recipients) . ' 位收件人。'
                     );
                 }
             }
@@ -960,6 +1095,10 @@ class Plugin implements PluginInterface
                 if ($smtpFrom !== '' && strcasecmp($parentMail, $smtpFrom) === 0) {
                     return;
                 }
+                // 避免发送给站长收件邮箱（CommentNotifier 行为）
+                if (!empty($adminToMails) && isset($adminToMails[strtolower($parentMail)])) {
+                    return;
+                }
 
                 $parentAuthor = (string) ($parent['author'] ?? '');
                 $parentText = (string) ($parent['text'] ?? '');
@@ -975,10 +1114,10 @@ class Plugin implements PluginInterface
                 }
 
                 $vars = [
-                    'siteTitle' => $siteTitle,
+                    'siteTitle' => htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8'),
                     'siteUrl' => htmlspecialchars($siteUrl, ENT_QUOTES, 'UTF-8'),
-                    'postTitle' => $postTitle !== '' ? $postTitle : '（未知文章）',
-                    'postUrl' => $postUrl !== '' ? $postUrl : (string) ($options->siteUrl ?? ''),
+                    'postTitle' => htmlspecialchars($postTitle !== '' ? $postTitle : '（未知文章）', ENT_QUOTES, 'UTF-8'),
+                    'postUrl' => htmlspecialchars($postUrl !== '' ? $postUrl : (string) ($options->siteUrl ?? ''), ENT_QUOTES, 'UTF-8'),
                     'parentAuthor' => htmlspecialchars($parentAuthor !== '' ? $parentAuthor : '（匿名）', ENT_QUOTES, 'UTF-8'),
                     'parentTime' => htmlspecialchars($parentTime, ENT_QUOTES, 'UTF-8'),
                     'parentText' => nl2br(htmlspecialchars($parentText, ENT_QUOTES, 'UTF-8')),
@@ -988,7 +1127,7 @@ class Plugin implements PluginInterface
                 ];
 
                 $bodyHtml = self::renderMailTemplate($template, $vars);
-                $subject = '评论回复提醒：' . ($postTitle !== '' ? $postTitle : $siteTitle);
+                $subject = '你在[' . ($postTitle !== '' ? $postTitle : $siteTitle) . ']的评论有了新的回复';
 
                 self::sendMailBySmtp(
                     'comment_reply',
@@ -1000,6 +1139,35 @@ class Plugin implements PluginInterface
                     '已发送至：' . $parentMail
                 );
             }
+        } catch (\Throwable $e) {
+        }
+    }
+
+    /**
+     * 评论后台标记（审核通过）时触发：用于“需要审核”场景下的通知补发（文章作者 / 被回复者）。
+     *
+     * @param mixed $comment
+     * @param mixed $edit
+     * @param mixed $status
+     */
+    public static function notifyCommentMark($comment, $edit, $status): void
+    {
+        try {
+            $s = strtolower(trim((string) $status));
+            if ($s !== 'approved') {
+                return;
+            }
+
+            // Ensure status is visible to notifyComment.
+            if (is_object($edit)) {
+                try {
+                    $edit->status = 'approved';
+                } catch (\Throwable $e) {
+                }
+            }
+
+            // Mark 场景下发送“文章作者/回复提醒”，并避免管理员重复提醒。
+            self::notifyComment($edit, false);
         } catch (\Throwable $e) {
         }
     }
@@ -1051,29 +1219,36 @@ class Plugin implements PluginInterface
 
             $typeLabel = $linkType === 'collection' ? '收藏' : '朋友';
 
-            // 收件人：所有管理员
-            try {
-                $db = Db::get();
-            } catch (\Throwable $e) {
-                return;
-            }
+            $siteTitle = (string) ($options->title ?? 'Typecho');
+            $siteUrl = rtrim((string) ($options->siteUrl ?? ''), "/");
+            $reviewUrl = $siteUrl !== '' ? ($siteUrl . '/' . self::ADMIN_DIR . '/#/friends?state=1') : '';
 
-            $admins = [];
-            try {
-                $rows = $db->fetchAll(
-                    $db->select('mail', 'screenName', 'name')
-                        ->from('table.users')
-                        ->where('group = ?', 'administrator')
-                );
-                foreach ((array) $rows as $r) {
-                    $mail = trim((string) ($r['mail'] ?? ''));
-                    if ($mail !== '' && filter_var($mail, FILTER_VALIDATE_EMAIL)) {
-                        $name = (string) ($r['screenName'] ?? $r['name'] ?? '');
-                        $admins[] = ['mail' => $mail, 'name' => $name];
-                    }
+            $admins = self::parseMailRecipients((string) ($options->v3a_mail_admin_to ?? ''), $siteTitle);
+
+            // 收件人：所有管理员（当未配置“站长收件邮箱”时）
+            if (empty($admins)) {
+                try {
+                    $db = Db::get();
+                } catch (\Throwable $e) {
+                    return;
                 }
-            } catch (\Throwable $e) {
-                return;
+
+                try {
+                    $rows = $db->fetchAll(
+                        $db->select('mail', 'screenName', 'name')
+                            ->from('table.users')
+                            ->where('group = ?', 'administrator')
+                    );
+                    foreach ((array) $rows as $r) {
+                        $mail = trim((string) ($r['mail'] ?? ''));
+                        if ($mail !== '' && filter_var($mail, FILTER_VALIDATE_EMAIL)) {
+                            $name = (string) ($r['screenName'] ?? $r['name'] ?? '');
+                            $admins[] = ['mail' => $mail, 'name' => $name];
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    return;
+                }
             }
 
             if (empty($admins)) {
@@ -1091,12 +1266,8 @@ class Plugin implements PluginInterface
                 $template = self::defaultFriendLinkMailTemplate();
             }
 
-            $siteTitle = (string) ($options->title ?? 'Typecho');
-            $siteUrl = rtrim((string) ($options->siteUrl ?? ''), "/");
-            $reviewUrl = $siteUrl !== '' ? ($siteUrl . '/' . self::ADMIN_DIR . '/#/friends?state=1') : '';
-
             $vars = [
-                'siteTitle' => $siteTitle,
+                'siteTitle' => htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8'),
                 'linkName' => htmlspecialchars($linkName !== '' ? $linkName : '（未填写）', ENT_QUOTES, 'UTF-8'),
                 'linkUrl' => htmlspecialchars($linkUrl !== '' ? $linkUrl : ($siteUrl !== '' ? $siteUrl : ''), ENT_QUOTES, 'UTF-8'),
                 'linkType' => htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8'),
@@ -1156,6 +1327,126 @@ class Plugin implements PluginInterface
                 self::recordMailError('friendlink', $msg);
                 // 不影响前台正常提交
             }
+        } catch (\Throwable $e) {
+        }
+    }
+
+    /**
+     * 友链审核结果通知（发送给申请者邮箱）
+     *
+     * @param array<string,mixed> $apply
+     * @param string $action pass|reject
+     */
+    public static function notifyFriendLinkAudit(array $apply, string $action): void
+    {
+        try {
+            $options = \Utils\Helper::options();
+
+            if (!((int) ($options->v3a_mail_enabled ?? 0))) {
+                return;
+            }
+            if (!((int) ($options->v3a_mail_friendlink_audit_en ?? 0))) {
+                return;
+            }
+
+            $action = strtolower(trim($action));
+            if (!in_array($action, ['pass', 'reject'], true)) {
+                return;
+            }
+
+            $smtpHost = trim((string) ($options->v3a_mail_smtp_host ?? ''));
+            $smtpPort = (int) ($options->v3a_mail_smtp_port ?? 465);
+            $smtpUser = trim((string) ($options->v3a_mail_smtp_user ?? ''));
+            $smtpPass = (string) ($options->v3a_mail_smtp_pass ?? '');
+            $smtpFrom = trim((string) ($options->v3a_mail_smtp_from ?? ''));
+            $smtpSecure = (int) ($options->v3a_mail_smtp_secure ?? 1) ? 1 : 0;
+
+            if ($smtpFrom === '') {
+                $smtpFrom = $smtpUser;
+            }
+
+            $kind = $action === 'pass' ? 'friendlink_audit_pass' : 'friendlink_audit_reject';
+            if ($smtpHost === '' || $smtpPort <= 0 || $smtpUser === '' || $smtpPass === '' || $smtpFrom === '') {
+                self::recordMailError($kind, 'SMTP 配置不完整或未保存密码，请在「设定 → 邮件通知设置」完善后重试。');
+                return;
+            }
+
+            $toMail = trim((string) ($apply['email'] ?? ''));
+            if ($toMail === '' || filter_var($toMail, FILTER_VALIDATE_EMAIL) === false) {
+                return;
+            }
+
+            $siteTitle = (string) ($options->title ?? 'Typecho');
+            $siteUrl = rtrim((string) ($options->siteUrl ?? ''), "/");
+
+            $linkName = trim((string) ($apply['name'] ?? ''));
+            $linkUrl = trim((string) ($apply['url'] ?? ''));
+            $linkAvatar = trim((string) ($apply['avatar'] ?? ''));
+            $linkDescription = trim((string) ($apply['description'] ?? ''));
+            $linkType = strtolower(trim((string) ($apply['type'] ?? 'friend')));
+            $linkMessage = trim((string) ($apply['message'] ?? ''));
+            $created = (int) ($apply['created'] ?? 0);
+
+            $applyTime = $created > 0 ? date('Y-m-d H:i:s', $created) : date('Y-m-d H:i:s');
+            $auditTime = date('Y-m-d H:i:s');
+
+            $typeLabel = $linkType === 'collection' ? '收藏' : '朋友';
+            $resultLabel = $action === 'pass' ? '通过' : '拒绝';
+
+            if (!self::loadPHPMailer()) {
+                self::recordMailError($kind, '未找到 PHPMailer，无法发送邮件（请检查 Vue3Admin 插件目录 lib/PHPMailer 是否完整）。');
+                return;
+            }
+
+            $template = '';
+            if ($action === 'pass') {
+                $template = trim((string) ($options->v3a_mail_friendlink_audit_pass ?? ''));
+                if ($template === '') {
+                    $template = self::defaultFriendLinkAuditPassMailTemplate();
+                }
+            } else {
+                $template = trim((string) ($options->v3a_mail_friendlink_audit_reject ?? ''));
+                if ($template === '') {
+                    $template = self::defaultFriendLinkAuditRejectMailTemplate();
+                }
+            }
+
+            $vars = [
+                'siteTitle' => htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8'),
+                'siteUrl' => htmlspecialchars($siteUrl, ENT_QUOTES, 'UTF-8'),
+                'auditResult' => htmlspecialchars($resultLabel, ENT_QUOTES, 'UTF-8'),
+                'auditTime' => htmlspecialchars($auditTime, ENT_QUOTES, 'UTF-8'),
+                'linkName' => htmlspecialchars($linkName !== '' ? $linkName : '（未填写）', ENT_QUOTES, 'UTF-8'),
+                'linkUrl' => htmlspecialchars($linkUrl !== '' ? $linkUrl : ($siteUrl !== '' ? $siteUrl : ''), ENT_QUOTES, 'UTF-8'),
+                'linkType' => htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8'),
+                'linkEmail' => htmlspecialchars($toMail, ENT_QUOTES, 'UTF-8'),
+                'linkAvatar' => htmlspecialchars($linkAvatar, ENT_QUOTES, 'UTF-8'),
+                'linkDescription' => htmlspecialchars($linkDescription !== '' ? $linkDescription : '（未填写）', ENT_QUOTES, 'UTF-8'),
+                'linkMessage' => nl2br(htmlspecialchars($linkMessage !== '' ? $linkMessage : '（未填写）', ENT_QUOTES, 'UTF-8')),
+                'applyTime' => htmlspecialchars($applyTime, ENT_QUOTES, 'UTF-8'),
+            ];
+
+            $bodyHtml = self::renderMailTemplate($template, $vars);
+            $subject = ($action === 'pass' ? '友链申请已通过：' : '友链申请未通过：') . ($linkName !== '' ? $linkName : $siteTitle);
+
+            $smtp = [
+                'host' => $smtpHost,
+                'port' => $smtpPort,
+                'user' => $smtpUser,
+                'pass' => $smtpPass,
+                'from' => $smtpFrom,
+                'secure' => $smtpSecure,
+            ];
+
+            self::sendMailBySmtp(
+                $kind,
+                $smtp,
+                $siteTitle,
+                [['mail' => $toMail, 'name' => $linkName !== '' ? $linkName : $toMail]],
+                $subject,
+                $bodyHtml,
+                '已发送至：' . $toMail
+            );
         } catch (\Throwable $e) {
         }
     }
@@ -1336,6 +1627,47 @@ HTML,
         return $html;
     }
 
+    /**
+     * Parse "a@x.com,b@y.com" / "a@x.com b@y.com" to recipients.
+     *
+     * @return array<int,array{mail:string,name:string}>
+     */
+    private static function parseMailRecipients(string $raw, string $defaultName): array
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\\s,;]+/', $raw, -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($parts) || empty($parts)) {
+            return [];
+        }
+
+        $seen = [];
+        $out = [];
+        foreach ($parts as $p) {
+            $mail = trim((string) $p);
+            if ($mail === '') {
+                continue;
+            }
+
+            $key = strtolower($mail);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            if (!filter_var($mail, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+
+            $out[] = ['mail' => $mail, 'name' => $defaultName];
+        }
+
+        return $out;
+    }
+
     private static function defaultCommentMailTemplate(): string
     {
         $tpl = <<<'HTML'
@@ -1440,6 +1772,68 @@ HTML;
     </div>
     <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
       <a href="{{reviewUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">前往审核</a>
+    </div>
+  </div>
+</div>
+HTML;
+
+        return trim($tpl);
+    }
+
+    private static function defaultFriendLinkAuditPassMailTemplate(): string
+    {
+        $tpl = <<<'HTML'
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">你的友链申请已通过</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 8px;"><strong>结果：</strong>{{auditResult}}</div>
+      <div style="margin-bottom: 12px;"><strong>审核时间：</strong>{{auditTime}}</div>
+      <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
+      <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
+      <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
+      <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>
+      <div style="margin-bottom: 8px;"><strong>描述：</strong>{{linkDescription}}</div>
+      <div style="margin-bottom: 12px;"><strong>申请时间：</strong>{{applyTime}}</div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{linkMessage}}</div>
+    </div>
+    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      感谢你的申请！
+    </div>
+  </div>
+</div>
+HTML;
+
+        return trim($tpl);
+    }
+
+    private static function defaultFriendLinkAuditRejectMailTemplate(): string
+    {
+        $tpl = <<<'HTML'
+<div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; font-size: 14px; color: #111; line-height: 1.6;">
+  <div style="border: 1px solid rgba(0,0,0,.08); border-radius: 10px; overflow: hidden;">
+    <div style="padding: 14px 16px; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,.06);">
+      <div style="font-weight: 700;">{{siteTitle}}</div>
+      <div style="font-size: 12px; color: #666;">你的友链申请未通过</div>
+    </div>
+    <div style="padding: 14px 16px;">
+      <div style="margin-bottom: 8px;"><strong>结果：</strong>{{auditResult}}</div>
+      <div style="margin-bottom: 12px;"><strong>审核时间：</strong>{{auditTime}}</div>
+      <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
+      <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
+      <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
+      <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>
+      <div style="margin-bottom: 8px;"><strong>描述：</strong>{{linkDescription}}</div>
+      <div style="margin-bottom: 12px;"><strong>申请时间：</strong>{{applyTime}}</div>
+      <div style="padding: 12px; background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px;">{{linkMessage}}</div>
+    </div>
+    <div style="padding: 12px 16px; background: #fafafa; border-top: 1px solid rgba(0,0,0,.06); font-size: 12px; color: #666;">
+      如需修改信息后重新申请，请回复本邮件或通过网站提交。
     </div>
   </div>
 </div>

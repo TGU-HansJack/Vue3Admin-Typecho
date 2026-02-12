@@ -7967,6 +7967,28 @@ try {
                 $stmt->execute([':id' => $id]);
 
                 $pdo->commit();
+
+                // Notify applicant (optional).
+                try {
+                    $applyNotify = $apply;
+                    foreach ($rows as $k => $v) {
+                        $applyNotify[$k] = $v;
+                    }
+                    $applyNotify['message'] = $apply['message'] ?? '';
+
+                    if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Plugin')) {
+                        $pluginFile = rtrim(v3a_plugin_root_dir($options), '/\\') . DIRECTORY_SEPARATOR . 'Vue3Admin'
+                            . DIRECTORY_SEPARATOR . 'Plugin.php';
+                        if (is_file($pluginFile)) {
+                            require_once $pluginFile;
+                        }
+                    }
+                    if (class_exists('\\TypechoPlugin\\Vue3Admin\\Plugin')) {
+                        \TypechoPlugin\Vue3Admin\Plugin::notifyFriendLinkAudit((array) $applyNotify, 'pass');
+                    }
+                } catch (\Throwable $e3) {
+                }
+
                 v3a_exit_json(0, ['id' => $newId]);
             } catch (\Throwable $e) {
                 try {
@@ -7982,6 +8004,25 @@ try {
             $stmt = $pdo->prepare('UPDATE v3a_friend_link_apply SET status = 2 WHERE id = :id');
             $stmt->execute([':id' => $id]);
             $updated = (int) $stmt->rowCount();
+
+            // Notify applicant (optional).
+            try {
+                $applyNotify = $apply;
+                $applyNotify['status'] = 2;
+
+                if (!class_exists('\\TypechoPlugin\\Vue3Admin\\Plugin')) {
+                    $pluginFile = rtrim(v3a_plugin_root_dir($options), '/\\') . DIRECTORY_SEPARATOR . 'Vue3Admin'
+                        . DIRECTORY_SEPARATOR . 'Plugin.php';
+                    if (is_file($pluginFile)) {
+                        require_once $pluginFile;
+                    }
+                }
+                if (class_exists('\\TypechoPlugin\\Vue3Admin\\Plugin')) {
+                    \TypechoPlugin\Vue3Admin\Plugin::notifyFriendLinkAudit((array) $applyNotify, 'reject');
+                }
+            } catch (\Throwable $e3) {
+            }
+
             v3a_exit_json(0, ['updated' => $updated]);
         } catch (\Throwable $e) {
             v3a_exit_json(500, null, $e->getMessage());
@@ -9395,7 +9436,9 @@ try {
                 'commentWaitingNotifyEnabled' => (int) ($options->v3a_mail_comment_waiting_enabled ?? ($options->v3a_mail_comment_enabled ?? 0)),
                 'commentReplyNotifyEnabled' => (int) ($options->v3a_mail_comment_reply_enabled ?? 0),
                 'friendLinkNotifyEnabled' => (int) ($options->v3a_mail_friendlink_enabled ?? 0),
+                'friendLinkAuditNotifyEnabled' => (int) ($options->v3a_mail_friendlink_audit_en ?? 0),
                 'templateStyle' => (string) ($options->v3a_mail_template_style ?? 'v3a'),
+                'adminTo' => (string) ($options->v3a_mail_admin_to ?? ''),
                 'smtpFrom' => (string) ($options->v3a_mail_smtp_from ?? ''),
                 'smtpHost' => (string) ($options->v3a_mail_smtp_host ?? ''),
                 'smtpPort' => (int) ($options->v3a_mail_smtp_port ?? 465),
@@ -9411,6 +9454,8 @@ try {
                 ),
                 'commentReplyTemplate' => (string) ($options->v3a_mail_comment_reply_template ?? ''),
                 'friendLinkTemplate' => (string) ($options->v3a_mail_friendlink_template ?? ''),
+                'friendLinkAuditPassTemplate' => (string) ($options->v3a_mail_friendlink_audit_pass ?? ''),
+                'friendLinkAuditRejectTemplate' => (string) ($options->v3a_mail_friendlink_audit_reject ?? ''),
                 'hasSmtpPass' => (string) ($options->v3a_mail_smtp_pass ?? '') === '' ? 0 : 1,
                 'lastError' => v3a_json_assoc($options->v3a_mail_last_error ?? ''),
                 'lastSuccess' => v3a_json_assoc($options->v3a_mail_last_success ?? ''),
@@ -9885,7 +9930,9 @@ try {
         $commentWaitingNotifyEnabled = v3a_bool_int($payload['commentWaitingNotifyEnabled'] ?? $commentNotifyEnabled);
         $commentReplyNotifyEnabled = v3a_bool_int($payload['commentReplyNotifyEnabled'] ?? 0);
         $friendLinkNotifyEnabled = v3a_bool_int($payload['friendLinkNotifyEnabled'] ?? 0);
+        $friendLinkAuditNotifyEnabled = v3a_bool_int($payload['friendLinkAuditNotifyEnabled'] ?? 0);
         $templateStyle = v3a_string($payload['templateStyle'] ?? 'v3a', 'v3a');
+        $adminTo = v3a_string($payload['adminTo'] ?? '', '');
         $smtpFrom = v3a_string($payload['smtpFrom'] ?? '', '');
         $smtpHost = v3a_string($payload['smtpHost'] ?? '', '');
         $smtpPort = v3a_int($payload['smtpPort'] ?? 465, 465);
@@ -9896,9 +9943,24 @@ try {
         $commentWaitingTemplate = v3a_string($payload['commentWaitingTemplate'] ?? '', '');
         $commentReplyTemplate = v3a_string($payload['commentReplyTemplate'] ?? '', '');
         $friendLinkTemplate = v3a_string($payload['friendLinkTemplate'] ?? '', '');
+        $friendLinkAuditPassTemplate = v3a_string($payload['friendLinkAuditPassTemplate'] ?? '', '');
+        $friendLinkAuditRejectTemplate = v3a_string($payload['friendLinkAuditRejectTemplate'] ?? '', '');
 
         if (!in_array($templateStyle, ['v3a', 'cn_default', 'cn_pure'], true)) {
             $templateStyle = 'v3a';
+        }
+
+        if (trim($adminTo) !== '') {
+            $parts = preg_split('/[\\s,;]+/', trim($adminTo));
+            $parts = is_array($parts) ? $parts : [];
+            $parts = array_values(array_filter(array_map('trim', $parts), function ($v) {
+                return $v !== '';
+            }));
+            foreach ($parts as $p) {
+                if (!filter_var($p, FILTER_VALIDATE_EMAIL)) {
+                    v3a_exit_json(400, null, '站长收件邮箱地址格式错误（多个邮箱请用逗号分隔）');
+                }
+            }
         }
 
         if ($smtpFrom !== '' && !filter_var($smtpFrom, FILTER_VALIDATE_EMAIL)) {
@@ -9911,7 +9973,7 @@ try {
         $hasExistingPass = (string) ($options->v3a_mail_smtp_pass ?? '') !== '';
         if (
             $mailEnabled
-            && ($commentNotifyEnabled || $commentWaitingNotifyEnabled || $commentReplyNotifyEnabled || $friendLinkNotifyEnabled)
+            && ($commentNotifyEnabled || $commentWaitingNotifyEnabled || $commentReplyNotifyEnabled || $friendLinkNotifyEnabled || $friendLinkAuditNotifyEnabled)
         ) {
             if ($smtpFrom === '' || !filter_var($smtpFrom, FILTER_VALIDATE_EMAIL)) {
                 v3a_exit_json(400, null, '发件邮箱地址不能为空');
@@ -9932,7 +9994,9 @@ try {
         v3a_upsert_option($db, 'v3a_mail_comment_waiting_enabled', $commentWaitingNotifyEnabled, 0);
         v3a_upsert_option($db, 'v3a_mail_comment_reply_enabled', $commentReplyNotifyEnabled, 0);
         v3a_upsert_option($db, 'v3a_mail_friendlink_enabled', $friendLinkNotifyEnabled, 0);
+        v3a_upsert_option($db, 'v3a_mail_friendlink_audit_en', $friendLinkAuditNotifyEnabled, 0);
         v3a_upsert_option($db, 'v3a_mail_template_style', $templateStyle, 0);
+        v3a_upsert_option($db, 'v3a_mail_admin_to', $adminTo, 0);
         v3a_upsert_option($db, 'v3a_mail_smtp_from', $smtpFrom, 0);
         v3a_upsert_option($db, 'v3a_mail_smtp_host', $smtpHost, 0);
         v3a_upsert_option($db, 'v3a_mail_smtp_port', $smtpPort, 0);
@@ -9942,6 +10006,8 @@ try {
         v3a_upsert_option($db, 'v3a_mail_comment_wait_tpl', $commentWaitingTemplate, 0);
         v3a_upsert_option($db, 'v3a_mail_comment_reply_template', $commentReplyTemplate, 0);
         v3a_upsert_option($db, 'v3a_mail_friendlink_template', $friendLinkTemplate, 0);
+        v3a_upsert_option($db, 'v3a_mail_friendlink_audit_pass', $friendLinkAuditPassTemplate, 0);
+        v3a_upsert_option($db, 'v3a_mail_friendlink_audit_reject', $friendLinkAuditRejectTemplate, 0);
         if (trim($smtpPass) !== '') {
             v3a_upsert_option($db, 'v3a_mail_smtp_pass', $smtpPass, 0);
         }
@@ -9952,7 +10018,9 @@ try {
             'commentWaitingNotifyEnabled' => $commentWaitingNotifyEnabled,
             'commentReplyNotifyEnabled' => $commentReplyNotifyEnabled,
             'friendLinkNotifyEnabled' => $friendLinkNotifyEnabled,
+            'friendLinkAuditNotifyEnabled' => $friendLinkAuditNotifyEnabled,
             'templateStyle' => $templateStyle,
+            'adminTo' => $adminTo,
             'smtpFrom' => $smtpFrom,
             'smtpHost' => $smtpHost,
             'smtpPort' => $smtpPort,
@@ -9963,6 +10031,8 @@ try {
             'commentWaitingTemplate' => $commentWaitingTemplate,
             'commentReplyTemplate' => $commentReplyTemplate,
             'friendLinkTemplate' => $friendLinkTemplate,
+            'friendLinkAuditPassTemplate' => $friendLinkAuditPassTemplate,
+            'friendLinkAuditRejectTemplate' => $friendLinkAuditRejectTemplate,
             'hasSmtpPass' => (trim($smtpPass) !== '' || $hasExistingPass) ? 1 : 0,
             'lastError' => v3a_json_assoc($options->v3a_mail_last_error ?? ''),
             'lastSuccess' => v3a_json_assoc($options->v3a_mail_last_success ?? ''),
