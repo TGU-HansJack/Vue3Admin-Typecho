@@ -4706,6 +4706,27 @@
         }
       }
 
+      async function deleteFriendApply(row) {
+        const id = Number(row && row.id ? row.id : 0);
+        if (!id) return;
+        if (
+          !confirm(
+            `确认移除友链申请「${String(row?.name || "") || "#" + id}」吗？`
+          )
+        )
+          return;
+
+        friendsError.value = "";
+        try {
+          await apiPost("friends.apply.delete", { id });
+          toastSuccess("已移除");
+          await fetchFriendsStateCount();
+          await fetchFriends();
+        } catch (e) {
+          friendsError.value = e && e.message ? e.message : "移除失败";
+        }
+      }
+
       async function auditFriendApply(row, action) {
         const id = Number(row && row.id ? row.id : 0);
         if (!id) return;
@@ -13014,6 +13035,7 @@
         closeFriendEditor,
         submitFriendEditor,
         deleteFriend,
+        deleteFriendApply,
         auditFriendApply,
         dataVisitLoading,
         dataVisitError,
@@ -15629,16 +15651,16 @@
                           </td>
                           <td style="width: 80px;"><span>{{ formatTimeAgo(row.created) }}</span></td>
                           <td style="width: 150px; text-align: right;">
-                            <template v-if="row.source === 'link'">
-                              <button class="v3a-mini-btn" type="button" @click="openFriendEditor(row)">编辑</button>
-                              <button class="v3a-mini-btn v3a-link-danger" type="button" @click="deleteFriend(row)">移除</button>
+                            <template v-if="friendsState === 1">
+                              <button class="v3a-mini-btn primary" type="button" @click="auditFriendApply(row, 'pass')">通过</button>
+                              <button class="v3a-mini-btn v3a-link-danger" type="button" @click="auditFriendApply(row, 'reject')">拒绝</button>
+                            </template>
+                            <template v-else-if="friendsState === 3">
+                              <button class="v3a-mini-btn v3a-link-danger" type="button" @click="deleteFriendApply(row)">移除</button>
                             </template>
                             <template v-else>
-                              <template v-if="friendsState === 1">
-                                <button class="v3a-mini-btn primary" type="button" @click="auditFriendApply(row, 'pass')">通过</button>
-                                <button class="v3a-mini-btn v3a-link-danger" type="button" @click="auditFriendApply(row, 'reject')">拒绝</button>
-                              </template>
-                              <span v-else class="v3a-muted">—</span>
+                              <button class="v3a-mini-btn" type="button" @click="openFriendEditor(row)">编辑</button>
+                              <button class="v3a-mini-btn v3a-link-danger" type="button" @click="deleteFriend(row)">移除</button>
                             </template>
                           </td>
                         </tr>

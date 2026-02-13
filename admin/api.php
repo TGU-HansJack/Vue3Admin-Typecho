@@ -8150,6 +8150,47 @@ try {
         }
     }
 
+    if ($do === 'friends.apply.delete') {
+        if (!$request->isPost()) {
+            v3a_exit_json(405, null, 'Method Not Allowed');
+        }
+
+        v3a_security_protect($security, $request);
+        v3a_require_role($user, 'subscriber');
+
+        $acl = v3a_acl_for_user($db, $user);
+        if (empty($acl['friends']['manage'])) {
+            v3a_exit_json(403, null, 'Forbidden');
+        }
+
+        $payload = v3a_payload();
+        $ids = $payload['ids'] ?? $payload['id'] ?? [];
+        if (is_numeric($ids)) {
+            $ids = [(int) $ids];
+        }
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), function ($v) {
+            return $v > 0;
+        })));
+
+        if (empty($ids)) {
+            v3a_exit_json(400, null, 'Missing id');
+        }
+
+        try {
+            $pdo = v3a_local_pdo_or_fail();
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $pdo->prepare("DELETE FROM v3a_friend_link_apply WHERE id IN ({$placeholders})");
+            $stmt->execute(array_values($ids));
+            $deleted = (int) $stmt->rowCount();
+            v3a_exit_json(0, ['deleted' => $deleted]);
+        } catch (\Throwable $e) {
+            v3a_exit_json(500, null, $e->getMessage());
+        }
+    }
+
     if ($do === 'friends.apply.audit') {
         if (!$request->isPost()) {
             v3a_exit_json(405, null, 'Method Not Allowed');
