@@ -328,11 +328,19 @@ a {
 .v3a-login-card {
   width: 420px;
   max-width: 100%;
-  background: var(--content-bg);
+  background: rgba(255, 255, 255, 0.72);
   box-shadow: var(--content-shadow-hover);
   border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   padding: calc(var(--spacing) * 6) calc(var(--spacing) * 6)
     calc(var(--spacing) * 5);
+}
+
+html.dark .v3a-login-card {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .v3a-login-brand {
@@ -436,18 +444,21 @@ a {
 }
 
 .v3a-login-btn.secondary {
-  background: transparent;
+  background: var(--v3a-control-bg);
   border: 1px solid var(--sidebar-border);
-  color: var(--color-primary);
+  color: var(--v3a-text);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .v3a-login-btn.secondary:hover {
   filter: none;
   background: var(--v3a-control-bg-hover);
+  color: var(--v3a-text);
 }
 
 .v3a-login-footer {
@@ -473,7 +484,7 @@ html[data-auth-style="vercel"] {
   --v3a-login-bg-overlay-to: rgba(0, 0, 0, 0.12);
 }
 
-html[data-auth-style="vercel"] .v3a-login-body {
+html[data-auth-style="vercel"] .v3a-login-body:not(.has-custom-bg) {
   background: linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
     linear-gradient(to right, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
     var(--page-bg);
@@ -511,7 +522,7 @@ html[data-auth-style="github"] {
   --v3a-login-bg-overlay-to: rgba(0, 0, 0, 0.08);
 }
 
-html[data-auth-style="github"] .v3a-login-body {
+html[data-auth-style="github"] .v3a-login-body:not(.has-custom-bg) {
   background: radial-gradient(
       circle,
       rgba(36, 41, 47, 0.05) 1px,
@@ -557,7 +568,7 @@ html[data-auth-style="apple"] {
   --v3a-login-bg-overlay-to: rgba(255, 255, 255, 0.05);
 }
 
-html[data-auth-style="apple"] .v3a-login-body {
+html[data-auth-style="apple"] .v3a-login-body:not(.has-custom-bg) {
   background: radial-gradient(
       420px 420px at 10% 10%,
       rgba(29, 29, 31, 0.06),
