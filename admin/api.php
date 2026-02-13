@@ -9730,6 +9730,7 @@ try {
                 'title' => (string) ($options->title ?? ''),
                 'description' => (string) ($options->description ?? ''),
                 'keywords' => (string) ($options->keywords ?? ''),
+                'loginStyle' => (string) ($options->v3a_login_style ?? ''),
                 'loginBackground' => (string) ($options->v3a_login_bg ?? ''),
                 'allowRegister' => (int) ($options->allowRegister ?? 0),
                 'defaultRegisterGroup' => $defaultRegisterGroup,
@@ -10043,6 +10044,12 @@ try {
             'lang' => v3a_string($payload['lang'] ?? '', (string) ($options->lang ?? 'zh_CN')),
             'timezone' => v3a_int($payload['timezone'] ?? 28800, 28800),
         ];
+
+        $loginStyle = strtolower(trim(v3a_string($payload['loginStyle'] ?? '', '')));
+        $allowedLoginStyles = ['', 'vercel', 'github', 'apple'];
+        if (!in_array($loginStyle, $allowedLoginStyles, true)) {
+            $loginStyle = '';
+        }
         $loginBackground = trim(v3a_string($payload['loginBackground'] ?? '', ''));
         if (strlen($loginBackground) > 2048) {
             $loginBackground = substr($loginBackground, 0, 2048);
@@ -10074,8 +10081,10 @@ try {
         }
 
         v3a_upsert_option($db, 'defaultRegisterGroup', $defaultRegisterGroup, 0);
+        v3a_upsert_option($db, 'v3a_login_style', $loginStyle, 0);
         v3a_upsert_option($db, 'v3a_login_bg', $loginBackground, 0);
         $settings['defaultRegisterGroup'] = $defaultRegisterGroup;
+        $settings['loginStyle'] = $loginStyle;
         $settings['loginBackground'] = $loginBackground;
 
         v3a_exit_json(0, ['site' => $settings]);

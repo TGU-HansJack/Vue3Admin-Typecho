@@ -60,6 +60,14 @@ if ($assetCssVer === false) {
 }
 
 $faviconUrl = \Typecho\Common::url('favicon.ico', (string) ($options->siteUrl ?? ''));
+$loginStyle = strtolower(trim((string) ($options->v3a_login_style ?? '')));
+$allowedLoginStyles = ['vercel', 'github', 'apple'];
+if (!in_array($loginStyle, $allowedLoginStyles, true)) {
+    $loginStyle = '';
+}
+$loginStyleAttr = $loginStyle !== ''
+    ? ' data-auth-style="' . htmlspecialchars($loginStyle, ENT_QUOTES) . '"'
+    : '';
 $loginBackground = trim((string) ($options->v3a_login_bg ?? ''));
 if (
     $loginBackground !== ''
@@ -72,7 +80,7 @@ $hasLoginBackground = $loginBackground !== '';
 $loginBackgroundCssUrl = json_encode($loginBackground, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
 <!doctype html>
-<html lang="zh-CN" style="--color-primary: <?php echo htmlspecialchars($primaryColor, ENT_QUOTES); ?>; --color-primary-shallow: <?php echo htmlspecialchars($primaryShallow, ENT_QUOTES); ?>; --color-primary-deep: <?php echo htmlspecialchars($primaryDeep, ENT_QUOTES); ?>;">
+<html lang="zh-CN"<?php echo $loginStyleAttr; ?> style="--color-primary: <?php echo htmlspecialchars($primaryColor, ENT_QUOTES); ?>; --color-primary-shallow: <?php echo htmlspecialchars($primaryShallow, ENT_QUOTES); ?>; --color-primary-deep: <?php echo htmlspecialchars($primaryDeep, ENT_QUOTES); ?>;">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -83,7 +91,10 @@ $loginBackgroundCssUrl = json_encode($loginBackground, JSON_UNESCAPED_UNICODE | 
         <style>
             .v3a-login-body.has-custom-bg {
                 background:
-                    linear-gradient(rgba(23, 23, 23, 0.36), rgba(23, 23, 23, 0.2)),
+                    linear-gradient(
+                        var(--v3a-login-bg-overlay-from, rgba(23, 23, 23, 0.36)),
+                        var(--v3a-login-bg-overlay-to, rgba(23, 23, 23, 0.2))
+                    ),
                     url(<?php echo $loginBackgroundCssUrl; ?>) center / cover no-repeat fixed;
             }
         </style>

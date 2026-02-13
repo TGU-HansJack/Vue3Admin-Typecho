@@ -6494,6 +6494,7 @@
           title: "",
           description: "",
           keywords: "",
+          loginStyle: "",
           loginBackground: "",
           allowRegister: 0,
           defaultRegisterGroup: "subscriber",
@@ -6581,6 +6582,7 @@
         title: "",
         description: "",
         keywords: "",
+        loginStyle: "",
         loginBackground: "",
         allowRegister: 0,
         defaultRegisterGroup: "subscriber",
@@ -10175,6 +10177,7 @@
           settingsSiteForm.title = String(settingsData.site.title || "");
           settingsSiteForm.description = String(settingsData.site.description || "");
           settingsSiteForm.keywords = String(settingsData.site.keywords || "");
+          settingsSiteForm.loginStyle = String(settingsData.site.loginStyle || "");
           settingsSiteForm.loginBackground = String(settingsData.site.loginBackground || "");
           settingsSiteForm.allowRegister = Number(
             settingsData.site.allowRegister || 0
@@ -10449,6 +10452,7 @@
             settingsSiteForm.title = String(settingsData.site.title || "");
             settingsSiteForm.description = String(settingsData.site.description || "");
             settingsSiteForm.keywords = String(settingsData.site.keywords || "");
+            settingsSiteForm.loginStyle = String(settingsData.site.loginStyle || "");
             settingsSiteForm.loginBackground = String(settingsData.site.loginBackground || "");
             settingsSiteForm.allowRegister = Number(settingsData.site.allowRegister || 0);
             settingsSiteForm.defaultRegisterGroup = String(
@@ -11464,6 +11468,7 @@
           v3aNormStr(settingsSiteForm.title) !== v3aNormStr(site.title || "") ||
           v3aNormStr(settingsSiteForm.description) !== v3aNormStr(site.description || "") ||
           v3aNormStr(settingsSiteForm.keywords) !== v3aNormStr(site.keywords || "") ||
+          v3aNormStr(settingsSiteForm.loginStyle) !== v3aNormStr(site.loginStyle || "") ||
           v3aNormStr(settingsSiteForm.loginBackground) !== v3aNormStr(site.loginBackground || "") ||
           v3aNormNum(settingsSiteForm.allowRegister) !== v3aNormNum(site.allowRegister) ||
           v3aNormStr(settingsSiteForm.defaultRegisterGroup) !==
@@ -18167,6 +18172,21 @@
                               </div>
                               <div class="v3a-settings-row-control">
                                 <input class="v3a-input" v-model="settingsSiteForm.keywords" placeholder="用逗号分隔" />
+                              </div>
+                            </div>
+
+                            <div class="v3a-settings-row">
+                              <div class="v3a-settings-row-label">
+                                <label>登录/注册风格</label>
+                                <div class="v3a-settings-row-help">影响登录/注册页面样式</div>
+                              </div>
+                              <div class="v3a-settings-row-control">
+                                <select class="v3a-select" v-model="settingsSiteForm.loginStyle">
+                                  <option value="">默认</option>
+                                  <option value="vercel">Vercel</option>
+                                  <option value="github">GitHub</option>
+                                  <option value="apple">Apple</option>
+                                </select>
                               </div>
                             </div>
 
