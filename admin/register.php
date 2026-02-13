@@ -69,12 +69,36 @@ $loginStyleAttr = $loginStyle !== ''
     ? ' data-auth-style="' . htmlspecialchars($loginStyle, ENT_QUOTES) . '"'
     : '';
 $loginBackground = trim((string) ($options->v3a_login_bg ?? ''));
+$loginBackgroundForceRand = false;
+if ($loginBackground !== '' && preg_match('/#rand$/i', $loginBackground)) {
+    $loginBackgroundForceRand = true;
+    $loginBackground = rtrim(preg_replace('/#rand$/i', '', $loginBackground) ?? '');
+}
+$loginBackgroundTs = (string) time();
+$loginBackgroundRand = (string) (function_exists('random_int') ? random_int(0, 1000000000) : mt_rand(0, 1000000000));
+$loginBackground = str_replace(['{ts}', '{timestamp}'], $loginBackgroundTs, $loginBackground);
+$loginBackground = str_replace(['{rand}', '{random}'], $loginBackgroundRand, $loginBackground);
+if (
+    $loginBackground !== ''
+    && !preg_match('/^(https?:)?\/\//i', $loginBackground)
+    && strpos($loginBackground, 'data:') !== 0
+    && preg_match('/^[a-z0-9.-]+\.[a-z]{2,}\//i', $loginBackground)
+) {
+    $loginBackground = 'https://' . $loginBackground;
+}
 if (
     $loginBackground !== ''
     && !preg_match('/^(https?:)?\/\//i', $loginBackground)
     && strpos($loginBackground, 'data:') !== 0
 ) {
     $loginBackground = \Typecho\Common::url(ltrim($loginBackground, '/'), (string) ($options->siteUrl ?? ''));
+}
+if (
+    $loginBackground !== ''
+    && $loginBackgroundForceRand
+    && preg_match('/^(https?:)?\/\//i', $loginBackground)
+) {
+    $loginBackground .= (strpos($loginBackground, '?') !== false ? '&' : '?') . 'v3aRand=' . $loginBackgroundTs . $loginBackgroundRand;
 }
 $hasLoginBackground = $loginBackground !== '';
 $loginBackgroundCssUrl = json_encode($loginBackground, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -90,12 +114,12 @@ $loginBackgroundCssUrl = json_encode($loginBackground, JSON_UNESCAPED_UNICODE | 
     <?php if ($hasLoginBackground): ?>
         <style>
             .v3a-login-body.has-custom-bg {
-                background:
-                    linear-gradient(
-                        var(--v3a-login-bg-overlay-from, rgba(23, 23, 23, 0.36)),
-                        var(--v3a-login-bg-overlay-to, rgba(23, 23, 23, 0.2))
-                    ),
-                    url(<?php echo $loginBackgroundCssUrl; ?>) center / cover no-repeat fixed;
+                background-color: var(--page-bg);
+                background-image: url(<?php echo $loginBackgroundCssUrl; ?>);
+                background-position: center;
+                background-size: cover;
+                background-repeat: no-repeat;
+                background-attachment: fixed;
             }
         </style>
     <?php endif; ?>
@@ -107,7 +131,6 @@ $loginBackgroundCssUrl = json_encode($loginBackground, JSON_UNESCAPED_UNICODE | 
             <img src="<?php echo htmlspecialchars($faviconUrl, ENT_QUOTES); ?>" alt="<?php echo htmlspecialchars($options->title ?? 'Typecho', ENT_QUOTES); ?>" />
         </div>
         <div class="v3a-login-title"><?php echo htmlspecialchars($options->title ?? 'Typecho', ENT_QUOTES); ?></div>
-        <div class="v3a-login-subtitle">Vue3Admin</div>
     </div>
 
     <form class="v3a-login-form" action="<?php echo $options->registerAction; ?>" method="post" name="register" role="form">

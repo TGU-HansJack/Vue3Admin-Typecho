@@ -18193,7 +18193,7 @@
                             <div class="v3a-settings-row">
                               <div class="v3a-settings-row-label">
                                 <label>登录/注册背景</label>
-                                <div class="v3a-settings-row-help">填写图片 URL，留空使用默认背景</div>
+                                <div class="v3a-settings-row-help">填写图片 URL，留空使用默认背景；可在末尾加 #rand 防缓存实现随机图</div>
                               </div>
                               <div class="v3a-settings-row-control">
                                 <input class="v3a-input" v-model="settingsSiteForm.loginBackground" placeholder="https://example.com/bg.jpg" />

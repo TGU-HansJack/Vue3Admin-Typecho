@@ -444,8 +444,8 @@ html.dark .v3a-login-card {
 }
 
 .v3a-login-btn.secondary {
-  background: var(--v3a-control-bg);
-  border: 1px solid var(--sidebar-border);
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(0, 0, 0, 0.12);
   color: var(--v3a-text);
   text-decoration: none;
   display: inline-flex;
@@ -457,7 +457,8 @@ html.dark .v3a-login-card {
 
 .v3a-login-btn.secondary:hover {
   filter: none;
-  background: var(--v3a-control-bg-hover);
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(0, 0, 0, 0.16);
   color: var(--v3a-text);
 }
 
@@ -465,6 +466,17 @@ html.dark .v3a-login-card {
   margin-top: calc(var(--spacing) * 4);
   font-size: 13px;
   color: var(--v3a-muted);
+  text-align: center;
+}
+
+html.dark .v3a-login-btn.secondary {
+  background: rgba(15, 23, 42, 0.48);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+html.dark .v3a-login-btn.secondary:hover {
+  background: rgba(15, 23, 42, 0.64);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Login Themes */
