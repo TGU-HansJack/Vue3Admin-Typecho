@@ -233,6 +233,9 @@ try {
         window.V3A = {
             version: "1.2.5",
             adminUrl: <?php echo json_encode($options->adminUrl, JSON_UNESCAPED_SLASHES); ?>,
+            cookiePath: <?php echo json_encode(\Typecho\Cookie::getPath(), JSON_UNESCAPED_SLASHES); ?>,
+            cookieDomain: <?php echo json_encode(\Typecho\Cookie::getDomain(), JSON_UNESCAPED_SLASHES); ?>,
+            cookieSecure: <?php echo \Typecho\Cookie::getSecure() ? 'true' : 'false'; ?>,
             apiUrl: <?php echo json_encode($options->adminUrl('api.php', true), JSON_UNESCAPED_SLASHES); ?>,
             csrfParam: "_",
             csrfToken: <?php echo json_encode($security->getToken($request->getRequestUrl()), JSON_UNESCAPED_SLASHES); ?>,

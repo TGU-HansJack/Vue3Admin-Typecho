@@ -1620,6 +1620,20 @@
       function v3aCookieDeletePaths() {
         const paths = new Set(["/"]);
         try {
+          const cookiePath = String(V3A.cookiePath || "").trim();
+          if (cookiePath) {
+            paths.add(cookiePath);
+            paths.add(cookiePath.endsWith("/") ? cookiePath.slice(0, -1) : cookiePath + "/");
+          }
+        } catch (e) {}
+        try {
+          const sitePath = String(new URL(String(V3A.siteUrl || "/"), location.href).pathname || "/");
+          if (sitePath) {
+            paths.add(sitePath);
+            paths.add(sitePath.endsWith("/") ? sitePath.slice(0, -1) : sitePath + "/");
+          }
+        } catch (e) {}
+        try {
           const adminPath = String(new URL(String(V3A.adminUrl || "/"), location.href).pathname || "/");
           if (adminPath) {
             paths.add(adminPath);
@@ -1639,12 +1653,35 @@
         return Array.from(paths).filter(Boolean);
       }
 
+      function v3aCookieDeleteDomains() {
+        const domains = new Set();
+        try {
+          const cookieDomain = String(V3A.cookieDomain || "").trim();
+          if (cookieDomain) domains.add(cookieDomain);
+        } catch (e) {}
+        try {
+          const host = String(location.hostname || "").trim();
+          if (host) domains.add(host);
+        } catch (e) {}
+
+        for (const d of Array.from(domains)) {
+          if (d && !d.startsWith(".")) domains.add("." + d);
+        }
+
+        return Array.from(domains).filter(Boolean);
+      }
+
       function v3aDeleteCookie(name) {
         const n = String(name || "").trim();
         if (!n) return;
         const expires = "Thu, 01 Jan 1970 00:00:00 GMT";
+        const secure = V3A && V3A.cookieSecure ? "; Secure" : "";
+        const domains = v3aCookieDeleteDomains();
         for (const path of v3aCookieDeletePaths()) {
-          document.cookie = `${n}=; expires=${expires}; path=${path}; SameSite=Lax`;
+          document.cookie = `${n}=; expires=${expires}; Max-Age=0; path=${path}; SameSite=Lax${secure}`;
+          for (const domain of domains) {
+            document.cookie = `${n}=; expires=${expires}; Max-Age=0; path=${path}; domain=${domain}; SameSite=Lax${secure}`;
+          }
         }
       }
 
@@ -7928,6 +7965,11 @@
         } catch (e) {}
       }
 
+      function onThemeConfigIframeLoad() {
+        resizeThemeConfigIframe();
+        consumeLegacyNoticeCookies();
+      }
+
       watch(
         () => themeConfigLegacyUrl.value,
         async () => {
@@ -13303,6 +13345,7 @@
         themeConfigLegacyUrl,
         themeConfigIframe,
         resizeThemeConfigIframe,
+        onThemeConfigIframeLoad,
         v3aSimpleLinkHtml,
         pluginsLoading,
         pluginsError,
@@ -19588,14 +19631,14 @@
 
                       <template v-else>
                         <div class="v3a-theme-config-extra">
-                          <iframe
-                            ref="themeConfigIframe"
-                            class="v3a-theme-config-frame v3a-theme-config-frame-legacy"
-                            :src="themeConfigLegacyUrl"
-                            @load="resizeThemeConfigIframe"
-                          ></iframe>
-                        </div>
-                      </template>
+                            <iframe
+                              ref="themeConfigIframe"
+                              class="v3a-theme-config-frame v3a-theme-config-frame-legacy"
+                              :src="themeConfigLegacyUrl"
+                              @load="onThemeConfigIframeLoad"
+                            ></iframe>
+                          </div>
+                        </template>
                     </div>
                   </template>
 
