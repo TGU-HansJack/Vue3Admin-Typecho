@@ -8285,64 +8285,6 @@
           commits: "aadac7c",
         },
       ];
-      const aboutChangelog = computed(() => {
-        const build = aboutBuildTime.value ? `Build ${aboutBuildTime.value}` : "";
-        return [
-          {
-            version: "本地定制",
-            date: build,
-            items: [
-              "通知设置对齐旧版清单：新评论/待审核/评论回复/友链申请/友链审核结果邮件",
-              "补齐旧版后台的评论设置项（日期格式、分页、反垃圾、HTML 白名单等）",
-              "新增“关于”页面（介绍、更新日志、版权、致谢、赞助）",
-            ],
-          },
-          {
-            version: "1.2.4",
-            date: "2026-02-09",
-            items: [
-              "修复序列化选项数据格式并优化选项处理逻辑",
-              "添加管理员目录重定向与路径处理改进",
-              "发布版本号更新至 1.2.4",
-            ],
-          },
-          {
-            version: "1.2.3",
-            date: "2026-02-07",
-            items: [
-              "实现本地存储替代数据库表，优化遗留数据迁移",
-              "文章永久链接支持，移动端表格显示优化",
-              "浅色主题内容区背景样式优化",
-            ],
-          },
-          {
-            version: "1.2.1",
-            date: "2026-02-06",
-            items: [
-              "升级设置新增网络源选择",
-              "API 代码风格整理（匿名函数改传统函数语法）",
-            ],
-          },
-          {
-            version: "1.2.0",
-            date: "2026-02-06",
-            items: [
-              "移动端侧边栏/滑动交互体验优化",
-              "创意工坊功能支持与 UI/过滤完善",
-              "主题夜间模式与样式变量完善",
-            ],
-          },
-          {
-            version: "1.1.0",
-            date: "2026-02-04",
-            items: [
-              "版本管理与升级功能、确认对话框与错误处理改进",
-              "邮件发送状态记录与测试功能",
-            ],
-          },
-          { version: "1.0.0", date: "2026-02-04", items: ["首个发布版本"] },
-        ];
-      });
 
       function isActive(path) {
         return routePath.value === path;
@@ -12847,7 +12789,6 @@
         aboutQqGroup,
         aboutSponsorUrl,
         aboutBadges,
-        aboutChangelog,
         aboutThanks,
         themeToggleIcon,
         themeToggleTitle,

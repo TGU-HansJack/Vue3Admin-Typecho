@@ -23,14 +23,14 @@ require_once __DIR__ . '/Ai.php';
  *
  * @package Vue3Admin
  * @author HansJack
- * @version 1.2.4
+ * @version 1.2.5
  * @link https://www.hansjack.com
  * @license GPL-3.0-or-later
  */
 class Plugin implements PluginInterface
 {
     private const ADMIN_DIR = 'Vue3Admin';
-    private const VERSION = '1.2.4';
+    private const VERSION = '1.2.5';
     private const DEPLOY_MARKER = '.v3a_deploy_version';
 
     /** @var string */
