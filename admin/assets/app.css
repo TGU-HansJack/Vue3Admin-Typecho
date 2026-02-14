@@ -1467,6 +1467,11 @@ html:not(.dark) .v3a-content {
   background: var(--content-bg);
 }
 
+/* Vditor fullscreen should pin to viewport top (ignore pagehead offset). */
+.v3a-vditor .vditor--fullscreen .vditor-toolbar {
+  top: 0 !important;
+}
+
 .v3a-vditor .vditor-content {
   border: 0;
   background: transparent;
