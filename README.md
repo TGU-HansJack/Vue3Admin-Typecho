@@ -80,6 +80,7 @@
 在插件设置中可配置：
 
 - 主色（Primary Color）：用于面板主题色（CSS 变量）。
+- 使用本地资源：开启后使用插件内置的本地资源（Vue/ECharts/Vditor），并自动禁用下方 CDN 配置。
 - Vue3 CDN：默认使用 `https://unpkg.com/`。
 - ECharts CDN：默认使用 `https://cdn.jsdelivr.net/`。
 

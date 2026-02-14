@@ -7,6 +7,7 @@ use Typecho\Cookie;
 use Typecho\Plugin\Exception as PluginException;
 use Typecho\Plugin\PluginInterface;
 use Typecho\Widget\Helper\Form;
+use Typecho\Widget\Helper\Form\Element\Radio;
 use Typecho\Widget\Helper\Form\Element\Text;
 use Utils\PasswordHash;
 
@@ -52,6 +53,11 @@ class Plugin implements PluginInterface
             __DIR__ . '/admin/options-theme.php',
             __DIR__ . '/admin/assets/app.js',
             __DIR__ . '/admin/assets/app.css',
+            __DIR__ . '/admin/assets/vendor/vue/vue.global.prod.js',
+            __DIR__ . '/admin/assets/vendor/echarts/echarts.min.js',
+            __DIR__ . '/admin/assets/vendor/echarts-wordcloud/echarts-wordcloud.min.js',
+            __DIR__ . '/admin/assets/vendor/vditor/dist/index.min.js',
+            __DIR__ . '/admin/assets/vendor/vditor/dist/index.css',
         ];
 
         $build = 0;
@@ -516,6 +522,68 @@ class Plugin implements PluginInterface
 
     public static function config(Form $form)
     {
+        echo <<<'HTML'
+<style>
+    input.v3a-disabled,
+    textarea.v3a-disabled,
+    select.v3a-disabled {
+        background: rgba(0, 0, 0, 0.03) !important;
+        color: rgba(0, 0, 0, 0.45) !important;
+        cursor: not-allowed !important;
+    }
+</style>
+<script>
+    (function () {
+        function getUseLocalAssets() {
+            try {
+                var checked = document.querySelector('input[name="useLocalAssets"]:checked');
+                return checked && String(checked.value) === "1";
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function setInputsDisabled(disabled) {
+            var names = ["vueCdn", "echartsCdn", "vditorCdn", "vditorCssCdn", "vditorCdnBase"];
+            for (var i = 0; i < names.length; i++) {
+                var name = names[i];
+                var nodes = document.querySelectorAll(
+                    'input[name="' + name + '"],textarea[name="' + name + '"],select[name="' + name + '"]'
+                );
+                for (var j = 0; j < nodes.length; j++) {
+                    nodes[j].disabled = !!disabled;
+                    if (disabled) {
+                        nodes[j].classList.add("v3a-disabled");
+                    } else {
+                        nodes[j].classList.remove("v3a-disabled");
+                    }
+                }
+            }
+        }
+
+        function refresh() {
+            setInputsDisabled(getUseLocalAssets());
+        }
+
+        function bind() {
+            refresh();
+            document.addEventListener("change", function (e) {
+                var target = e && e.target ? e.target : null;
+                if (target && target.name === "useLocalAssets") {
+                    refresh();
+                }
+            });
+        }
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", bind);
+        } else {
+            bind();
+        }
+    })();
+</script>
+HTML;
+
         $primaryColor = new Text(
             'primaryColor',
             null,
@@ -524,6 +592,18 @@ class Plugin implements PluginInterface
             _t('用于面板主题色（CSS 变量）。默认：#171717')
         );
         $form->addInput($primaryColor);
+
+        $useLocalAssets = new Radio(
+            'useLocalAssets',
+            [
+                '0' => _t('关闭（使用 CDN）'),
+                '1' => _t('开启（使用本地资源）'),
+            ],
+            '0',
+            _t('使用本地资源'),
+            _t('开启后将使用插件内置的本地资源（Vue/ECharts/Vditor），并禁用下方 CDN 配置输入框。')
+        );
+        $form->addInput($useLocalAssets);
 
         $vueCdn = new Text(
             'vueCdn',
@@ -2057,6 +2137,11 @@ HTML;
                 'index.html',
                 'assets' . DIRECTORY_SEPARATOR . 'app.js',
                 'assets' . DIRECTORY_SEPARATOR . 'app.css',
+                'assets' . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'vue' . DIRECTORY_SEPARATOR . 'vue.global.prod.js',
+                'assets' . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'echarts' . DIRECTORY_SEPARATOR . 'echarts.min.js',
+                'assets' . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'echarts-wordcloud' . DIRECTORY_SEPARATOR . 'echarts-wordcloud.min.js',
+                'assets' . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'vditor' . DIRECTORY_SEPARATOR . 'dist' . DIRECTORY_SEPARATOR . 'index.min.js',
+                'assets' . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'vditor' . DIRECTORY_SEPARATOR . 'dist' . DIRECTORY_SEPARATOR . 'index.css',
             ];
 
             $missing = false;
@@ -2471,6 +2556,15 @@ HTML;
 
         foreach ($iterator as $item) {
             $subPath = $iterator->getSubPathName();
+            $subPathNormalized = str_replace(['\\', '/'], '/', $subPath);
+
+            // Do not deploy redundant vendor sources / tarballs.
+            if ($subPathNormalized === 'assets/vendor/vditor/src' || strpos($subPathNormalized, 'assets/vendor/vditor/src/') === 0) {
+                continue;
+            }
+            if (preg_match('#^assets/vendor/vditor/[^/]+\\.tgz$#', $subPathNormalized)) {
+                continue;
+            }
             $destPath = $target . DIRECTORY_SEPARATOR . $subPath;
 
             if ($item->isDir()) {

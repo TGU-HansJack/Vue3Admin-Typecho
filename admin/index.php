@@ -50,9 +50,30 @@ if (is_string($primaryColor)) {
 
 $vueCdn = $pluginOptions->vueCdn ?? 'https://unpkg.com/vue@3/dist/vue.global.prod.js';
 $echartsCdn = $pluginOptions->echartsCdn ?? 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
+$echartsWordcloudCdn = 'https://cdn.jsdelivr.net/npm/echarts-wordcloud@2/dist/echarts-wordcloud.min.js';
 $vditorCdn = $pluginOptions->vditorCdn ?? 'https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.min.js';
 $vditorCssCdn = $pluginOptions->vditorCssCdn ?? 'https://cdn.jsdelivr.net/npm/vditor@3.11.2/dist/index.css';
 $vditorCdnBase = $pluginOptions->vditorCdnBase ?? 'https://cdn.jsdelivr.net/npm/vditor@3.11.2';
+
+$useLocalAssets = (string) ($pluginOptions->useLocalAssets ?? '') === '1';
+if ($useLocalAssets) {
+    $adminAssetUrl = static function (string $relativePath) use ($options): string {
+        $url = $options->adminUrl($relativePath);
+        $path = __DIR__ . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+        $mtime = @filemtime($path);
+        if ($mtime !== false) {
+            $url .= (strpos($url, '?') === false ? '?' : '&') . 'v=' . $mtime;
+        }
+        return $url;
+    };
+
+    $vueCdn = $adminAssetUrl('assets/vendor/vue/vue.global.prod.js');
+    $echartsCdn = $adminAssetUrl('assets/vendor/echarts/echarts.min.js');
+    $echartsWordcloudCdn = $adminAssetUrl('assets/vendor/echarts-wordcloud/echarts-wordcloud.min.js');
+    $vditorCdn = $adminAssetUrl('assets/vendor/vditor/dist/index.min.js');
+    $vditorCssCdn = $adminAssetUrl('assets/vendor/vditor/dist/index.css');
+    $vditorCdnBase = rtrim((string) $options->adminUrl('assets/vendor/vditor'), '/');
+}
 
 $assetCssVer = @filemtime(__DIR__ . '/assets/app.css');
 if ($assetCssVer === false) {
@@ -249,7 +270,7 @@ try {
 
 <script src="<?php echo htmlspecialchars($vueCdn, ENT_QUOTES); ?>"></script>
 <script src="<?php echo htmlspecialchars($echartsCdn, ENT_QUOTES); ?>"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2/dist/echarts-wordcloud.min.js"></script>
+<script src="<?php echo htmlspecialchars($echartsWordcloudCdn, ENT_QUOTES); ?>"></script>
 <script src="<?php echo htmlspecialchars($vditorCdn, ENT_QUOTES); ?>"></script>
 <script src="<?php echo $options->adminUrl('assets/app.js'); ?>?v=<?php echo htmlspecialchars((string) $assetJsVer, ENT_QUOTES); ?>"></script>
 </body>
