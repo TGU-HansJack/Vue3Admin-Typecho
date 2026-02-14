@@ -58,7 +58,7 @@ $vditorCdnBase = $pluginOptions->vditorCdnBase ?? 'https://cdn.jsdelivr.net/npm/
 $useLocalAssets = (string) ($pluginOptions->useLocalAssets ?? '') === '1';
 if ($useLocalAssets) {
     $adminAssetUrl = static function (string $relativePath) use ($options): string {
-        $url = $options->adminUrl($relativePath);
+        $url = (string) $options->adminUrl($relativePath, true);
         $path = __DIR__ . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
         $mtime = @filemtime($path);
         if ($mtime !== false) {
@@ -72,7 +72,7 @@ if ($useLocalAssets) {
     $echartsWordcloudCdn = $adminAssetUrl('assets/vendor/echarts-wordcloud/echarts-wordcloud.min.js');
     $vditorCdn = $adminAssetUrl('assets/vendor/vditor/dist/index.min.js');
     $vditorCssCdn = $adminAssetUrl('assets/vendor/vditor/dist/index.css');
-    $vditorCdnBase = rtrim((string) $options->adminUrl('assets/vendor/vditor'), '/');
+    $vditorCdnBase = rtrim((string) $options->adminUrl('assets/vendor/vditor', true), '/');
 }
 
 $assetCssVer = @filemtime(__DIR__ . '/assets/app.css');
