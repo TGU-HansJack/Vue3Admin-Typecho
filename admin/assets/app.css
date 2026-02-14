@@ -1467,8 +1467,9 @@ html:not(.dark) .v3a-content {
   background: var(--content-bg);
 }
 
-/* Vditor fullscreen should pin to viewport top (ignore pagehead offset). */
-.v3a-vditor .vditor--fullscreen .vditor-toolbar {
+/* Vditor fullscreen: do not use sticky (sticky is relative to .v3a-content scroll container). */
+.v3a-body .vditor--fullscreen .vditor-toolbar {
+  position: relative !important;
   top: 0 !important;
 }
 
