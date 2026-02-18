@@ -16091,6 +16091,7 @@
                           <th>
                             <input ref="usersSelectAllEl" class="v3a-check" type="checkbox" :checked="usersSelectedAll" @change="toggleUsersSelectAll($event.target.checked)" />
                           </th>
+                          <th style="text-align:center;">UID</th>
                           <th style="text-align:center;">文章</th>
                           <th>用户名</th>
                           <th>昵称</th>
@@ -16104,6 +16105,7 @@
                           <td>
                             <input class="v3a-check" type="checkbox" :checked="isUserSelected(u.uid)" @change="toggleUserSelection(u.uid, $event.target.checked)" />
                           </td>
+                          <td style="text-align:center;">{{ u.uid || 0 }}</td>
                           <td style="text-align:center;">{{ formatNumber(u.postsNum || 0) }}</td>
                           <td>{{ u.name || '—' }}</td>
                           <td class="v3a-muted">{{ u.screenName || '—' }}</td>
@@ -16122,7 +16124,7 @@
                           </td>
                         </tr>
                         <tr v-if="!usersItems.length">
-                          <td colspan="7" class="v3a-muted" style="padding: 16px;">暂无用户</td>
+                          <td colspan="8" class="v3a-muted" style="padding: 16px;">暂无用户</td>
                         </tr>
                       </tbody>
                     </table>
