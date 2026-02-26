@@ -7926,9 +7926,9 @@ try {
                 $params[$key] = '%' . $w . '%';
 
                 if ($source === 'apply') {
-                    $whereParts[] = "(name LIKE {$key} OR url LIKE {$key} OR email LIKE {$key} OR description LIKE {$key} OR message LIKE {$key})";
+                    $whereParts[] = "(name LIKE {$key} OR url LIKE {$key} OR feed LIKE {$key} OR email LIKE {$key} OR description LIKE {$key} OR message LIKE {$key})";
                 } else {
-                    $whereParts[] = "(name LIKE {$key} OR url LIKE {$key} OR email LIKE {$key} OR description LIKE {$key})";
+                    $whereParts[] = "(name LIKE {$key} OR url LIKE {$key} OR feed LIKE {$key} OR email LIKE {$key} OR description LIKE {$key})";
                 }
                 $idx++;
             }
@@ -7949,8 +7949,8 @@ try {
         try {
             $offset = ($page - 1) * $pageSize;
             $fields = $source === 'apply'
-                ? 'id,name,url,avatar,description,type,email,message,status,created'
-                : 'id,name,url,avatar,description,type,email,status,created';
+                ? 'id,name,url,feed,avatar,description,type,email,message,status,created'
+                : 'id,name,url,feed,avatar,description,type,email,status,created';
             $sql = "SELECT {$fields} FROM {$table} WHERE {$whereSql} ORDER BY id DESC LIMIT :limit OFFSET :offset";
 
             $stmt = $pdo->prepare($sql);
@@ -7971,6 +7971,7 @@ try {
                 'id' => (int) ($r['id'] ?? 0),
                 'name' => (string) ($r['name'] ?? ''),
                 'url' => (string) ($r['url'] ?? ''),
+                'feed' => (string) ($r['feed'] ?? ''),
                 'avatar' => (string) ($r['avatar'] ?? ''),
                 'description' => (string) ($r['description'] ?? ''),
                 'type' => (string) ($r['type'] ?? 'friend'),
@@ -8026,6 +8027,11 @@ try {
             v3a_exit_json(400, null, 'Invalid url');
         }
 
+        $feed = trim(v3a_string($payload['feed'] ?? '', ''));
+        if ($feed !== '' && !filter_var($feed, FILTER_VALIDATE_URL)) {
+            v3a_exit_json(400, null, 'Invalid feed');
+        }
+
         $avatar = trim(v3a_string($payload['avatar'] ?? '', ''));
         $description = trim(v3a_string($payload['description'] ?? '', ''));
 
@@ -8053,6 +8059,7 @@ try {
         $rows = [
             'name' => $name,
             'url' => $url,
+            'feed' => $feed,
             'avatar' => $avatar,
             'description' => $description,
             'type' => $type,
@@ -8222,7 +8229,7 @@ try {
 
         try {
             $stmt = $pdo->prepare(
-                'SELECT id,name,url,avatar,description,type,email,message,status,created FROM v3a_friend_link_apply WHERE id = :id LIMIT 1'
+                'SELECT id,name,url,feed,avatar,description,type,email,message,status,created FROM v3a_friend_link_apply WHERE id = :id LIMIT 1'
             );
             $stmt->execute([':id' => $id]);
             $apply = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -8250,6 +8257,11 @@ try {
                 v3a_exit_json(400, null, 'Invalid url');
             }
 
+            $feed = trim(v3a_string($payload['feed'] ?? ($apply['feed'] ?? ''), ''));
+            if ($feed !== '' && !filter_var($feed, FILTER_VALIDATE_URL)) {
+                v3a_exit_json(400, null, 'Invalid feed');
+            }
+
             $avatar = trim(v3a_string($payload['avatar'] ?? ($apply['avatar'] ?? ''), ''));
             $description = trim(v3a_string($payload['description'] ?? ($apply['description'] ?? ''), ''));
 
@@ -8272,6 +8284,7 @@ try {
             $rows = [
                 'name' => $name,
                 'url' => $url,
+                'feed' => $feed,
                 'avatar' => $avatar,
                 'description' => $description,
                 'type' => $type,

@@ -4659,6 +4659,7 @@
         id: 0,
         name: "",
         url: "",
+        feed: "",
         avatar: "",
         description: "",
         type: "friend",
@@ -4670,6 +4671,7 @@
         friendEditorForm.id = 0;
         friendEditorForm.name = "";
         friendEditorForm.url = "";
+        friendEditorForm.feed = "";
         friendEditorForm.avatar = "";
         friendEditorForm.description = "";
         friendEditorForm.type = "friend";
@@ -4685,6 +4687,7 @@
           friendEditorForm.id = Number(row.id || 0) || 0;
           friendEditorForm.name = String(row.name || "");
           friendEditorForm.url = String(row.url || "");
+          friendEditorForm.feed = String(row.feed || "");
           friendEditorForm.avatar = String(row.avatar || "");
           friendEditorForm.description = String(row.description || "");
           friendEditorForm.type = String(row.type || "friend") || "friend";
@@ -4708,6 +4711,7 @@
             id: friendEditorForm.id,
             name: friendEditorForm.name,
             url: friendEditorForm.url,
+            feed: friendEditorForm.feed,
             avatar: friendEditorForm.avatar,
             description: friendEditorForm.description,
             type: friendEditorForm.type,
@@ -6697,6 +6701,7 @@
     <div style="padding: 14px 16px;">
       <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
       <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>订阅：</strong>{{linkFeed}}</div>
       <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
       <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
       <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>
@@ -6723,6 +6728,7 @@
       <div style="margin-bottom: 12px;"><strong>审核时间：</strong>{{auditTime}}</div>
       <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
       <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>订阅：</strong>{{linkFeed}}</div>
       <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
       <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
       <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>
@@ -6749,6 +6755,7 @@
       <div style="margin-bottom: 12px;"><strong>审核时间：</strong>{{auditTime}}</div>
       <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
       <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>订阅：</strong>{{linkFeed}}</div>
       <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
       <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
       <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>
@@ -15606,6 +15613,7 @@
                           <th>名称</th>
                           <th style="width: 250px;">描述</th>
                           <th>网址</th>
+                          <th>订阅</th>
                           <th style="width: 80px;">类型</th>
                           <th>对方邮箱</th>
                           <th style="width: 80px;">结识时间</th>
@@ -15633,6 +15641,10 @@
                             <span v-else class="v3a-muted">—</span>
                             <div v-if="friendsHealth && friendsHealth[row.id]" class="v3a-muted v3a-friends-health">{{ friendsHealth[row.id].message || '' }}</div>
                           </td>
+                          <td style="word-break: break-all;">
+                            <a v-if="row.feed" :href="row.feed" target="_blank" rel="noreferrer">{{ row.feed }}</a>
+                            <span v-else class="v3a-muted">—</span>
+                          </td>
                           <td style="width: 80px;">{{ friendTypeLabel(row.type) }}</td>
                           <td>
                             <a v-if="row.email" :href="'mailto:' + row.email" class="v3a-muted">{{ row.email }}</a>
@@ -15654,7 +15666,7 @@
                           </td>
                         </tr>
                         <tr v-if="!friendsItems.length">
-                          <td colspan="8" class="v3a-muted" style="padding: 16px;">暂无数据</td>
+                          <td colspan="9" class="v3a-muted" style="padding: 16px;">暂无数据</td>
                         </tr>
                       </tbody>
                     </table>
@@ -15767,6 +15779,10 @@
                         <div class="v3a-modal-item">
                           <label class="v3a-modal-label">网址<span class="v3a-required">*</span></label>
                           <input class="v3a-input v3a-modal-input" v-model="friendEditorForm.url" placeholder="https://example.com" />
+                        </div>
+                        <div class="v3a-modal-item">
+                          <label class="v3a-modal-label">订阅地址</label>
+                          <input class="v3a-input v3a-modal-input" v-model="friendEditorForm.feed" placeholder="https://example.com/feed.xml" />
                         </div>
                         <div class="v3a-modal-item">
                           <label class="v3a-modal-label">描述</label>
@@ -19162,6 +19178,7 @@
                                   <code v-pre>{{auditTime}}</code>
                                   <code v-pre>{{linkName}}</code>
                                   <code v-pre>{{linkUrl}}</code>
+                                  <code v-pre>{{linkFeed}}</code>
                                   <code v-pre>{{linkType}}</code>
                                   <code v-pre>{{linkEmail}}</code>
                                   <code v-pre>{{linkAvatar}}</code>
@@ -19174,6 +19191,7 @@
                                   <code v-pre>{{siteUrl}}</code>
                                   <code v-pre>{{linkName}}</code>
                                   <code v-pre>{{linkUrl}}</code>
+                                  <code v-pre>{{linkFeed}}</code>
                                   <code v-pre>{{linkType}}</code>
                                   <code v-pre>{{linkEmail}}</code>
                                   <code v-pre>{{linkAvatar}}</code>

@@ -119,6 +119,7 @@ try {
             } else {
                 $name = v3a_links_str($request->get('name', ''), 100);
                 $url = v3a_links_str($request->get('url', ''), 255);
+                $feed = v3a_links_str($request->get('feed', ''), 500);
                 $avatar = v3a_links_str($request->get('avatar', ''), 500);
                 $description = v3a_links_str($request->get('description', ''), 200);
                 $email = v3a_links_str($request->get('email', ''), 190);
@@ -146,6 +147,9 @@ try {
                 } elseif ($url === '' || filter_var($url, FILTER_VALIDATE_URL) === false) {
                     $noticeType = 'error';
                     $noticeMessage = '请填写正确的网址（需包含 http/https）。';
+                } elseif ($feed !== '' && filter_var($feed, FILTER_VALIDATE_URL) === false) {
+                    $noticeType = 'error';
+                    $noticeMessage = '订阅地址格式不正确（需包含 http/https）。';
                 } elseif (!empty($applySettings['required']['email']) && $email === '') {
                     $noticeType = 'error';
                     $noticeMessage = '请填写邮箱。';
@@ -195,6 +199,7 @@ try {
                             $rows = [
                                 'name' => $name,
                                 'url' => $url,
+                                'feed' => $feed,
                                 'avatar' => $avatar,
                                 'description' => $description,
                                 'type' => $type,
@@ -237,7 +242,7 @@ try {
         }
 
         // Approved friend links (status=1)
-        $stmt = $pdo->prepare('SELECT id,name,url,avatar,description,type FROM v3a_friend_link WHERE status = :status ORDER BY created DESC');
+        $stmt = $pdo->prepare('SELECT id,name,url,feed,avatar,description,type FROM v3a_friend_link WHERE status = :status ORDER BY created DESC');
         $stmt->execute([':status' => 1]);
         $links = (array) $stmt->fetchAll();
     }
@@ -263,9 +268,27 @@ $this->need('header.php'); ?>
     background: rgba(0, 0, 0, 0.06);
     color: rgba(0, 0, 0, 0.6);
 }
+.v3a-link-feed {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    font-size: 12px;
+    line-height: 1.4;
+    color: rgba(0, 0, 0, 0.65);
+}
 .night .v3a-link-type {
     background: rgba(255, 255, 255, 0.14);
     color: rgba(255, 255, 255, 0.72);
+}
+.night .v3a-link-feed {
+    border-color: rgba(255, 255, 255, 0.32);
+    color: rgba(255, 255, 255, 0.78);
+}
+.v3a-link-feed-out {
+    margin: 6px 0 0 72px;
 }
 </style>
 
@@ -310,6 +333,8 @@ $this->need('header.php'); ?>
                 <?php foreach ((array) $links as $link) :
                     $name = htmlspecialchars((string) ($link['name'] ?? ''), ENT_QUOTES, 'UTF-8');
                     $url = htmlspecialchars((string) ($link['url'] ?? ''), ENT_QUOTES, 'UTF-8');
+                    $feed = trim((string) ($link['feed'] ?? ''));
+                    $feed = $feed !== '' ? htmlspecialchars($feed, ENT_QUOTES, 'UTF-8') : '';
                     $desc = htmlspecialchars((string) ($link['description'] ?? ''), ENT_QUOTES, 'UTF-8');
                     $avatar = trim((string) ($link['avatar'] ?? ''));
                     $avatar = $avatar !== '' ? $avatar : (Helper::options()->themeUrl . '/static/img/logo.svg');
@@ -329,6 +354,9 @@ $this->need('header.php'); ?>
                                 <span class="lite-black" title="<?php echo $desc; ?>"><?php echo $desc !== '' ? $desc : '—'; ?></span>
                             </div>
                         </a>
+                        <?php if ($feed !== '') : ?>
+                            <a class="v3a-link-feed v3a-link-feed-out" href="<?php echo $feed; ?>" target="_blank" rel="noreferrer">RSS</a>
+                        <?php endif; ?>
                     </li>
                 <?php endforeach; ?>
             </ul>
@@ -383,6 +411,13 @@ $this->need('header.php'); ?>
                     <label>描述</label>
                     <input type="text" class="text" name="description" maxlength="200" placeholder="一句话介绍..." <?php echo !empty($applySettings['required']['description']) ? 'required' : ''; ?> />
                 </div>
+                <div class="comment-md-3">
+                    <label>订阅地址</label>
+                    <input type="url" class="text" name="feed" maxlength="500" placeholder="https://example.com/feed.xml" />
+                </div>
+            </div>
+
+            <div class="comment-author-info">
                 <?php if (!empty($applySettings['allowTypeSelect'])) : ?>
                     <div class="comment-md-3">
                         <label>类型</label>

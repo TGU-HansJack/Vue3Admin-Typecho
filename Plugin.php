@@ -1350,6 +1350,7 @@ HTML;
 
             $linkName = trim((string) ($apply['name'] ?? ''));
             $linkUrl = trim((string) ($apply['url'] ?? ''));
+            $linkFeed = trim((string) ($apply['feed'] ?? ''));
             $linkAvatar = trim((string) ($apply['avatar'] ?? ''));
             $linkDescription = trim((string) ($apply['description'] ?? ''));
             $linkType = strtolower(trim((string) ($apply['type'] ?? 'friend')));
@@ -1412,6 +1413,7 @@ HTML;
                 'siteTitle' => htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8'),
                 'linkName' => htmlspecialchars($linkName !== '' ? $linkName : '（未填写）', ENT_QUOTES, 'UTF-8'),
                 'linkUrl' => htmlspecialchars($linkUrl !== '' ? $linkUrl : ($siteUrl !== '' ? $siteUrl : ''), ENT_QUOTES, 'UTF-8'),
+                'linkFeed' => htmlspecialchars($linkFeed !== '' ? $linkFeed : '（未填写）', ENT_QUOTES, 'UTF-8'),
                 'linkType' => htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8'),
                 'linkEmail' => htmlspecialchars($linkEmail !== '' ? $linkEmail : '（未填写）', ENT_QUOTES, 'UTF-8'),
                 'linkAvatar' => htmlspecialchars($linkAvatar, ENT_QUOTES, 'UTF-8'),
@@ -1523,6 +1525,7 @@ HTML;
 
             $linkName = trim((string) ($apply['name'] ?? ''));
             $linkUrl = trim((string) ($apply['url'] ?? ''));
+            $linkFeed = trim((string) ($apply['feed'] ?? ''));
             $linkAvatar = trim((string) ($apply['avatar'] ?? ''));
             $linkDescription = trim((string) ($apply['description'] ?? ''));
             $linkType = strtolower(trim((string) ($apply['type'] ?? 'friend')));
@@ -1560,6 +1563,7 @@ HTML;
                 'auditTime' => htmlspecialchars($auditTime, ENT_QUOTES, 'UTF-8'),
                 'linkName' => htmlspecialchars($linkName !== '' ? $linkName : '（未填写）', ENT_QUOTES, 'UTF-8'),
                 'linkUrl' => htmlspecialchars($linkUrl !== '' ? $linkUrl : ($siteUrl !== '' ? $siteUrl : ''), ENT_QUOTES, 'UTF-8'),
+                'linkFeed' => htmlspecialchars($linkFeed !== '' ? $linkFeed : '（未填写）', ENT_QUOTES, 'UTF-8'),
                 'linkType' => htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8'),
                 'linkEmail' => htmlspecialchars($toMail, ENT_QUOTES, 'UTF-8'),
                 'linkAvatar' => htmlspecialchars($linkAvatar, ENT_QUOTES, 'UTF-8'),
@@ -1905,6 +1909,7 @@ HTML;
     <div style="padding: 14px 16px;">
       <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
       <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>订阅：</strong>{{linkFeed}}</div>
       <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
       <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
       <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>
@@ -1936,6 +1941,7 @@ HTML;
       <div style="margin-bottom: 12px;"><strong>审核时间：</strong>{{auditTime}}</div>
       <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
       <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>订阅：</strong>{{linkFeed}}</div>
       <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
       <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
       <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>
@@ -1967,6 +1973,7 @@ HTML;
       <div style="margin-bottom: 12px;"><strong>审核时间：</strong>{{auditTime}}</div>
       <div style="margin-bottom: 8px;"><strong>名称：</strong>{{linkName}}</div>
       <div style="margin-bottom: 8px;"><strong>网址：</strong><a href="{{linkUrl}}" target="_blank" rel="noreferrer" style="color:#2563eb; text-decoration:none;">{{linkUrl}}</a></div>
+      <div style="margin-bottom: 8px;"><strong>订阅：</strong>{{linkFeed}}</div>
       <div style="margin-bottom: 8px;"><strong>类型：</strong>{{linkType}}</div>
       <div style="margin-bottom: 8px;"><strong>邮箱：</strong>{{linkEmail}}</div>
       <div style="margin-bottom: 8px;"><strong>头像：</strong>{{linkAvatar}}</div>

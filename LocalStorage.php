@@ -144,6 +144,7 @@ final class LocalStorage
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL DEFAULT '',
                 url TEXT NOT NULL DEFAULT '',
+                feed TEXT NOT NULL DEFAULT '',
                 avatar TEXT NULL,
                 description TEXT NULL,
                 type TEXT NOT NULL DEFAULT 'friend',
@@ -155,12 +156,14 @@ final class LocalStorage
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_friend_status ON v3a_friend_link(status);");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_friend_created ON v3a_friend_link(created);");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_friend_url ON v3a_friend_link(url);");
+        self::ensureColumn($pdo, 'v3a_friend_link', 'feed', "TEXT NOT NULL DEFAULT ''");
 
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS v3a_friend_link_apply (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL DEFAULT '',
                 url TEXT NOT NULL DEFAULT '',
+                feed TEXT NOT NULL DEFAULT '',
                 avatar TEXT NULL,
                 description TEXT NULL,
                 type TEXT NOT NULL DEFAULT 'friend',
@@ -173,6 +176,7 @@ final class LocalStorage
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_apply_status ON v3a_friend_link_apply(status);");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_apply_created ON v3a_friend_link_apply(created);");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_apply_url ON v3a_friend_link_apply(url);");
+        self::ensureColumn($pdo, 'v3a_friend_link_apply', 'feed', "TEXT NOT NULL DEFAULT ''");
 
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS v3a_subscribe (
@@ -232,6 +236,34 @@ final class LocalStorage
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_ai_summary_cid ON v3a_ai_summary(cid);");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_ai_summary_lang ON v3a_ai_summary(lang);");
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_v3a_ai_summary_updated ON v3a_ai_summary(updated);");
+    }
+
+    private static function ensureColumn(\PDO $pdo, string $table, string $column, string $definition): void
+    {
+        $table = preg_replace('/[^0-9a-zA-Z_]+/', '', $table);
+        $column = preg_replace('/[^0-9a-zA-Z_]+/', '', $column);
+        $definition = trim($definition);
+        if ($table === '' || $column === '' || $definition === '') {
+            return;
+        }
+
+        try {
+            $exists = false;
+            $stmt = $pdo->query('PRAGMA table_info(' . $table . ')');
+            $rows = $stmt ? (array) $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+            foreach ($rows as $row) {
+                if (strcasecmp((string) ($row['name'] ?? ''), $column) === 0) {
+                    $exists = true;
+                    break;
+                }
+            }
+            if ($exists) {
+                return;
+            }
+
+            $pdo->exec('ALTER TABLE ' . $table . ' ADD COLUMN ' . $column . ' ' . $definition);
+        } catch (\Throwable $e) {
+        }
     }
 
     private static function truncate(string $value, int $max = 255): string
@@ -598,9 +630,9 @@ final class LocalStorage
         } elseif ($suffix === 'v3a_api_log') {
             $insertSql = 'INSERT INTO v3a_api_log (id, ip, method, path, query, created) VALUES (:id,:ip,:method,:path,:query,:created)';
         } elseif ($suffix === 'v3a_friend_link') {
-            $insertSql = 'INSERT INTO v3a_friend_link (id, name, url, avatar, description, type, email, status, created) VALUES (:id,:name,:url,:avatar,:description,:type,:email,:status,:created)';
+            $insertSql = 'INSERT INTO v3a_friend_link (id, name, url, feed, avatar, description, type, email, status, created) VALUES (:id,:name,:url,:feed,:avatar,:description,:type,:email,:status,:created)';
         } elseif ($suffix === 'v3a_friend_link_apply') {
-            $insertSql = 'INSERT INTO v3a_friend_link_apply (id, name, url, avatar, description, type, email, message, status, created) VALUES (:id,:name,:url,:avatar,:description,:type,:email,:message,:status,:created)';
+            $insertSql = 'INSERT INTO v3a_friend_link_apply (id, name, url, feed, avatar, description, type, email, message, status, created) VALUES (:id,:name,:url,:feed,:avatar,:description,:type,:email,:message,:status,:created)';
         } elseif ($suffix === 'v3a_subscribe') {
             $insertSql = 'INSERT INTO v3a_subscribe (id, email, status, created) VALUES (:id,:email,:status,:created)';
         } elseif ($suffix === 'v3a_like') {
@@ -694,6 +726,7 @@ final class LocalStorage
                         ':id' => $id + $idOffset,
                         ':name' => (string) ($r['name'] ?? ''),
                         ':url' => (string) ($r['url'] ?? ''),
+                        ':feed' => isset($r['feed']) ? (string) ($r['feed'] ?? '') : '',
                         ':avatar' => isset($r['avatar']) ? (string) ($r['avatar'] ?? '') : null,
                         ':description' => isset($r['description']) ? (string) ($r['description'] ?? '') : null,
                         ':type' => (string) ($r['type'] ?? 'friend'),
@@ -706,6 +739,7 @@ final class LocalStorage
                         ':id' => $id + $idOffset,
                         ':name' => (string) ($r['name'] ?? ''),
                         ':url' => (string) ($r['url'] ?? ''),
+                        ':feed' => isset($r['feed']) ? (string) ($r['feed'] ?? '') : '',
                         ':avatar' => isset($r['avatar']) ? (string) ($r['avatar'] ?? '') : null,
                         ':description' => isset($r['description']) ? (string) ($r['description'] ?? '') : null,
                         ':type' => (string) ($r['type'] ?? 'friend'),
