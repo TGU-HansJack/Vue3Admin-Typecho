@@ -6191,6 +6191,12 @@ try {
             'markdown' => v3a_bool_int($payload['markdown'] ?? 0),
             'trackback' => $payload['trackback'] ?? '',
         ];
+        if (isset($payload['created'])) {
+            $created = v3a_int($payload['created'] ?? 0, 0);
+            if ($created > 0) {
+                $widgetRequest['created'] = $created;
+            }
+        }
 
         if ($cid > 0) {
             $widgetRequest['cid'] = $cid;

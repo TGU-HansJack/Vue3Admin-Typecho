@@ -3122,6 +3122,22 @@
         fields: [],
       });
       const postDefaultFields = ref([]);
+      const postCreatedInput = computed({
+        get() {
+          const created = Number(postForm.created || 0);
+          if (!(created > 0)) return "";
+          return v3aTsToDateTimeLocal(created, v3aSiteTimezoneSeconds());
+        },
+        set(value) {
+          const ts = v3aDateTimeLocalToTs(value, v3aSiteTimezoneSeconds());
+          postForm.created = ts > 0 ? ts : 0;
+        },
+      });
+      const postCreatedDisplay = computed(() => {
+        const created = Number(postForm.created || 0);
+        if (!(created > 0)) return "留空则使用当前时间";
+        return formatTime(created, settingsData.site.timezone);
+      });
 
       // Post draft auto-save (enabled via settings: userOptions.autoSave)
       const postDraftSaveState = ref("idle"); // idle|saving|saved|error
@@ -3164,6 +3180,7 @@
           String(postForm.cid || 0),
           String(postForm.title || ""),
           String(postForm.slug || ""),
+          String(postForm.created || 0),
           String(postForm.text || ""),
           String(postForm.tags || ""),
           String(postForm.visibility || ""),
@@ -3337,6 +3354,8 @@
           fields: Array.from(postFieldsMap.values()),
           source: String(source || "auto"),
         };
+        const createdTs = Number(postForm.created || 0);
+        if (createdTs > 0) payload.created = createdTs;
 
         postDraftSavingPromise = (async () => {
           try {
@@ -3447,6 +3466,8 @@
             fields: Array.from(postFieldsMap.values()),
             source: String(source || "exit"),
           };
+          const createdTs = Number(postForm.created || 0);
+          if (createdTs > 0) payload.created = createdTs;
 
           const url = buildApiUrl("posts.save", null, true);
           const body = JSON.stringify(payload || {});
@@ -3983,6 +4004,82 @@
 
       function v3aPad2(n) {
         return String(n).padStart(2, "0");
+      }
+
+      function v3aSiteTimezoneSeconds() {
+        const siteTimezone = Number(settingsData?.site?.timezone);
+        if (Number.isFinite(siteTimezone)) return siteTimezone;
+        const fallback = Number(
+          V3A && Object.prototype.hasOwnProperty.call(V3A, "timezone") ? V3A.timezone : NaN
+        );
+        return Number.isFinite(fallback) ? fallback : NaN;
+      }
+
+      function v3aTsToDateTimeLocal(ts, tzSeconds) {
+        const n = Number(ts || 0);
+        if (!(n > 0)) return "";
+
+        const tz = Number(tzSeconds);
+        if (Number.isFinite(tz)) {
+          const d = new Date((n + tz) * 1000);
+          return `${d.getUTCFullYear()}-${v3aPad2(d.getUTCMonth() + 1)}-${v3aPad2(
+            d.getUTCDate()
+          )}T${v3aPad2(d.getUTCHours())}:${v3aPad2(d.getUTCMinutes())}`;
+        }
+
+        const d = new Date(n * 1000);
+        return `${d.getFullYear()}-${v3aPad2(d.getMonth() + 1)}-${v3aPad2(d.getDate())}T${v3aPad2(
+          d.getHours()
+        )}:${v3aPad2(d.getMinutes())}`;
+      }
+
+      function v3aDateTimeLocalToTs(text, tzSeconds) {
+        const raw = String(text || "").trim();
+        if (!raw) return 0;
+
+        const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+        if (!m) return 0;
+
+        const year = Number(m[1]);
+        const month = Number(m[2]);
+        const day = Number(m[3]);
+        const hour = Number(m[4]);
+        const minute = Number(m[5]);
+        if (
+          !Number.isInteger(year) ||
+          !Number.isInteger(month) ||
+          !Number.isInteger(day) ||
+          !Number.isInteger(hour) ||
+          !Number.isInteger(minute)
+        ) {
+          return 0;
+        }
+
+        const tz = Number(tzSeconds);
+        if (Number.isFinite(tz)) {
+          const ms = Date.UTC(year, month - 1, day, hour, minute, 0);
+          const d = new Date(ms);
+          const valid =
+            d.getUTCFullYear() === year &&
+            d.getUTCMonth() === month - 1 &&
+            d.getUTCDate() === day &&
+            d.getUTCHours() === hour &&
+            d.getUTCMinutes() === minute;
+          if (!valid) return 0;
+          const ts = Math.floor(ms / 1000) - tz;
+          return Number.isFinite(ts) && ts > 0 ? ts : 0;
+        }
+
+        const d = new Date(year, month - 1, day, hour, minute, 0);
+        const valid =
+          d.getFullYear() === year &&
+          d.getMonth() === month - 1 &&
+          d.getDate() === day &&
+          d.getHours() === hour &&
+          d.getMinutes() === minute;
+        if (!valid) return 0;
+        const ts = Math.floor(d.getTime() / 1000);
+        return Number.isFinite(ts) && ts > 0 ? ts : 0;
       }
 
       function v3aGetPostTimestamp() {
@@ -9072,6 +9169,8 @@
             category: postForm.categories,
             fields: Array.from(postFieldsMap.values()),
           };
+          const createdTs = Number(postForm.created || 0);
+          if (createdTs > 0) payload.created = createdTs;
 
           const action = mode === "publish" ? "posts.publish" : "posts.save";
           const data = await apiPost(action, payload);
@@ -12925,6 +13024,8 @@
         postDraftStatusText,
         postDraftTimeAgo,
         postForm,
+        postCreatedInput,
+        postCreatedDisplay,
         postDefaultFields,
         postSlugPrefix,
         postSlugSuffix,
@@ -14280,6 +14381,12 @@
 
                         <div class="v3a-muted">内容密码</div>
                         <input class="v3a-input" v-model="postForm.password" :disabled="postForm.visibility !== 'password'" placeholder="仅当选择密码保护时生效" />
+
+                        <div class="v3a-muted">发布时间</div>
+                        <div>
+                          <input class="v3a-input" type="datetime-local" step="60" v-model="postCreatedInput" />
+                          <div class="v3a-muted" style="margin-top: 6px;">{{ postCreatedDisplay }}</div>
+                        </div>
 
                         <div class="v3a-muted">Markdown</div>
                         <label class="v3a-remember" style="justify-content:flex-start;">
